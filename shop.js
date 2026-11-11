@@ -51,7 +51,7 @@
   (function sag(geo) { var p = geo.attributes.position; for (var q = 0; q < p.count; q++) p.setZ(q, Math.sin(p.getX(q) * 2.1) * 0.05 + (p.getY(q) < 0 ? Math.sin(p.getX(q) * 5) * 0.04 : 0)); geo.computeVertexNormals(); })(awn.geometry);
   [-5.9, 0, 5.9].forEach(function (o) { var arm = box(1.3, 0.035, 0.035, EM.iron, X1 - 0.62, 2.62, DZ + o); arm.rotation.z = 0.62; });
   // the door: one leaf, long since forced, standing open into the shop
-  var door = new THREE.Group(); door.position.set(X1 + 0.16, 0, DZ - 0.63); door.rotation.y = 1.25; scene.add(door);
+  var door = new THREE.Group(); door.position.set(X1 + 0.33, 0, DZ - 0.66); door.rotation.y = 2.86; scene.add(door);      // swung right back against the inside wall, clear of the doorway
   box(0.05, 2.1, 1.22, trim, 0, 1.1, 0.63, door).visible = false;
   [[0.03, 1.1, 0.04, 2.1, 0.08], [1.19, 1.1, 0.04, 2.1, 0.08]].forEach(function (f) { box(0.05, f[3], f[4], trim, 0, f[1], f[0], door); });
   box(0.05, 0.1, 1.2, trim, 0, 2.12, 0.61, door); box(0.05, 0.28, 1.2, trim, 0, 0.16, 0.61, door); box(0.05, 0.08, 1.2, trim, 0, 1.05, 0.61, door);
@@ -59,7 +59,6 @@
   box(0.09, 0.03, 0.2, EM.steel, 0.05, 1.05, 1.05, door);
   box(0.36, 2.2, 0.08, trim, X1 + 0.15, 1.1, DZ - 0.69); box(0.36, 2.2, 0.08, trim, X1 + 0.15, 1.1, DZ + 0.69); box(0.36, 0.08, 1.46, trim, X1 + 0.15, 2.24, DZ);
   mesh(new THREE.PlaneGeometry(0.5, 0.32), std(0xffffff, 0.8, { map: textTex(['SORRY', "WE'RE CLOSED"], 256, 160, '#a8231c', '#f1ecdd', '#f1ecdd') }), 0.03, 1.55, 0.61, door).rotation.y = PI / 2;
-  circles.push({ x: X1 + 0.6, z: DZ - 0.2, r: 0.12 });
 
   // ---------- counter and the staff side ----------
   var counterTop = std(0x3a2c20, 0.5, { map: woodTex }), CX1 = 21.2, CX2 = 22.0;
@@ -108,7 +107,7 @@
 
   // ---------- shelving and what is left of the stock ----------
   var shelfMat = std(0x3d4440, 0.6, { metalness: 0.45, map: metalTex }), shelves = [], uprights = [];
-  var UNITS = [[14.0, 124.4, 0], [16.9, 124.6, 0.06], [14.2, 131.9, 0], [17.4, 131.2, -0.5, 1], [19.7, 132.6, 0.02]];      // x, z, rotation, toppled
+  var UNITS = [[14.0, 124.4, 0], [16.9, 124.6, 0.06], [14.2, 131.9, 0], [17.4, 131.2, -0.5, 1], [18.9, 132.9, 0.02]];      // x, z, rotation, toppled (the last leaves a clear aisle to the counter flap)
   var spots = [], pegMat = std(0xffffff, 0.9, { map: canvasTex(128, function (g, S) { g.fillStyle = '#6b5a44'; g.fillRect(0, 0, S, S); g.fillStyle = '#2c241a'; for (var a = 0; a < 16; a++) for (var b = 0; b < 16; b++) { g.beginPath(); g.arc(a * 8 + 4, b * 8 + 4, 1.1, 0, 7); g.fill(); } E.grime(g, S, S, 1); }, 6, 3) });
   UNITS.forEach(function (u) {
     var G = new THREE.Group(); G.position.set(u[0], 0, u[1]); G.rotation.y = u[2]; if (u[3]) { G.rotation.z = 1.32; G.position.y = 0.3; } scene.add(G);
@@ -148,13 +147,13 @@
   var tm = inst(new THREE.BoxGeometry(0.5, 0.66, 0.03), felt, tees, rail); tees.forEach(function (_, n) { col.setHex([0x4a6a52, 0x8a7a4a, 0x6a4a44, 0x4a5a6a, 0x7a7466][n % 5]); tm.setColorAt(n, col); });
   boxes.push({ x1: 11.75, x2: 12.25, z1: 123.35, z2: 125.25 });
   // Dottie: the big mascot plush, slumped in the corner with one eye gone
-  var dot = new THREE.Group(); dot.position.set(20.3, 0, 133.6); dot.rotation.y = -2.3; scene.add(dot);
+  var dot = new THREE.Group(); dot.position.set(24.0, 0, 133.9); dot.rotation.y = -2.2; scene.add(dot);                 // in the far corner behind the counter, out of the way
   var dfelt = std(0x4f8a4a, 1, { bumpMap: bump(3), bumpScale: 0.03, map: canvasTex(64, function (g, S) { g.fillStyle = '#ffffff'; g.fillRect(0, 0, S, S); blotch(g, S, ['#6a6a5a', '#3a3a30'], 14, 6, 26, 0.5); }) });
   tube([[0, 0.3, -0.75, 0.03, 0.03], [0, 0.22, -0.45, 0.14, 0.13], [0, 0.36, -0.1, 0.36, 0.34], [0, 0.42, 0.15, 0.38, 0.38], [0, 0.6, 0.38, 0.24, 0.24], [0.05, 0.95, 0.44, 0.15, 0.15], [0.16, 1.2, 0.5, 0.13, 0.13]], dfelt, dot, 14, 5);
   tube([[0.16, 1.18, 0.48, 0.12, 0.12], [0.22, 1.2, 0.62, 0.16, 0.14], [0.27, 1.12, 0.8, 0.13, 0.1], [0.3, 1.07, 0.9, 0.05, 0.05]], dfelt, dot, 12, 4);
   [[-0.3, 0.3], [0.3, 0.3], [-0.28, -0.1], [0.28, -0.1]].forEach(function (l) { tube([[l[0], 0.3, l[1], 0.13, 0.13], [l[0] * 1.5, 0.14, l[1] + 0.22, 0.11, 0.11], [l[0] * 1.6, 0.1, l[1] + 0.42, 0.12, 0.1]], dfelt, dot, 8, 3); });
   mesh(new THREE.SphereGeometry(0.035, 8, 8), std(0x0a0a0a, 0.2), 0.15, 1.27, 0.7, dot); mesh(new THREE.CircleGeometry(0.03, 8), basic(0x1a120c), 0.345, 1.22, 0.66, dot).rotation.y = 1.3;
-  circles.push({ x: 20.3, z: 133.6, r: 0.7 });
+  circles.push({ x: 24.0, z: 133.9, r: 0.7 });
   // stock room corner: stacked boxes behind the counter return
   var crates = []; [[23.9, 122.2, 0.9], [23.0, 122.0, 0.7], [23.6, 123.3, 0.6], [22.3, 123.9, 0.5], [24.1, 124.1, 0.75]].forEach(function (c, n) { crates.push([c[0], c[2] / 2, c[1], c[2], c[2], c[2], 0, n * 0.4, 0]); if (n < 2) crates.push([c[0] + 0.05, c[2] + 0.25, c[1], 0.5, 0.5, 0.5, 0, n + 0.3, 0]); });
   inst(new THREE.BoxGeometry(1, 1, 1), std(0xffffff, 0.9, { map: canvasTex(128, function (g, S) { g.fillStyle = '#9a7a4e'; g.fillRect(0, 0, S, S); g.strokeStyle = '#6a5232'; g.lineWidth = 3; g.strokeRect(3, 3, S - 6, S - 6); g.fillStyle = '#c9b48a'; g.fillRect(0, 54, S, 20); g.fillStyle = '#3a2c1a'; g.font = 'bold 16px Arial'; g.fillText('FRAGILE', 30, 38); E.grime(g, S, S, 1.2); }) }), crates);
