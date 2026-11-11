@@ -578,8 +578,8 @@ var dynamic = [];             // things that still move after the scenery is fro
 function dyn(o) { dynamic.push(o); return o; }
 
 // ---------- sound (synthesized effects) ----------
-var prefs = { muted: false, diff: 'normal', duck: false, intro: false, tips: {} };
-try { var _pr = JSON.parse(localStorage.getItem(PREF_KEY)); if (_pr) { prefs.muted = !!_pr.muted; prefs.duck = !!_pr.duck; prefs.intro = !!_pr.intro; prefs.tips = _pr.tips || {}; if (DIFFS[_pr.diff]) prefs.diff = _pr.diff; } } catch (e) {}
+var prefs = { muted: false, diff: 'normal', duck: false, intro: false, tips: {}, fossils: {} };
+try { var _pr = JSON.parse(localStorage.getItem(PREF_KEY)); if (_pr) { prefs.muted = !!_pr.muted; prefs.duck = !!_pr.duck; prefs.intro = !!_pr.intro; prefs.tips = _pr.tips || {}; prefs.fossils = _pr.fossils || {}; if (DIFFS[_pr.diff]) prefs.diff = _pr.diff; } } catch (e) {}
 function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) {} }
 
 var Sound = {

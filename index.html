@@ -58,7 +58,10 @@
 
   .center { align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 24px; background: radial-gradient(ellipse at center, rgba(12,0,2,.7) 0%, rgba(0,0,0,.94) 75%); }
   .center h2 { font: 400 clamp(40px, 8vw, 96px) var(--display); letter-spacing: 6px; margin: 0 0 6px; color: var(--bone); }
-  #dead h2 { color: var(--red); text-shadow: 0 0 40px rgba(255,0,30,.7); animation: slam .5s cubic-bezier(.2,1.6,.4,1) both; }
+  #dead.show { background: #000; animation: none; opacity: 1; transition: none; }
+  #dead h2 { color: #a80d22; text-shadow: 0 0 9px rgba(200,0,24,.22); animation: deadIn 1.6s 1s both; }
+  #dead p, #dead .btns { animation: deadIn 1.2s 2s both; }
+  @keyframes deadIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slam { from { transform: scale(2.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   #won h2 { color: var(--gold); text-shadow: 0 0 40px rgba(226,185,59,.6); }
   .center p { max-width: 620px; color: #a39d8e; line-height: 1.55; margin: 10px 0 22px; }
@@ -144,6 +147,26 @@
   #map { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); display: none; border: 1px solid rgba(226,185,59,.5); box-shadow: 0 0 60px #000; max-width: 90vmin; max-height: 90vmin; }
   /* ---------- cinematics: fade, letterbox, subtitles, skip ---------- */
   #scare { position: fixed; inset: 0; opacity: 0; pointer-events: none; z-index: 12; }
+  #maw { position: fixed; inset: 0; display: none; pointer-events: none; z-index: 12; overflow: hidden; }
+  #maw .jaw { position: absolute; left: -2%; width: 104%; height: 60%; display: flex; flex-direction: column; will-change: transform; }
+  #maw .top { top: 0; } #maw .bot { bottom: 0; }
+  #maw i { flex: 1; display: block; background: linear-gradient(180deg, #000 0%, #070001 70%, #1a0206 100%); } #maw .bot i { background: linear-gradient(0deg, #000 0%, #070001 70%, #1a0206 100%); }
+  #maw svg { display: block; width: 100%; height: 13vh; flex: none; margin: -1px 0; background: linear-gradient(180deg, #1a0206, rgba(26,2,6,0)); } #maw .bot svg { background: linear-gradient(0deg, #1a0206, rgba(26,2,6,0)); } #maw polygon { stroke: #1c160e; stroke-width: .18; }
+  #presents { position: fixed; inset: 0; z-index: 45; background: #000; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; transition: opacity 1.2s; }
+  #presents span { font: 400 clamp(20px, 3.4vw, 40px) var(--ui); letter-spacing: .34em; color: var(--bone); opacity: 0; transform: translateY(8px); transition: opacity 1.6s .4s, transform 2.4s .4s; text-transform: uppercase; }
+  #presents.in span { opacity: 1; transform: none; } #presents.out { opacity: 0; pointer-events: none; }
+  #presents em { font-style: normal; color: var(--red); }
+  #fossilLog { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.82); backdrop-filter: blur(5px); }
+  #fossilLog.show { display: flex; animation: fadeIn .3s both; }
+  .fl-box { width: min(980px, 96vw); max-height: 94vh; overflow-y: auto; padding: 24px 28px 22px; background: linear-gradient(180deg, rgba(18,16,13,.96), rgba(8,8,9,.96)); border: 1px solid rgba(233,226,208,.16); border-top: 2px solid var(--gold); }
+  .fl-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; } .fl-head span { font: 400 34px var(--display); letter-spacing: 6px; color: var(--bone); } .fl-head b { font: 600 15px var(--ui); letter-spacing: 3px; color: var(--gold); }
+  .fl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .fl-card { padding: 14px 12px 12px; text-align: center; border: 1px solid rgba(233,226,208,.1); background: rgba(0,0,0,.35); }
+  .fl-card svg { width: 100%; max-width: 130px; height: auto; } .fl-card .f { fill: #17140f; stroke: #2a251c; stroke-width: 1.2; } .fl-card .l { fill: none; stroke: #0c0a08; stroke-width: 1.6; stroke-linecap: round; }
+  .fl-card h4 { margin: 8px 0 4px; font: 600 14px var(--ui); letter-spacing: 2px; text-transform: uppercase; color: #5f5a50; } .fl-card p { margin: 0; font-size: 12.5px; line-height: 1.45; color: #6d675b; font-style: italic; }
+  .fl-card.have { border-color: rgba(226,185,59,.45); background: rgba(226,185,59,.06); } .fl-card.have .f { fill: #d9c9a0; stroke: #fff3cf; filter: drop-shadow(0 0 6px rgba(255,225,150,.35)); } .fl-card.have .l { stroke: #6a5a3a; }
+  .fl-card.have h4 { color: var(--bone); } .fl-card.have p { color: #a39d8e; font-style: normal; }
+  #flClose { all: unset; cursor: pointer; display: block; margin: 18px auto 0; padding: 9px 30px; font: 600 14px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: #cfc8b6; border: 1px solid rgba(233,226,208,.25); } #flClose:hover { color: #fff; border-color: var(--red); background: rgba(200,16,46,.25); }
   #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 12; }
   body::before, body::after { content: ""; position: fixed; left: 0; right: 0; height: 0; background: #000; z-index: 11; transition: height .9s cubic-bezier(.6,0,.2,1); pointer-events: none; }
   body::before { top: 0; } body::after { bottom: 0; } body.letterbox::before, body.letterbox::after { height: 9.5vh; }
@@ -234,6 +257,7 @@
       <button id="btnNew" class="primary">New Game</button>
       <button id="btnContinue">Continue<small>from your last save terminal</small></button>
       <button id="btnHow">How to play</button>
+      <button class="btnFossils">Fossil log<small class="fossilCount"></small></button>
       <button id="btnIntro">Replay intro</button>
       <button class="btnFS">Fullscreen</button>
       <button class="btnSound">Sound: On</button>
@@ -254,7 +278,7 @@
       <b><kbd>P</kbd> / <kbd>Esc</kbd></b><span>Fullscreen / pause.</span>
     </div>
   </div>
-  <div class="foot">JURASSIC MASSACRE · BUILD 6 · INTRO MUSIC: “LIGHTLESS DAWN” BY KEVIN MACLEOD (CC BY 4.0)<span id="secret">★ SECRET FOUND 1 / 1</span></div>
+  <div class="foot">JURASSIC MASSACRE · BUILD 7 · INTRO MUSIC: “LIGHTLESS DAWN” BY KEVIN MACLEOD (CC BY 4.0)<span id="secret">★ SECRET FOUND 1 / 1</span></div>
 </div>
 
 <div id="pause" class="screen center">
@@ -262,6 +286,7 @@
   <p>Ranger posts are safe rooms: nothing bigger than you fits through the door. Their terminals come online when you solve the puzzle nearby.<br><span id="pauseDiff"></span></p>
   <div class="btns">
     <button id="btnResume">Resume</button>
+    <button class="btnFossils">Fossil Log</button>
     <button class="btnFS">Fullscreen</button>
     <button class="btnSound">Sound: On</button>
     <button id="btnQuit">Quit to Menu</button>
@@ -286,10 +311,12 @@
 
 <div id="zoonet"></div>
 <div id="scare"></div>
+<div id="maw"></div>
 <div id="fade"></div>
 <div id="subs"></div>
 <button id="skip"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" class="bg"/><circle id="skipRing" cx="18" cy="18" r="15.9" pathLength="100"/></svg><span>Hold <kbd>Space</kbd> to skip</span></button>
 
+<div id="presents"><span><em>Petros</em> and <em>Daniel</em> presents...</span></div>
 <div id="loading"><span>OPENING THE PARK</span><i></i></div>
 <div id="err"></div>
 
@@ -306,15 +333,16 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="core.js?v=7"></script>
-<script src="creatures.js?v=7"></script>
-<script src="world.js?v=7"></script>
-<script src="entrance.js?v=7"></script>
-<script src="shop.js?v=7"></script>
-<script src="hands.js?v=7"></script>
-<script src="zoonet.js?v=7"></script>
-<script src="cutscene.js?v=7"></script>
-<script src="scares.js?v=7"></script>
-<script src="game.js?v=7"></script>
+<script src="core.js?v=8"></script>
+<script src="creatures.js?v=8"></script>
+<script src="world.js?v=8"></script>
+<script src="entrance.js?v=8"></script>
+<script src="shop.js?v=8"></script>
+<script src="hands.js?v=8"></script>
+<script src="zoonet.js?v=8"></script>
+<script src="cutscene.js?v=8"></script>
+<script src="scares.js?v=8"></script>
+<script src="fossils.js?v=8"></script>
+<script src="game.js?v=8"></script>
 </body>
 </html>

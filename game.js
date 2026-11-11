@@ -67,7 +67,17 @@ function newPuzzles() {
 function refreshClues() {
   var i;
   if (window.Entrance) Entrance.refresh();
-  plaqueText(W.plaque, 'HOLDING PEN — RELEASE ORDER', P.clues.concat('A wrong pull sounds the alarm.'));
+  (function () {      // the paddock plaque: just the order, big enough to read at a glance
+    var g = W.plaque.g, w = W.plaque.canvas.width, h = W.plaque.canvas.height, n = P.lever.length, cw = (w - 70) / n;
+    g.fillStyle = '#161616'; g.fillRect(0, 0, w, h); g.strokeStyle = '#ffd23a'; g.lineWidth = 8; g.strokeRect(6, 6, w - 12, h - 12);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ffd23a'; g.font = 'bold 44px Impact, "Arial Black", sans-serif'; g.fillText('PULL THE LEVERS IN THIS ORDER', w / 2, 64, w - 50);
+    for (i = 0; i < n; i++) {
+      g.fillStyle = '#f1ecdd'; g.font = 'bold 124px Impact, "Arial Black", sans-serif'; g.fillText(ROMAN[P.lever[i]], 35 + cw * (i + 0.5), 204, cw - 50);
+      if (i < n - 1) { g.fillStyle = '#ffd23a'; g.font = 'bold 64px Impact, "Arial Black", sans-serif'; g.fillText('›', 35 + cw * (i + 1), 198); }
+    }
+    g.fillStyle = '#d9534a'; g.font = '28px "Trebuchet MS", Arial, sans-serif'; g.fillText('A wrong lever sounds the alarm', w / 2, 330);
+    W.plaque.tex.needsUpdate = true;
+  })();
   plaqueText(W.fusePlaque, 'FUSE BOX', ['Required load: exactly ' + P.load + ' A', 'Three slots. Over or under trips the breaker.', 'Spare fuses were left around this sector.']);
   plaqueText(W.aviPlaque, 'KEY CAGE WINCHES', ['The cage hangs ' + P.winch.start + ' m above the pedestal.', 'Winch A lowers it ' + P.winch.down + ' m a turn.  Winch B raises it ' + P.winch.up + ' m.',
     'Land it exactly. Lower it too far and the brake', 'slams it back to the top — and it will hear.']);
@@ -193,6 +203,7 @@ function refreshMenu() {
   each('.btnSound', function (b) { b.textContent = 'Sound: ' + (prefs.muted ? 'Off' : 'On'); });
   $('secret').style.display = prefs.duck ? 'inline' : 'none';
   $('btnIntro').style.display = prefs.intro ? '' : 'none';             // offered once you have seen it
+  Fossils.refresh();
 }
 function showMsg(t, secs) { var m = $('msg'); m.textContent = t; m.style.opacity = 1; msgT = secs || 3; }
 
@@ -293,7 +304,7 @@ function pullLever(i) {
     if (P.pulled.indexOf(i) >= 0) return;
     P.pulled.push(i); Sound.clunk();
     if (P.lever[P.pulled.length - 1] !== i) {
-      P.pulled = []; Sound.buzz(); showMsg('Wrong order. The alarm has woken the paddock.', 4);
+      P.pulled.pop(); Sound.buzz(); showMsg('Wrong lever — it springs back up, and the alarm wakes the paddock. Next is ' + ROMAN[P.lever[P.pulled.length]] + '.', 4.5);      // the levers you already got right stay down
       dinos.forEach(function (d) { if (d.active && !d.rex && sector(d.z) === sector(player.z) && dist(d.x, d.z, player.x, player.z) < 90) { d.alertT = 7; startChase(d, false); } });
     } else if (P.pulled.length === P.lever.length) { P.pen = true; Sound.chime(); Sound.grind(); showMsg('Every lamp turns green. The holding pen swings open.', 4); }
     else showMsg('Lever ' + ROMAN[i] + ' locks into place. (' + P.pulled.length + ' / ' + P.lever.length + ')', 2.5);
@@ -476,9 +487,12 @@ function objective() {
     if (!N.login) return 'Log in to the staff computer behind the gift shop counter. The password is somewhere in the shop.';
     return 'Open Entry Control on the staff computer and unlock the ticket lanes.';
   }
-  if (!keysGot[0] && !keysGot[1]) return 'Recover the key pieces in the Aquarium and the Raptor Paddock.';
+  var lev = P.sawOrder && !P.pen ? '  Paddock levers: ' + P.lever.map(function (l) { return ROMAN[l]; }).join(' › ') + ' (next: ' + ROMAN[P.lever[P.pulled.length]] + ').' : '';
+  if (!keysGot[0] && !keysGot[1]) return 'Recover the key pieces in the Aquarium and the Raptor Paddock.' + lev;
   if (!keysGot[0]) return 'Recover the key piece in the Aquarium.';
-  if (!keysGot[1]) return P.pen ? 'Take the key piece from the holding pen.' : 'Raptor Paddock: work out the lever order from the plaque by the pen.';
+  if (!keysGot[1]) return P.pen ? 'Take the key piece from the holding pen.'
+    : P.sawOrder ? 'Raptor Paddock: pull the levers in order — ' + P.lever.map(function (l) { return ROMAN[l]; }).join(' › ') + '.  Next: lever ' + ROMAN[P.lever[P.pulled.length]] + '.'
+    : 'Raptor Paddock: the lever order is on the plaque by the holding pen.';
   if (!P.gateA) return 'Open Sector Gate A, north along the main path.';
   if (!keysGot[2]) return P.power ? 'Take the key piece from the Visitor Center.' : 'Visitor Center: find fuses that add up to the load on the fuse box.';
   if (!P.gateB) return 'Open Sector Gate B, further north.';
@@ -531,6 +545,7 @@ $('btnIntro').onclick = function () { prefs.intro = false; newGame(); };
 each('.btnFS', function (b) { b.onclick = toggleFullscreen; });
 each('.btnSound', function (b) { b.onclick = function () { Sound.setMuted(!prefs.muted); refreshMenu(); }; });
 each('#diff button', function (b) { b.onclick = function () { setDifficulty(b.getAttribute('data-d')); }; });
+each('.btnFossils', function (b) { b.onclick = function () { Fossils.openLog(); }; });
 
 // ---------- HUD ----------
 var icons = [];
@@ -743,6 +758,8 @@ function update(dt) {
       else { P.inv++; showMsg('Spare battery stowed (' + P.inv + '). Press R to load one.', 3); }
     }
   }
+  if (!P.sawOrder && !P.pen && dist(player.x, player.z, -80, 86.2) < 8) { P.sawOrder = true; showMsg('The plaque gives the lever order. It is now in your objective.', 4); }      // no need to memorise it
+  Fossils.update(dt);
   for (i = 0; i < fuseMeshes.length; i++) {
     if (P.fuseGot[i]) continue;
     if (dist(player.x, player.z, FUSE_SPOTS[i][0], FUSE_SPOTS[i][1]) < 1.6) { P.fuseGot[i] = true; Sound.pickup(); showMsg(P.fuses[i] + ' A fuse taken. (' + carried().length + ' of 5 in this sector)', 3.5); if (panel === 'fuse') renderPanel(); }
@@ -863,9 +880,20 @@ keysGot = ZONES.map(function () { return false; });
 batPos = BATTERY_SPOTS.slice(0, DIFF.batteries); batGot = batPos.map(function () { return false; });
 P = newPuzzles();
 buildWorldLate();
+Fossils.build();
 placeItems(); resetDinos(); refreshMenu();
 window.__jm = { player: player, dinos: dinos, ples: ples, ptero: ptero, anim: anim, update: update, music: Music, W: W, NAV: NAV,
   P: function () { return P; }, keys: function () { return keysGot; }, getState: function () { return state; },
   batches: function () { return W.batches; }, batPos: function () { return batPos; }, diff: function () { return diffName; }, info: function () { return renderer.info.render; }, post: function () { return !!composer; } };
 requestAnimationFrame(frame);
-setTimeout(function () { var l = $('loading'); l.style.opacity = 0; setTimeout(function () { l.style.display = 'none'; }, 700); }, 150);
+// boot: loading bar, then the "presents" card over black, then the menu
+(function () {
+  var card = $('presents'), gone = false;
+  function leave() { if (gone) return; gone = true; card.classList.add('out'); setTimeout(function () { card.style.display = 'none'; }, 1300); }
+  setTimeout(function () {
+    var l = $('loading'); l.style.opacity = 0; setTimeout(function () { l.style.display = 'none'; }, 700);
+    if (window.__jmNoIntro) { card.style.display = 'none'; return; }
+    card.classList.add('in'); setTimeout(leave, 4200);
+    ['pointerdown', 'keydown'].forEach(function (ev) { card.addEventListener(ev, leave); window.addEventListener(ev, function once() { window.removeEventListener(ev, once); if (card.classList.contains('in')) setTimeout(leave, 250); }); });
+  }, 150);
+})();

@@ -582,6 +582,11 @@ function updatePles(dt) {
   if (ples.state !== 'stun') {
     var dx = tx - ples.x, dz = tz - ples.z, len = Math.hypot(dx, dz);
     if (len > 0.6) { ples.x += dx / len * sp * dt; ples.z += dz / len * sp * dt; ples.rot += angDiff(Math.atan2(dx, dz), ples.rot) * Math.min(1, dt * 2.5); }
+    // it swims round the pier columns rather than through them
+    for (var pi = 0; pi < PLATFORMS.length; pi++) {
+      var pp = PLATFORMS[pi], pdx = ples.x - pp[0], pdz = ples.z - pp[1], pd = Math.hypot(pdx, pdz) || 0.01, keep = 1.75;
+      if (pd < keep) { ples.x = pp[0] + pdx / pd * keep; ples.z = pp[1] + pdz / pd * keep; }
+    }
     ples.x = clamp(ples.x, POOL.x1 + 2.4, POOL.x2 - 2.4); ples.z = clamp(ples.z, POOL.z1 + 2.4, POOL.z2 - 2.4);
     var hx = ples.x + Math.sin(ples.rot) * 5.4, hz = ples.z + Math.cos(ples.rot) * 5.4;
     if (player.water && (dist(hx, hz, player.x, player.z) < 1.8 || dist(ples.x, ples.z, player.x, player.z) < 2.5)) { die('ples'); return true; }
@@ -590,7 +595,14 @@ function updatePles(dt) {
   plesMesh.position.set(ples.x, -1.25 + Math.sin(ples.t * 1.3) * 0.08, ples.z); plesMesh.rotation.y = ples.rot;
   u.flips.forEach(function (f, i) { f.rotation.z = f.userData.sd * Math.sin(ples.t * (hunting ? 5 : 2) + (i > 1 ? 1.5 : 0)) * 0.42; f.rotation.y = Math.cos(ples.t * (hunting ? 5 : 2) + (i > 1 ? 1.5 : 0)) * 0.15; });
   u.neck.rotation.y = ples.state === 'stun' ? Math.sin(ples.t * 20) * 0.12 : Math.sin(ples.t * 0.8) * 0.14;
-  u.neck.rotation.x = hunting ? 0.28 : Math.sin(ples.t * 0.5) * 0.05; u.head.rotation.x = hunting ? -0.1 : 0.12;
+  // the neck and head ride above the water, so they duck under whenever a pier deck is overhead
+  var under = 0, sn = Math.sin(ples.rot), cs = Math.cos(ples.rot);
+  for (var q = 0; q < 4 && !under; q++) {
+    var nx = ples.x + sn * (2.2 + q * 1.3), nz = ples.z + cs * (2.2 + q * 1.3);
+    for (var pj = 0; pj < PLATFORMS.length; pj++) { var pl = PLATFORMS[pj]; if (Math.abs(nx - pl[0]) < pl[2] / 2 + 0.75 && Math.abs(nz - pl[1]) < pl[2] / 2 + 0.75) { under = 1; break; } }
+  }
+  ples.duck = damp(ples.duck || 0, under, under ? 7 : 2.5, dt);
+  u.neck.rotation.x = (hunting ? 0.28 : Math.sin(ples.t * 0.5) * 0.05) + ples.duck * 0.62; u.head.rotation.x = (hunting ? -0.1 : 0.12) - ples.duck * 0.35;
   u.jaw.rotation.x = hunting ? 0.55 : 0.05;
   return false;
 }

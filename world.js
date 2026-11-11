@@ -826,6 +826,32 @@ function buildWorldLate() {
   W.dust = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xfff0d0, size: 0.012, transparent: true, opacity: 0.3, depthWrite: false }));
   W.dust.frustumCulled = false; W.dust.visible = false; camera.add(W.dust);
 
+  // ----- flat decals and printed faces: never let them flicker against the surface they lie on -----
+  (function () {
+    var use = {}, cache = {};
+    function isDecal(o) {
+      var t = o.geometry.type; if (t !== 'PlaneGeometry' && t !== 'CircleGeometry' && t !== 'RingGeometry') return 0;
+      for (var p = o; p; p = p.parent) if (p === camera) return 0;                                // not the hands
+      var flat = Math.abs(Math.abs(o.rotation.x) - PI / 2) < 0.2;
+      if (flat && Math.abs(o.position.y) > 0.3 && !o.material.map) return 0;                      // a table top or the pool floor
+      return flat ? clamp(Math.ceil(Math.abs(o.position.y) / 0.012), 1, 6) : 2;
+    }
+    scene.traverse(function (o) {
+      if (!o.isMesh || !o.geometry || Array.isArray(o.material) || o.material.isMeshBasicMaterial) return;
+      var u = use[o.material.uuid] = use[o.material.uuid] || { decals: [], other: 0, rank: 0 }, r = isDecal(o);
+      if (r) { u.decals.push([o, r]); u.rank = Math.max(u.rank, r); } else u.other++;
+    });
+    Object.keys(use).forEach(function (id) {
+      var u = use[id]; if (!u.decals.length) return;
+      if (!u.other) { var m = u.decals[0][0].material; m.polygonOffset = true; m.polygonOffsetFactor = -u.rank; m.polygonOffsetUnits = -u.rank * 2; return; }
+      u.decals.forEach(function (d) {            // the material is also used on solid things: give the decals their own copy
+        var key = id + ':' + d[1];
+        if (!cache[key]) { var c = d[0].material.clone(); c.polygonOffset = true; c.polygonOffsetFactor = -d[1]; c.polygonOffsetUnits = -d[1] * 2; cache[key] = c; }
+        d[0].material = cache[key];
+      });
+    });
+  })();
+
   // ----- shadows, then freeze everything that never moves -----
   scene.traverse(function (o) {
     if (!o.isMesh) return;
