@@ -240,8 +240,8 @@ var WB = { posts: [] };
     return { mesh: grp, box: bx, lamp: lampMat, z: z, need: need, handle: handle, beacon: beaconMat,
       set: function (a) { var e = easeIO(a), jud = a > 0.002 && a < 0.998 ? Math.sin(a * 170) * 0.004 : 0; grp.position.x = e * 9.9 + jud; for (var n = 0; n < wheels.length; n++) wheels[n][n < 4 ? 'rotation' : 'rotation'].y = -e * 9.9 / 0.11; pinion.rotation.y = e * 9.9 / 0.09; } };
   }
-  W.gateA = sectorGate(FENCE_A, 2, 'SECTOR GATE A — 2 KEY PIECES', RELEASE.A, 'A');
-  W.gateB = sectorGate(FENCE_B, 3, 'SECTOR GATE B — 3 KEY PIECES', RELEASE.B, 'B');
+  W.gateA = sectorGate(FENCE_A, 2, 'SECTOR A  ·  STAFF ONLY', RELEASE.A, 'A');
+  W.gateB = sectorGate(FENCE_B, 3, 'SECTOR B  ·  STAFF ONLY', RELEASE.B, 'B');
 
   // ----- signs -----
   makeSign('RAPTOR PADDOCK', -52, 74, PI / 2);
@@ -576,6 +576,7 @@ var WB = { posts: [] };
     if (inRect(bx, bz, ENTR, 4) || inRect(bx, bz, AQ, 2)) continue;
     var stn = mesh(new THREE.CircleGeometry(0.9 + Math.random() * 1.3, 14), M.blood, bx, 0.05, bz);
     stn.rotation.x = -PI / 2; stn.scale.set(1, 0.5 + Math.random() * 0.8, 1); stn.rotation.z = Math.random() * 6; stn.userData.noCast = true;
+    (W.blood = W.blood || []).push([bx, bz, stn.geometry.parameters.radius * 0.85]);
   }
   var puddle = new THREE.MeshStandardMaterial({ color: 0x0c1014, roughness: 0.05, metalness: 0.85, transparent: true, depthWrite: false, envMap: null, map: canvasTex(64, function (c, S) {      // rainwater in a dip: soft, uneven edges
     c.clearRect(0, 0, S, S); for (var q = 0; q < 9; q++) { var x = S / 2 + (Math.random() - 0.5) * S * 0.36, y = S / 2 + (Math.random() - 0.5) * S * 0.36, r = S * (0.16 + Math.random() * 0.16), gr = c.createRadialGradient(x, y, r * 0.5, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(x - r, y - r, r * 2, r * 2); }

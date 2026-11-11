@@ -533,8 +533,10 @@ function updateDinos(dt, c) {
         else if (esc && !c.hidden) { d.tx = pingX; d.tz = pingZ; ps = d.patrol * (d.rex ? 1.9 : 1.6); d.pauseT = 0; }
         else if (DIFF.omni && !c.hidden && (d.rex || sector(d.z) === sector(pz))) {                 // hard: they always know roughly where you are
           d.tx = d.rex ? clamp(px, REX.x1, REX.x2) : px; d.tz = d.rex ? clamp(pz, REX.z1, REX.z2) : pz; ps = d.patrol * 1.15; d.pauseT = 0;
-        } else { d.tT -= dt; if (d.tT <= 0) pickTarget(d); }
-        if (dist(d.x, d.z, d.tx, d.tz) > 2.2 + d.r) navigate(d, d.tx, d.tz, ps, dt);
+        } else if (d.feed) { d.tx = d.feed[0]; d.tz = d.feed[1]; d.pauseT = 0; }                      // the paddock pack has a kill to get back to
+        else { d.tT -= dt; if (d.tT <= 0) pickTarget(d); }
+        if (dist(d.x, d.z, d.tx, d.tz) > (d.feed && !esc && !d.lured ? 0.9 : 2.2 + d.r)) navigate(d, d.tx, d.tz, ps, dt);
+        else if (d.feed && !esc && !(DIFF.omni && !c.hidden)) { d.feeding = true; d.rot += angDiff(Math.atan2(d.feed[2] - d.x, d.feed[3] - d.z), d.rot) * Math.min(1, dt * 4); }
         else if (d.pauseT > 0) { d.pauseT -= dt; d.rot += Math.sin(playTime * 1.3 + i) * dt * 0.5; }   // stop, look about
         else if (!d.lured && !esc) pickTarget(d);
       }
@@ -555,6 +557,12 @@ function updateDinos(dt, c) {
     var roar = run && d.roarT > 0 ? Math.sin(Math.min(1, (d.rex ? 1.3 : 0.75) - d.roarT) * PI) : 0;
     if (d.state !== 'stun') u.jaw.rotation.x = roar > 0 ? 0.3 + roar * 0.75 : run ? 0.32 + Math.sin(playTime * 9) * 0.14 : d.aware > 0.4 ? 0.18 : 0.03;
     if (roar > 0) { u.head.rotation.x = -0.1 - roar * 0.5; u.body.rotation.x = -roar * 0.14; u.head.rotation.z = Math.sin(playTime * 31) * 0.05 * roar; } else if (d.state !== 'stun') u.head.rotation.z = 0;
+    if (d.feeding && d.aware < 0.2 && d.state === 'patrol') {                                                      // head down in the carcass, tearing
+      var tg = Math.sin(playTime * 3.1 + i * 1.7), bite = Math.max(0, tg);
+      u.body.rotation.x = 0.4 + tg * 0.05; u.head.rotation.x = 0.42 + bite * 0.26; u.head.rotation.y = Math.sin(playTime * 9 + i) * 0.14 * bite; u.head.rotation.z = Math.sin(playTime * 11 + i) * 0.1 * bite;
+      u.jaw.rotation.x = 0.12 + Math.max(0, Math.sin(playTime * 6.2 + i)) * 0.42; u.tail1.rotation.x = -0.12;
+    }
+    d.feeding = false;
     u.body.scale.setScalar(1 + Math.sin(playTime * (run ? 5 : 1.6) + i * 2) * 0.008);                              // breathing
     d.mesh.position.set(d.x, 0, d.z); d.mesh.rotation.y = d.rot;
     if (d.rex && dp < 75 && sp > 0.5) {
@@ -583,9 +591,11 @@ function updatePles(dt) {
     var dx = tx - ples.x, dz = tz - ples.z, len = Math.hypot(dx, dz);
     if (len > 0.6) { ples.x += dx / len * sp * dt; ples.z += dz / len * sp * dt; ples.rot += angDiff(Math.atan2(dx, dz), ples.rot) * Math.min(1, dt * 2.5); }
     // it swims round the pier columns rather than through them
-    for (var pi = 0; pi < PLATFORMS.length; pi++) {
-      var pp = PLATFORMS[pi], pdx = ples.x - pp[0], pdz = ples.z - pp[1], pd = Math.hypot(pdx, pdz) || 0.01, keep = 1.75;
-      if (pd < keep) { ples.x = pp[0] + pdx / pd * keep; ples.z = pp[1] + pdz / pd * keep; }
+    // (the whole length of it: shoulders, belly, hips and tail are each kept clear, not just its middle)
+    var BODY = [[-3.7, 0.5], [-2.5, 0.95], [-1.2, 1.4], [0, 1.5], [1.2, 1.3], [2.2, 0.85]], bsn = Math.sin(ples.rot), bcs = Math.cos(ples.rot);
+    for (var pass = 0; pass < 2; pass++) for (var pi = 0; pi < PLATFORMS.length; pi++) for (var bi = 0; bi < BODY.length; bi++) {
+      var pp = PLATFORMS[pi], sxp = ples.x + bsn * BODY[bi][0], szp = ples.z + bcs * BODY[bi][0], pdx = sxp - pp[0], pdz = szp - pp[1], pd = Math.hypot(pdx, pdz) || 0.01, keep = BODY[bi][1] + 0.32;
+      if (pd < keep) { ples.x += pdx / pd * (keep - pd); ples.z += pdz / pd * (keep - pd); }
     }
     ples.x = clamp(ples.x, POOL.x1 + 2.4, POOL.x2 - 2.4); ples.z = clamp(ples.z, POOL.z1 + 2.4, POOL.z2 - 2.4);
     var hx = ples.x + Math.sin(ples.rot) * 5.4, hz = ples.z + Math.cos(ples.rot) * 5.4;
@@ -597,12 +607,13 @@ function updatePles(dt) {
   u.neck.rotation.y = ples.state === 'stun' ? Math.sin(ples.t * 20) * 0.12 : Math.sin(ples.t * 0.8) * 0.14;
   // the neck and head ride above the water, so they duck under whenever a pier deck is overhead
   var under = 0, sn = Math.sin(ples.rot), cs = Math.cos(ples.rot);
-  for (var q = 0; q < 4 && !under; q++) {
-    var nx = ples.x + sn * (2.2 + q * 1.3), nz = ples.z + cs * (2.2 + q * 1.3);
-    for (var pj = 0; pj < PLATFORMS.length; pj++) { var pl = PLATFORMS[pj]; if (Math.abs(nx - pl[0]) < pl[2] / 2 + 0.75 && Math.abs(nz - pl[1]) < pl[2] / 2 + 0.75) { under = 1; break; } }
+  for (var q = 0; q < 7 && !under; q++) {
+    var nx = ples.x + sn * (1.6 + q * 0.75), nz = ples.z + cs * (1.6 + q * 0.75);
+    for (var pj = 0; pj < PLATFORMS.length; pj++) { var pl = PLATFORMS[pj]; if (Math.abs(nx - pl[0]) < pl[2] / 2 + 1.25 && Math.abs(nz - pl[1]) < pl[2] / 2 + 1.25) { under = 1; break; } }
   }
-  ples.duck = damp(ples.duck || 0, under, under ? 7 : 2.5, dt);
-  u.neck.rotation.x = (hunting ? 0.28 : Math.sin(ples.t * 0.5) * 0.05) + ples.duck * 0.62; u.head.rotation.x = (hunting ? -0.1 : 0.12) - ples.duck * 0.35;
+  ples.duck = damp(ples.duck || 0, under, under ? 9 : 2.2, dt);
+  u.neck.rotation.x = (hunting ? 0.28 : Math.sin(ples.t * 0.5) * 0.05) * (1 - ples.duck) + ples.duck * 0.78; u.head.rotation.x = (hunting ? -0.1 : 0.12) - ples.duck * 0.45;
+  plesMesh.position.y -= ples.duck * 0.22;                                 // and it sinks a little as it goes under a deck
   u.jaw.rotation.x = hunting ? 0.55 : 0.05;
   return false;
 }

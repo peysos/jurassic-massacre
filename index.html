@@ -156,6 +156,11 @@
   #presents span { font: 400 clamp(20px, 3.4vw, 40px) var(--ui); letter-spacing: .34em; color: var(--bone); opacity: 0; transform: translateY(8px); transition: opacity 1.6s .4s, transform 2.4s .4s; text-transform: uppercase; }
   #presents.in span { opacity: 1; transform: none; } #presents.out { opacity: 0; pointer-events: none; }
   #presents em { font-style: normal; color: var(--red); }
+  #guide { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.82); backdrop-filter: blur(5px); } #guide.show { display: flex; animation: fadeIn .3s both; }
+  .gd-grid { grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)) !important; } .gd-card { text-align: left !important; } .gd-card svg { max-width: 110px !important; display: block; margin: 0 auto; }
+  .gd-card h4 { text-align: center; } .gd-card .gd-sub { text-align: center; color: var(--gold) !important; font-size: 11px !important; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px !important; }
+  .gd-card ul { margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.45; color: #b9b3a2; } .gd-card li { margin-bottom: 5px; }
+  .fl-close { all: unset; cursor: pointer; display: block; margin: 18px auto 0; padding: 9px 30px; font: 600 14px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: #cfc8b6; border: 1px solid rgba(233,226,208,.25); } .fl-close:hover { color: #fff; border-color: var(--red); background: rgba(200,16,46,.25); }
   #fossilLog { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.82); backdrop-filter: blur(5px); }
   #fossilLog.show { display: flex; animation: fadeIn .3s both; }
   .fl-box { width: min(980px, 96vw); max-height: 94vh; overflow-y: auto; padding: 24px 28px 22px; background: linear-gradient(180deg, rgba(18,16,13,.96), rgba(8,8,9,.96)); border: 1px solid rgba(233,226,208,.16); border-top: 2px solid var(--gold); }
@@ -257,6 +262,7 @@
       <button id="btnNew" class="primary">New Game</button>
       <button id="btnContinue">Continue<small>from your last save terminal</small></button>
       <button id="btnHow">How to play</button>
+      <button class="btnGuide">Field guide<small>the animals, and how they hunt</small></button>
       <button class="btnFossils">Fossil log<small class="fossilCount"></small></button>
       <button id="btnIntro">Replay intro</button>
       <button class="btnFS">Fullscreen</button>
@@ -278,7 +284,7 @@
       <b><kbd>P</kbd> / <kbd>Esc</kbd></b><span>Fullscreen / pause.</span>
     </div>
   </div>
-  <div class="foot">JURASSIC MASSACRE · BUILD 7 · INTRO MUSIC: “LIGHTLESS DAWN” BY KEVIN MACLEOD (CC BY 4.0)<span id="secret">★ SECRET FOUND 1 / 1</span></div>
+  <div class="foot">JURASSIC MASSACRE · BUILD 8 · INTRO MUSIC: “LIGHTLESS DAWN” BY KEVIN MACLEOD (CC BY 4.0)<span id="secret">★ SECRET FOUND 1 / 1</span></div>
 </div>
 
 <div id="pause" class="screen center">
@@ -286,6 +292,7 @@
   <p>Ranger posts are safe rooms: nothing bigger than you fits through the door. Their terminals come online when you solve the puzzle nearby.<br><span id="pauseDiff"></span></p>
   <div class="btns">
     <button id="btnResume">Resume</button>
+    <button class="btnGuide">Field Guide</button>
     <button class="btnFossils">Fossil Log</button>
     <button class="btnFS">Fullscreen</button>
     <button class="btnSound">Sound: On</button>
@@ -333,16 +340,17 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="core.js?v=8"></script>
-<script src="creatures.js?v=8"></script>
-<script src="world.js?v=8"></script>
-<script src="entrance.js?v=8"></script>
-<script src="shop.js?v=8"></script>
-<script src="hands.js?v=8"></script>
-<script src="zoonet.js?v=8"></script>
-<script src="cutscene.js?v=8"></script>
-<script src="scares.js?v=8"></script>
-<script src="fossils.js?v=8"></script>
-<script src="game.js?v=8"></script>
+<script src="core.js?v=9"></script>
+<script src="creatures.js?v=9"></script>
+<script src="world.js?v=9"></script>
+<script src="entrance.js?v=9"></script>
+<script src="shop.js?v=9"></script>
+<script src="extras.js?v=9"></script>
+<script src="hands.js?v=9"></script>
+<script src="zoonet.js?v=9"></script>
+<script src="cutscene.js?v=9"></script>
+<script src="scares.js?v=9"></script>
+<script src="fossils.js?v=9"></script>
+<script src="game.js?v=9"></script>
 </body>
 </html>

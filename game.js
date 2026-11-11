@@ -103,6 +103,7 @@ function stepWorld(dt, instant) {
   go('pen', P.pen ? 1 : 0, 0.9); go('cage', P.power ? 1 : 0, 0.5); go('cover', keysGot[0] && DIFF.cover ? 1 : 0, 0.3); go('box', P.box >= 1 ? 1 : 0, 1.2);
   anim.gate = esc ? esc.gate : 0;
   if (window.Entrance) Entrance.step(dt, instant);
+  Extras.step(dt, instant);
   [['A', 'gA'], ['B', 'gB']].forEach(function (q) {
     var G = W['gate' + q[0]], open = gateOpen(q[0]);
     G.set(anim[q[1]]); G.box.off = anim[q[1]] > 0.8; G.lamp.color.setHex(open ? 0x35ff8a : 0xff3020);
@@ -143,14 +144,14 @@ function resetPlayer() {
   camera.fov = 72; camera.updateProjectionMatrix(); invText = objText = promptText = escText = ''; holdProg = { winch: 0 };
   $('escape').classList.remove('big'); escBigT = 0;
 }
-function newGame() {
+function newGame(playIntro) {
   setDifficulty(diffName);
   keysGot = ZONES.map(function () { return false; });
   batPos = shuffle(BATTERY_SPOTS.slice()).slice(0, DIFF.batteries); batGot = batPos.map(function () { return false; });
   P = newPuzzles(); Entrance.breach = 0; breachT = 0;
   player.x = START.x; player.z = START.z; player.yaw = PI; player.battery = 100; playTime = 0;
   resetPlayer(); placeItems(); resetDinos();
-  if (!prefs.intro && !window.__jmNoIntro) {      // the first time: walk in from the road
+  if (playIntro === true && !window.__jmNoIntro) {      // every new game from the menu walks in from the road (hold Space to skip)
     Sound.init(); lockPointer(); $('hud').classList.remove('show');
     Cutscene.play(function () { beginPlay(); });
   } else { player.yaw = 0; player.cy = 0; player.light = false; beginPlay(); showMsg('The gate has locked behind you.  Press F for your flashlight.', 7); }
@@ -202,7 +203,7 @@ function refreshMenu() {
   var h = hasSave(); $('btnContinue').disabled = !h; $('btnLoad').disabled = !h;
   each('.btnSound', function (b) { b.textContent = 'Sound: ' + (prefs.muted ? 'Off' : 'On'); });
   $('secret').style.display = prefs.duck ? 'inline' : 'none';
-  $('btnIntro').style.display = prefs.intro ? '' : 'none';             // offered once you have seen it
+  $('btnIntro').style.display = 'none';                                // New Game always plays the intro now
   Fossils.refresh();
 }
 function showMsg(t, secs) { var m = $('msg'); m.textContent = t; m.style.opacity = 1; msgT = secs || 3; }
@@ -400,6 +401,7 @@ ZooNet.onUnlock = function () { showMsg('Somewhere outside, four turnstiles unla
 
 function findInteract() {
   var px = player.x, pz = player.z, i, t, n = countKeys(), esc = P.esc, N = P.ent, En = Entrance;
+  var ex = Extras.interact(px, pz); if (ex) return ex;
   if (!N.door && dist(px, pz, -15.5, 127) < 1.6) return { text: '[E] Open the shed door', fn: function () {
     Hands.use('door', { point: at(En.shedDoor, 0.06, 1.25, 0.85), pose: 'wipe', tip: 'flat', rot: [1.3, 0.25, 0.2], dur: 1.0, press: 0.05, onTouch: function () { N.door = true; Sound.grind(); Sound.noise(0.9, 700, 0.18); } });
   } };
@@ -496,6 +498,7 @@ function objective() {
   if (!P.gateA) return 'Open Sector Gate A, north along the main path.';
   if (!keysGot[2]) return P.power ? 'Take the key piece from the Visitor Center.' : 'Visitor Center: find fuses that add up to the load on the fuse box.';
   if (!P.gateB) return 'Open Sector Gate B, further north.';
+  if (!keysGot[3] && !P.aviOpen) return P.card ? 'Scan the keeper’s keycard at the aviary gate.' + (keysGot[4] ? '' : '  The T-Rex Kingdom holds the other key piece.') : 'The aviary gate needs a staff keycard. A keeper went to ground near the North Bunker.' + (keysGot[4] ? '' : '  The T-Rex Kingdom holds the other key piece.');
   if (!keysGot[3] && !keysGot[4]) return 'Recover the key pieces in the Aviary and T-Rex Kingdom.';
   return 'One key piece left — ' + (keysGot[3] ? 'T-Rex Kingdom. Lure it away, then open the lockbox.' : 'the Aviary. Land the cage exactly on the pedestal.');
 }
@@ -535,17 +538,18 @@ document.addEventListener('pointerlockchange', function () { if (document.pointe
 window.addEventListener('blur', function () { keysDown = {}; });
 window.addEventListener('beforeunload', function (e) { if (state === 'playing') { e.preventDefault(); e.returnValue = ''; } });
 
-$('btnNew').onclick = newGame; $('btnRestart').onclick = newGame;
+$('btnNew').onclick = function () { newGame(true); }; $('btnRestart').onclick = function () { newGame(false); };
 $('btnContinue').onclick = function () { if (!loadGame()) refreshMenu(); };
 $('btnLoad').onclick = function () { if (!loadGame()) refreshMenu(); };
 $('btnResume').onclick = function () { Sound.init(); setState('playing'); lockPointer(); };
 $('btnQuit').onclick = $('btnDeadMenu').onclick = $('btnWonMenu').onclick = function () { refreshMenu(); setState('menu'); };
 $('btnHow').onclick = function () { $('howto').classList.toggle('show'); };
-$('btnIntro').onclick = function () { prefs.intro = false; newGame(); };
+$('btnIntro').onclick = function () { newGame(true); };
 each('.btnFS', function (b) { b.onclick = toggleFullscreen; });
 each('.btnSound', function (b) { b.onclick = function () { Sound.setMuted(!prefs.muted); refreshMenu(); }; });
 each('#diff button', function (b) { b.onclick = function () { setDifficulty(b.getAttribute('data-d')); }; });
 each('.btnFossils', function (b) { b.onclick = function () { Fossils.openLog(); }; });
+each('.btnGuide', function (b) { b.onclick = function () { Extras.openGuide(); }; });
 
 // ---------- HUD ----------
 var icons = [];
@@ -803,6 +807,7 @@ function update(dt) {
   if (updatePles(dt)) return;
   if (updatePtero(dt, ctx)) return;
   Scares.update(dt, ctx);
+  Extras.update(dt, ctx, speedNow);
   var chasing = aiChasing + (ptero.state === 'swoop' ? 1 : 0) + (ples.state === 'chase' ? 1 : 0);
   chaseHold = chasing > 0 ? 4 : Math.max(0, chaseHold - dt);
 
