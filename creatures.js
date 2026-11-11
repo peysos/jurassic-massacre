@@ -6,7 +6,8 @@ var raptorSkin = std(0xffffff, 0.6, { map: skinTex('#56633c', '#1b2313', '#7c865
 var rexSkin = std(0xffffff, 0.66, { map: skinTex('#5b4a36', '#21170e', '#7d6951', '#a9967a', 6), bumpMap: scales(11, 18), bumpScale: 0.016 });
 var seaSkin = std(0xffffff, 0.24, { map: skinTex('#2b414e', '#0c161c', '#496571', '#c5cfc8', 0), bumpMap: scales(10, 16), bumpScale: 0.02, metalness: 0.15 });
 var wingSkin = std(0xffffff, 0.7, { map: skinTex('#4e3d33', '#19110c', '#6d5747', '#8b7968', 0), bumpMap: scales(6, 6), bumpScale: 0.02, side: THREE.DoubleSide });
-var clawMat = std(0x14130e, 0.35), toothMat = std(0xc9c2a8, 0.5), mouthMat = std(0x5a1216, 0.4), hornMat = std(0x8a7a5a, 0.5);
+var clawMat = std(0x14130e, 0.35), toothMat = std(0xa99f82, 0.42), mouthMat = std(0x26090c, 0.42, { bumpMap: bump(4), bumpScale: 0.004 }), hornMat = std(0x8a7a5a, 0.5);
+var palateMat = std(0x190608, 0.5, { bumpMap: bump(6), bumpScale: 0.006 }), throatMat = std(0x12030a, 0.6), quillMat = std(0x2a2418, 0.7, { side: THREE.DoubleSide });
 var eyeMat = basic(0xffb028, { fog: false }), pupilMat = basic(0x000000);
 var sphGeo = new THREE.SphereGeometry(0.5, 18, 14);
 function part(geo, m, x, y, z, parent, sx, sy, sz) {
@@ -16,7 +17,7 @@ function cone(r, h, m, x, y, z, parent, rx, rz) { var c = part(new THREE.ConeGeo
 function eyeballs(head, x, y, z, r) {
   [-1, 1].forEach(function (sd) {
     mesh(new THREE.SphereGeometry(r, 10, 10), eyeMat, sd * x, y, z, head);
-    mesh(new THREE.BoxGeometry(r * 0.5, r * 1.7, r * 0.5), pupilMat, sd * (x + r * 0.72), y, z + r * 0.25, head);
+    var pu = mesh(new THREE.SphereGeometry(r * 0.62, 8, 8), pupilMat, sd * (x + r * 0.5), y, z + r * 0.52, head); pu.scale.set(0.42, 1.25, 0.42); pu.rotation.y = sd * 0.75;             // a slit pupil, set forward and out, the way a hunter's eye sits
     part(sphGeo, head.userData.skin, sd * x * 0.93, y + r * 1.25, z, head, r * 3.2, r * 1.3, r * 4);            // brow
   });
 }
@@ -24,30 +25,36 @@ function eyeballs(head, x, y, z, r) {
 // ---------- raptor / tyrannosaur ----------
 function buildDino(rex) {
   var g = new THREE.Group(), skin = rex ? rexSkin : raptorSkin, k, body = new THREE.Group(); g.add(body);
-  var F = rex ? 1.32 : 1;                                   // the rex is built heavier everywhere
+  var F = rex ? 1.32 : 1, NK = rex ? 1.42 : 1;              // the rex is built heavier everywhere, and its neck is a column of muscle
   tube([[0, 1.5, -0.78, 0.15 * F, 0.18 * F], [0, 1.5, -0.42, 0.3 * F, 0.36 * F], [0, 1.45, 0.1, 0.35 * F, 0.43 * F], [0, 1.47, 0.55, 0.31 * F, 0.39 * F],
-        [0, 1.6, 0.88, 0.22 * F, 0.27 * F], [0, 1.88, 1.1, 0.155 * F, 0.19 * F], [0, 2.14, 1.22, 0.125 * F, 0.15 * F], [0, 2.3, 1.28, 0.11 * F, 0.125 * F]], skin, body, 18, 5);
+        [0, 1.6, 0.88, 0.22 * F * NK, 0.27 * F * NK], [0, 1.88, 1.1, 0.155 * F * NK, 0.19 * F * NK], [0, 2.14, 1.22, 0.125 * F * NK, 0.15 * F * NK], [0, 2.3, 1.28, 0.11 * F * NK, 0.125 * F * NK]], skin, body, 18, 5);
   if (!rex) for (k = 0; k < 11; k++) {                       // quill crest down the neck and back
     var t = k / 10, qz = 1.2 - t * 1.9, qy = t < 0.25 ? 2.42 - t * 2.6 : 1.9 - (t - 0.25) * 0.05;
     cone(0.02, 0.2 + Math.sin(t * PI) * 0.16, hornMat, 0, qy + (t < 0.25 ? 0 : 0), qz, body, -0.7);
   }
   // head
   var head = new THREE.Group(); head.position.set(0, 2.32, 1.3); head.userData.skin = skin; body.add(head);
-  if (rex) head.scale.setScalar(1.6);
+  if (rex) head.scale.setScalar(1.85);
   var hy = rex ? 1.28 : 1;
   tube([[0, 0.02, -0.22, 0.06, 0.06], [0, 0.04, -0.08, 0.15, 0.14 * hy], [0, 0.04, 0.1, 0.165, 0.15 * hy], [0, 0.01, 0.32, 0.13, 0.115 * hy],
         [0, -0.01, 0.52, 0.1, 0.09 * hy], [0, -0.02, 0.66, 0.075, 0.065 * hy], [0, -0.03, 0.73, 0.03, 0.03]], skin, head, 14, 4);
   var jaw = new THREE.Group(); jaw.position.set(0, -0.075, -0.04); head.add(jaw);
   tube([[0, -0.01, -0.02, 0.1, 0.045], [0, -0.05, 0.25, 0.11, 0.055 * hy], [0, -0.05, 0.5, 0.085, 0.045 * hy], [0, -0.04, 0.68, 0.035, 0.03]], skin, jaw, 12, 4);
-  part(new THREE.BoxGeometry(0.15, 0.015, 0.5), mouthMat, 0, -0.005, 0.36, jaw);
-  var tg = new THREE.ConeGeometry(0.016, rex ? 0.078 : 0.07, 5);
-  for (k = 0; k < 8; k++) [-1, 1].forEach(function (sd) {
-    var tz = 0.2 + k * 0.062, w = 0.125 - k * 0.011;
+  // the inside of the mouth: a dark throat, a ribbed palate above, the floor of the mouth and a tongue below
+  part(sphGeo, throatMat, 0, -0.03, 0.03, head, 0.2, 0.17 * hy, 0.2); tube([[0, -0.064 * hy, 0.08, 0.105, 0.008], [0, -0.064 * hy, 0.32, 0.092, 0.008], [0, -0.066 * hy, 0.52, 0.058, 0.007], [0, -0.066 * hy, 0.64, 0.028, 0.005]], palateMat, head, 8, 3);
+  tube([[0, -0.012, 0.06, 0.078, 0.006], [0, -0.014, 0.28, 0.082, 0.006], [0, -0.014, 0.48, 0.058, 0.006], [0, -0.012, 0.6, 0.026, 0.005]], palateMat, jaw, 8, 3);
+  tube([[0, -0.004, 0.04, 0.046, 0.012], [0, 0.004, 0.22, 0.042, 0.015], [0, 0.002, 0.38, 0.028, 0.011], [0, -0.002, 0.47, 0.008, 0.005]], mouthMat, jaw, 8, 3);
+  var tg = new THREE.ConeGeometry(rex ? 0.015 : 0.011, rex ? 0.078 : 0.052, 7);
+  for (k = 0; k < 11; k++) [-1, 1].forEach(function (sd) {
+    var tz = 0.18 + k * 0.047, w = 0.127 - k * 0.0086;
     part(tg, toothMat, sd * w, -0.085 * hy, tz, head).rotation.x = PI;
     part(tg, toothMat, sd * (w - 0.018), 0.012, tz + 0.02, jaw);
   });
   eyeballs(head, 0.132, 0.085, 0.14, 0.036);
   [-1, 1].forEach(function (sd) { mesh(new THREE.SphereGeometry(0.014, 6, 6), pupilMat, sd * 0.04, 0.012, 0.69, head); });
+  if (rex) {
+    [-1, 1].forEach(function (sd) { var cr = part(sphGeo, skin, sd * 0.118, 0.158, 0.1, head, 0.05, 0.05, 0.13); cr.rotation.z = sd * 0.5; });                                         // crests over the eyes
+  }
   // tail in two jointed sections
   var T = rex ? 1.45 : 1;
   var tail1 = new THREE.Group(); tail1.position.set(0, 1.5, -0.72); body.add(tail1);
@@ -77,7 +84,9 @@ function buildDino(rex) {
     tube([[0, 0.02, 0, 0.055, 0.06], [sd * 0.03, -0.22, -0.08, 0.045, 0.05], [sd * 0.04, -0.36, -0.1, 0.035, 0.04]], skin, arm, 8, 3);
     tube([[sd * 0.04, -0.36, -0.1, 0.035, 0.04], [sd * 0.03, -0.42, 0.14, 0.03, 0.033], [sd * 0.02, -0.5, 0.3, 0.026, 0.028]], skin, arm, 8, 3);
     for (var c = 0; c < (rex ? 2 : 3); c++) cone(0.016, 0.13, clawMat, sd * (0.02 + (c - 1) * 0.03), -0.56, 0.36, arm, 2.2);
+    if (!rex) for (c = 0; c < 6; c++) { var qf = part(new THREE.ConeGeometry(0.03, 0.26 + c * 0.02, 4), quillMat, sd * 0.055, -0.4 - c * 0.012, 0.0 + c * 0.05, arm); qf.scale.z = 0.12; qf.rotation.set(-2.0, 0, sd * 0.25); }      // quills along the forearm
   });
+  if (!rex) for (k = 0; k < 7; k++) { var tf = part(new THREE.ConeGeometry(0.035, 0.34, 4), quillMat, 0, 0.08, -1.7 - k * 0.02, tail2); tf.scale.z = 0.1; tf.rotation.set(-PI / 2, 0, (k - 3) * 0.3); tf.rotation.order = 'ZXY'; }      // a fan of quills at the tail tip
   g.scale.setScalar(rex ? 2.9 : 1);
   g.userData = { legs: legs, tail1: tail1, tail2: tail2, head: head, jaw: jaw, body: body };
   scene.add(g);
@@ -95,7 +104,9 @@ function buildPlesiosaur() {
   tube([[0, 0, -0.2, 0.1, 0.1], [0, 0.03, 0.02, 0.24, 0.19], [0, 0.03, 0.3, 0.23, 0.17], [0, 0, 0.62, 0.15, 0.11], [0, -0.02, 0.92, 0.1, 0.07], [0, -0.03, 1.08, 0.04, 0.035]], seaSkin, head, 14, 4);
   var jaw = new THREE.Group(); jaw.position.set(0, -0.1, -0.02); head.add(jaw);
   tube([[0, 0, -0.04, 0.17, 0.06], [0, -0.04, 0.35, 0.18, 0.07], [0, -0.04, 0.72, 0.11, 0.05], [0, -0.03, 1.02, 0.04, 0.03]], seaSkin, jaw, 12, 4);
-  part(new THREE.BoxGeometry(0.24, 0.015, 0.8), mouthMat, 0, 0.0, 0.48, jaw);
+  part(sphGeo, throatMat, 0, -0.02, 0.05, head, 0.3, 0.22, 0.3); tube([[0, -0.09, 0.1, 0.19, 0.01], [0, -0.09, 0.38, 0.18, 0.01], [0, -0.085, 0.68, 0.11, 0.008], [0, -0.075, 0.96, 0.045, 0.006]], palateMat, head, 8, 3);
+  tube([[0, 0.0, 0.08, 0.13, 0.008], [0, 0.0, 0.38, 0.14, 0.008], [0, 0.0, 0.7, 0.085, 0.007], [0, 0.0, 0.94, 0.03, 0.005]], palateMat, jaw, 8, 3);
+  tube([[0, 0.01, 0.06, 0.08, 0.016], [0, 0.02, 0.4, 0.07, 0.02], [0, 0.014, 0.74, 0.04, 0.012], [0, 0.006, 0.9, 0.01, 0.006]], mouthMat, jaw, 8, 3);
   var tg = new THREE.ConeGeometry(0.014, 0.15, 5);                                   // long interlocking needle teeth
   for (k = 0; k < 11; k++) [-1, 1].forEach(function (sd) {
     var tz = 0.22 + k * 0.078, w = 0.2 - k * 0.015;
@@ -222,7 +233,7 @@ function buildRexSkeleton(px, pz) {
     dummy.position.set(sd * (0.25 - Math.max(0, i - 4) * 0.024), 0.1, 0.32 + i * 0.085); dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(1 + Math.sin(i / 12 * PI) * 0.4); dummy.updateMatrix(); teeth2.setMatrixAt(nt++, dummy.matrix);
   });
   teeth2.count = nt; mand.add(teeth2);
-  var hat = new THREE.Group(); hat.position.set(0, 0.36, 0.1); hat.rotation.x = -0.25; skull.add(hat);        // only shown once the secret is found
+  var hat = new THREE.Group(); hat.position.set(0, 0.36, 0.1); hat.rotation.x = -0.25; hat.userData.keep = true; skull.add(hat);        // only shown once the secret is found
   mesh(new THREE.ConeGeometry(0.2, 0.55, 12), std(0xffffff, 0.6, { map: canvasTex(64, function (c, S) { for (var q = 0; q < 8; q++) { c.fillStyle = q % 2 ? '#ffd23a' : '#c8102e'; c.fillRect(0, q * 8, S, 8); } }) }), 0, 0.27, 0, hat);
   mesh(new THREE.SphereGeometry(0.06, 8, 8), std(0xffffff, 0.5), 0, 0.57, 0, hat);
   // museum mount
@@ -232,7 +243,7 @@ function buildRexSkeleton(px, pz) {
 }
 
 // ---------- pathfinding: a 2 m grid over the park, searched with A* ----------
-var NAV = { n: 150, cell: 2, grids: [null, null], radius: [0.9, 2.5], sig: '', gen: 0,
+var NAV = { n: 150, cell: 2, grids: [null, null], radius: [0.9, 2.5], sig: '', gen: 0, fails: 0,
   gCost: new Float32Array(22500), from: new Int32Array(22500), seen: new Uint32Array(22500), shut: new Uint32Array(22500) };
 function navCell(x, z) { return clamp(Math.floor((z + WORLD) / 2), 0, 149) * 150 + clamp(Math.floor((x + WORLD) / 2), 0, 149); }
 function navSignature() { var s = (P && P.esc ? 'E' : 'N'); for (var i = 0; i < boxes.length; i++) if (boxes[i].off) s += i + ','; return s; }
@@ -243,9 +254,15 @@ function buildNav() {
     for (iz = 0; iz < 150; iz++) for (ix = 0; ix < 150; ix++) {
       var x = ix * 2 - WORLD + 1, z = iz * 2 - WORLD + 1, bad = Math.abs(x) > WORLD - 2 - r || Math.abs(z) > WORLD - 2 - r || inRect(x, z, AQ, r + 0.5);
       for (i = 0; !bad && i < boxes.length; i++) { var b = boxes[i]; if (!b.off && x > b.x1 - r && x < b.x2 + r && z > b.z1 - r && z < b.z2 + r) bad = true; }
-      for (i = 0; !bad && i < circles.length; i++) { var c = circles[i]; if (c.r >= 1 && c.top === undefined && dist(x, z, c.x, c.z) < c.r + r) bad = true; }
       if (!bad && !esc && nearSafe(x, z, 2.2 + r)) bad = true;
       grid[iz * 150 + ix] = bad ? 1 : 0;
+    }
+    /* Round obstacles are stamped in afterwards.  A raptor slips between tree trunks, so only the big ones count for it;
+       the rex is four metres wide and cannot, so every trunk counts and it keeps to the paths and clearings. */
+    for (i = 0; i < circles.length; i++) {
+      var c = circles[i]; if (c.top !== undefined || c.r < (k ? 0.3 : 1)) continue;
+      var rr = c.r + r, x0 = Math.max(0, Math.floor((c.x - rr + WORLD) / 2)), x1 = Math.min(149, Math.floor((c.x + rr + WORLD) / 2)), z0 = Math.max(0, Math.floor((c.z - rr + WORLD) / 2)), z1 = Math.min(149, Math.floor((c.z + rr + WORLD) / 2));
+      for (iz = z0; iz <= z1; iz++) for (ix = x0; ix <= x1; ix++) if (dist(ix * 2 - WORLD + 1, iz * 2 - WORLD + 1, c.x, c.z) < rr) grid[iz * 150 + ix] = 1;
     }
     NAV.grids[k] = grid;
   }
@@ -279,10 +296,11 @@ function findPath(kind, sx, sz, tx, tz) {
   }
   function h(c) { var dx = Math.abs(c % 150 - gx), dz = Math.abs(((c / 150) | 0) - gz); return Math.max(dx, dz) + 0.414 * Math.min(dx, dz); }
   g[s] = 0; seen[s] = gen; from[s] = -1; push(s, h(s));
-  var found = false, iter = 0;
-  while (heap.length && iter++ < 9000) {
+  var found = false, iter = 0, best = s, bestH = h(s);
+  while (heap.length && iter++ < 23000) {
     var c = pop(); if (shut[c] === gen) continue; shut[c] = gen;
     if (c === goal) { found = true; break; }
+    var hc = h(c); if (hc < bestH) { bestH = hc; best = c; }                 // remember the nearest we can get, in case the goal is walled off
     var cx = c % 150, cz = (c / 150) | 0;
     for (var dz = -1; dz <= 1; dz++) for (var dx = -1; dx <= 1; dx++) {
       if (!dx && !dz) continue;
@@ -293,11 +311,11 @@ function findPath(kind, sx, sz, tx, tz) {
       if (seen[nc] !== gen || ng < g[nc]) { g[nc] = ng; seen[nc] = gen; from[nc] = c; push(nc, ng + h(nc)); }
     }
   }
-  if (!found) return null;
+  if (!found) { NAV.fails++; if (best === s) return []; goal = best; }        // unreachable: go as near as the ground allows and wait there
   var cells = []; for (var q = goal; q >= 0; q = from[q]) cells.push(q);
   cells.reverse();
   var pts = cells.map(function (c2) { return [(c2 % 150) * 2 - WORLD + 1, ((c2 / 150) | 0) * 2 - WORLD + 1]; });
-  if (!grid[navCell(tx, tz)]) pts[pts.length - 1] = [tx, tz];
+  if (found && !grid[navCell(tx, tz)]) pts[pts.length - 1] = [tx, tz];
   var out = [], cur = [sx, sz], i = 1;                              // string-pull: skip waypoints we can walk straight past
   while (i < pts.length) { var j = pts.length - 1; while (j > i && !gridClear(grid, cur[0], cur[1], pts[j][0], pts[j][1])) j--; out.push(pts[j]); cur = pts[j]; i = j + 1; }
   return out.length ? out : [pts[pts.length - 1]];
@@ -362,34 +380,56 @@ function resetDinos() {
 function moveDino(d, dx, dz, speed, dt) {
   var len = Math.hypot(dx, dz); if (len < 0.001) { d.speedNow = 0; return; }
   dx /= len; dz /= len;
+  // trees, posts and benches are too small for the nav grid: lean away from any that stands in the next couple of metres
+  var ax = d.x + dx * (1.2 + d.r), az = d.z + dz * (1.2 + d.r), sx = 0, sz = 0;
+  for (var q = 0; q < circles.length; q++) {
+    var c = circles[q]; if (c.top !== undefined || c.r >= 1) continue;
+    var ex = c.x - ax, ez = c.z - az, lim = c.r + d.r + 0.35; if (ex > lim || ex < -lim || ez > lim || ez < -lim || ex * ex + ez * ez > lim * lim) continue;
+    var side = (c.x - d.x) * -dz + (c.z - d.z) * dx > 0 ? 1 : -1; sx += dz * side; sz += -dx * side;
+  }
+  if (sx || sz) { dx += sx * 0.85; dz += sz * 0.85; len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len; }
   var want = Math.atan2(dx, dz), diff = angDiff(want, d.rot), turn = (d.rex ? 2.2 : 5.5) * dt;
   d.rot += clamp(diff, -turn, turn);
   var fwd = Math.max(0.15, Math.cos(Math.min(Math.abs(diff), PI / 2)));       // slow down through tight turns instead of sliding sideways
   d.x += Math.sin(d.rot) * speed * fwd * dt; d.z += Math.cos(d.rot) * speed * fwd * dt;
   resolve(d, d.r, 0);
-  if (!(P && P.esc)) for (var i = 0; i < SAFE.length; i++) {                    // safe zones keep them out (until the lockdown)
-    var s = SAFE[i], dd = dist(d.x, d.z, s.x, s.z), min = SAFE_R + 2.2 + d.r;
-    if (dd < min) { dd = dd || 0.01; d.x = s.x + (d.x - s.x) / dd * min; d.z = s.z + (d.z - s.z) / dd * min; }
+  for (var j = 0; j < dinos.length; j++) {                                      // they do not walk through one another
+    var o = dinos[j]; if (o === d || !o.active) continue;
+    var ox = d.x - o.x, oz = d.z - o.z, od = Math.hypot(ox, oz), need = (d.r + o.r) * 0.9;
+    if (od < need && od > 0.001) { var push = (need - od) * (d.rex ? 0.1 : o.rex ? 0.9 : 0.5); d.x += ox / od * push; d.z += oz / od * push; if (!o.rex && o.speedNow < 0.3) { o.x -= ox / od * push; o.z -= oz / od * push; resolve(o, o.r, 0); } }
   }
+  if (!(P && P.esc)) pushOutSafe(d, 2.2 + d.r);                                 // they keep clear of the safe rooms (until the lockdown)
   if (inRect(d.x, d.z, AQ, 1.2 + d.r)) d.x = AQ.x1 - 1.2 - d.r;
   d.speedNow = speed * fwd; d.phase += speed * fwd * dt * (d.rex ? 0.72 : 1.85);
 }
 function navigate(d, tx, tz, speed, dt) {
-  var grid = NAV.grids[d.nav];
+  var grid = NAV.grids[d.nav], diff;
   d.repathT -= dt;
-  if (!d.path || !d.path.length || d.repathT <= 0 || dist(tx, tz, d.ptx, d.ptz) > 2.5) {
-    d.path = gridClear(grid, d.x, d.z, tx, tz) ? [[tx, tz]] : (findPath(d.nav, d.x, d.z, tx, tz) || [[tx, tz]]);
+  if (!d.path || d.repathT <= 0 || dist(tx, tz, d.ptx, d.ptz) > 2.5) {
+    d.path = gridClear(grid, d.x, d.z, tx, tz) ? [[tx, tz]] : findPath(d.nav, d.x, d.z, tx, tz);
     d.ptx = tx; d.ptz = tz; d.repathT = 0.5 + Math.random() * 0.4;
   }
-  while (d.path.length > 1 && dist(d.x, d.z, d.path[0][0], d.path[0][1]) < 1.5 + d.r * 0.4) d.path.shift();
+  while (d.path && d.path.length > 1 && dist(d.x, d.z, d.path[0][0], d.path[0][1]) < 1.5 + d.r * 0.4) d.path.shift();
+  var endsShort = d.path && d.path.length === 1 && dist(d.path[0][0], d.path[0][1], tx, tz) > 1.5 && dist(d.x, d.z, d.path[0][0], d.path[0][1]) < 0.7 + d.r * 0.3;
+  if (!d.path || !d.path.length || endsShort) {                                 // as near as it can get: stand and watch, never push at a wall
+    diff = angDiff(Math.atan2(tx - d.x, tz - d.z), d.rot); d.rot += clamp(diff, -3 * dt, 3 * dt); d.speedNow = 0; d.stuckT = 0; d.lx = d.x; d.lz = d.z; return;
+  }
   moveDino(d, d.path[0][0] - d.x, d.path[0][1] - d.z, speed, dt);
-  d.stuckT += dt;                                                             // wedged on a tree or prop: back off and re-plan
-  if (d.stuckT > 1) { if (dist(d.x, d.z, d.lx, d.lz) < speed * 0.25) { d.rot += (Math.random() < 0.5 ? 1 : -1) * 1.3; d.path = null; } d.stuckT = 0; d.lx = d.x; d.lz = d.z; }
+  d.stuckT += dt;                                                             // wedged: step out to one side (then the other) and plan again from there
+  if (d.stuckT > 0.8) {
+    if (dist(d.x, d.z, d.lx, d.lz) < speed * 0.2) {
+      d.stuckN = (d.stuckN || 0) + 1; NAV.stuck = (NAV.stuck || 0) + 1;
+      var a = d.rot + (d.stuckN % 2 ? 1 : -1) * (PI / 2 + 0.35) + (d.stuckN > 2 ? PI * 0.35 : 0), qx = d.x + Math.sin(a) * (2.5 + d.r), qz = d.z + Math.cos(a) * (2.5 + d.r);
+      d.path = grid[navCell(qx, qz)] ? null : [[qx, qz]].concat(findPath(d.nav, qx, qz, tx, tz)); d.repathT = 1.4;
+    } else d.stuckN = 0;
+    d.stuckT = 0; d.lx = d.x; d.lz = d.z;
+  }
 }
 function startChase(d, call) {
   if (d.state === 'chase') return;
-  d.state = 'chase'; d.lostT = 0; d.path = null; d.lastX = player.x; d.lastZ = player.z; d.lastVX = player.vx; d.lastVZ = player.vz;
+  d.state = 'chase'; d.lostT = 0; d.path = null; d.lastX = player.x; d.lastZ = player.z; d.lastVX = player.vx; d.lastVZ = player.vz; d.roarT = d.rex ? 1.3 : 0.75;
   Sound.roar(d.rex, clamp(1.3 - dist(d.x, d.z, player.x, player.z) / 40, 0.4, 1));
+  if (window.Scares && dist(d.x, d.z, player.x, player.z) < 11) Scares.sting(0.6);                 // it was close before you knew
   if (!call || d.rex || !DIFF.call) return;
   var called = 0;                                                             // the pack answers
   dinos.forEach(function (o) {
@@ -451,7 +491,8 @@ function updateDinos(dt, c) {
         var lead = c.hidden ? 0 : (DIFF.lead ? 2.5 : 0.8);
         d.sx = d.lastX + d.lastVX * lead; d.sz = d.lastZ + d.lastVZ * lead;
       } else {
-        var cs = d.chase * DIFF.speed, tx = d.lastX, tz = d.lastZ, role = chasers.indexOf(d);
+        d.roarT = Math.max(0, (d.roarT || 0) - dt);
+        var cs = d.chase * DIFF.speed * (d.roarT > 0 ? 0.25 : 1), tx = d.lastX, tz = d.lastZ, role = chasers.indexOf(d);
         if (d.lostT === 0) {
           var ld = DIFF.lead * clamp(dp / 9, 0, 1.6);                                              // aim where you will be, not where you are
           tx = px + player.vx * ld; tz = pz + player.vz * ld;
@@ -462,7 +503,8 @@ function updateDinos(dt, c) {
           }
         }
         navigate(d, tx, tz, cs * (dp < 5 ? 1.08 : 1), dt);
-        if (dist(d.x, d.z, px, pz) < d.catchD && player.y < 2 && !c.hidden) { die(d.kind); return true; }
+        var hx = d.rex ? d.x + Math.sin(d.rot) * 6.4 : d.x, hz = d.rex ? d.z + Math.cos(d.rot) * 6.4 : d.z;        // the rex's jaws are six metres ahead of its feet
+        if ((dist(hx, hz, px, pz) < (d.rex ? 3.0 : d.catchD) || (d.rex && dist(d.x, d.z, px, pz) < 3.2)) && player.y < 2 && !c.hidden && !losBlocked(d.x, d.z, px, pz, true)) { die(d.kind, d); return true; }
       }
     } else {
       // ----- not hunting yet: suspicion builds while it can see you -----
@@ -510,7 +552,10 @@ function updateDinos(dt, c) {
     var wantYaw = d.state === 'stun' ? 0 : watch && d.state !== 'investigate' ? clamp(angDiff(toP, d.rot), -0.9, 0.9) : Math.sin(playTime * 0.7 + i * 2) * 0.35;
     d.headYaw = (d.headYaw || 0) + (wantYaw - (d.headYaw || 0)) * Math.min(1, dt * 4);
     u.head.rotation.y = d.headYaw; u.head.rotation.x = d.state === 'investigate' && d.lookT > 0 ? -0.25 : run ? -0.08 : Math.sin(playTime * 0.5 + i) * 0.06;
-    if (d.state !== 'stun') u.jaw.rotation.x = run ? 0.32 + Math.sin(playTime * 9) * 0.14 : d.aware > 0.4 ? 0.18 : 0.03;
+    var roar = run && d.roarT > 0 ? Math.sin(Math.min(1, (d.rex ? 1.3 : 0.75) - d.roarT) * PI) : 0;
+    if (d.state !== 'stun') u.jaw.rotation.x = roar > 0 ? 0.3 + roar * 0.75 : run ? 0.32 + Math.sin(playTime * 9) * 0.14 : d.aware > 0.4 ? 0.18 : 0.03;
+    if (roar > 0) { u.head.rotation.x = -0.1 - roar * 0.5; u.body.rotation.x = -roar * 0.14; u.head.rotation.z = Math.sin(playTime * 31) * 0.05 * roar; } else if (d.state !== 'stun') u.head.rotation.z = 0;
+    u.body.scale.setScalar(1 + Math.sin(playTime * (run ? 5 : 1.6) + i * 2) * 0.008);                              // breathing
     d.mesh.position.set(d.x, 0, d.z); d.mesh.rotation.y = d.rot;
     if (d.rex && dp < 75 && sp > 0.5) {
       d.stepT = (d.stepT || 0) - dt * (run ? 2.2 : 1);

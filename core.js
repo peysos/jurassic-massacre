@@ -1,10 +1,21 @@
 /* Jurassic Massacre — core: constants, renderer, post-processing, collision, materials, helpers, audio.
-   The game is split over four plain scripts that share globals: core.js, creatures.js, world.js, game.js. */
+   The game is plain scripts that share globals, loaded in this order (see index.html):
+     core.js      constants, renderer, collision, textures, materials, mesh and sign helpers, sound
+     creatures.js the animals: models, pathfinding, behaviour
+     world.js     the park: ground, walls, buildings, props, puzzle hardware; then vegetation, pickups, batching
+     entrance.js  the front gate, the road outside, the plaza, the ticket lanes
+     shop.js      the gift shop (first safe room) and the generator shed
+     hands.js     the player's gloved hands and flashlight, and their animations
+     zoonet.js    the staff computer
+     cutscene.js  the opening and the escape
+     scares.js    what happens when something catches you, and first encounters
+     game.js      player, puzzles, interaction, lockdown, saving, input, HUD, main loop */
 'use strict';
 
-var SAVE_KEY = 'jurassicMassacreSave_v4', PREF_KEY = 'jurassicMassacrePrefs';
+var SAVE_KEY = 'jurassicMassacreSave_v5', PREF_KEY = 'jurassicMassacrePrefs';
 var WORLD = 150, SAFE_R = 7, PI = Math.PI;        // park spans -150..150; north is -z; the entrance gate is in the south wall
-var START = { x: 0, z: 131 };
+var START = { x: 0, z: 141.5 };
+var ENTR = { x1: -27, x2: 28, z1: 112.5, z2: 150 };      // the entrance plaza: built by entrance.js, nothing else is scattered here
 
 var DIFFS = {
   easy:   { label: 'Easy',   speed: 0.85, sight: 0.75, hear: 0.7,  fov: 1.75, react: 1.1,  search: 4,  call: 0,  flank: false, lead: 0,
@@ -39,23 +50,22 @@ var ZONES = [
   { name: 'THE AVIARY',     x: -100, z: -95, key: [-100, -95] },
   { name: 'T-REX KINGDOM',  x: 88,   z: -92, key: [LOCKBOX[0], LOCKBOX[1]] }
 ];
+/* Safe rooms are real buildings.  `rect` is the interior floor: the player is safe while standing inside it, and the animals keep clear of it.
+   `tx,tz` is where the save terminal stands.  Doorways must be no wider than 1.3 m (the player fits, a raptor does not). */
 var SAFE = [
-  { name: 'Entrance Shelter', x: 14,   z: 130,  need: 'turn' },
-  { name: "Keeper's Hut",     x: -45,  z: 93,   need: 'pen' },
-  { name: 'West Ranger Post', x: -106, z: 0,    need: 'power' },
-  { name: 'East Ranger Post', x: 106,  z: 0,    need: 'power' },
-  { name: 'North Bunker',     x: 0,    z: -124, need: 'north' }
+  { name: 'Gift Shop',        x: 18,   z: 128,  need: 'pow0',  rect: { x1: 11.3, x2: 24.7, z1: 121.3, z2: 134.7 }, tx: 16.0, tz: 121.9 },
+  { name: "Keeper's Hut",     x: -45,  z: 93,   need: 'pen',   rect: { x1: -48.6, x2: -41.4, z1: 90, z2: 96 },    tx: -45, tz: 93 },
+  { name: 'West Ranger Post', x: -106, z: 0,    need: 'power', rect: { x1: -109.6, x2: -102.4, z1: -3, z2: 3 },   tx: -106, tz: 0 },
+  { name: 'East Ranger Post', x: 106,  z: 0,    need: 'power', rect: { x1: 102.4, x2: 109.6, z1: -3, z2: 3 },     tx: 106, tz: 0 },
+  { name: 'North Bunker',     x: 0,    z: -124, need: 'north', rect: { x1: -3.6, x2: 3.6, z1: -127, z2: -121 },   tx: 0, tz: -124 }
 ];
-var TERMS = SAFE.concat([{ name: 'Aquarium Lobby', x: 85.5, z: 67, need: 'aqua', solo: true }]);
-var NEED_HINT = { turn: 'open the turnstiles first', pen: 'unlock the holding pen in the paddock first', power: 'no power. Fix the fuse box at the Visitor Center',
+var TERMS = SAFE.concat([{ name: 'Aquarium Lobby', x: 85.5, z: 67, tx: 85.5, tz: 67, need: 'aqua', solo: true }]);
+var NEED_HINT = { pow0: 'no power. Restore it from the generator shed across the plaza', turn: 'open the turnstiles first', pen: 'unlock the holding pen in the paddock first', power: 'no power. Fix the fuse box at the Visitor Center',
   north: 'recover a key piece from the Aviary or T-Rex Kingdom first', aqua: 'recover the key piece across the pool first' };
-var PATHS = [[-4, 4, -118, 150], [-100, 100, -4, 4], [-80, 0, 76, 84], [0, 74, 56, 64], [-100, 60, -94, -86]];   // x1, x2, z1, z2
+var PATHS = [[-4, 4, -118, 113.5], [-100, 100, -4, 4], [-80, 0, 76, 84], [0, 74, 56, 64], [-100, 60, -94, -86]];   // x1, x2, z1, z2
 var BATTERY_SPOTS = [[12, 119], [-8, 96], [26, 93], [-45, 73], [-70, 100], [60, 70], [104, 40], [80, 72], [-14, -8], [-28, -10], [10, -36],
   [100, 9], [-106, -9], [60, 20], [-60, 22], [-22, -63], [-80, -62], [-60, -97], [40, -84], [70, -110], [-6, -108]];
-var COLORS = [{ n: 'RED', c: '#a82a22' }, { n: 'GOLD', c: '#c79a26' }, { n: 'BLUE', c: '#2a5a9e' }, { n: 'GREEN', c: '#2c7d44' }];
-var FLAGS = [[-5.6, 143], [5.6, 143], [-5.6, 131], [5.6, 123]];
 var ROMAN = ['I', 'II', 'III', 'IV'];
-var SPECIES = [['TRILOBITE', 521], ['SEA SCORPION', 430], ['AMMONITE', 240], ['PLESIOSAUR', 200], ['PTEROSAUR', 150], ['VELOCIRAPTOR', 75], ['T-REX', 68]];
 
 // ---------- helpers ----------
 var seed = 20261109;
@@ -68,6 +78,12 @@ function inRect(x, z, R, m) { m = m || 0; return x > R.x1 - m && x < R.x2 + m &&
 function sector(z) { return z > TURN_Z ? 3 : z > FENCE_A ? 0 : z > FENCE_B ? 1 : 2; }
 function angDiff(a, b) { var d = a - b; while (d > PI) d -= PI * 2; while (d < -PI) d += PI * 2; return d; }
 function each(sel, fn) { Array.prototype.forEach.call(document.querySelectorAll(sel), fn); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function sstep(t) { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); }                          // smooth 0..1
+function easeIO(t) { t = clamp(t, 0, 1); return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }   // heavy things: slow start, slow stop
+function easeOut(t) { t = clamp(t, 0, 1); return 1 - Math.pow(1 - t, 3); }
+function easeBack(t) { t = clamp(t, 0, 1); var c = 1.70158; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }   // slight overshoot, then settles
+function damp(cur, target, rate, dt) { return cur + (target - cur) * (1 - Math.exp(-rate * dt)); }   // frame-rate independent follow
 
 // ---------- renderer / scene ----------
 var canvas = $('game');
@@ -83,15 +99,15 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 var scene = new THREE.Scene();
 scene.background = new THREE.Color(0x020308);
-scene.fog = new THREE.FogExp2(0x060a10, 0.026);
+scene.fog = new THREE.FogExp2(0x05080d, 0.03);
 var camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 800);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
 
-scene.add(new THREE.HemisphereLight(0x3a4d78, 0x0b0e08, 0.24));
-var moonLight = new THREE.DirectionalLight(0x8ea4d6, 0.22);
+var hemiLight = new THREE.HemisphereLight(0x3a4d78, 0x0b0e08, 0.09); scene.add(hemiLight);
+var moonLight = new THREE.DirectionalLight(0x8ea4d6, 0.13);
 moonLight.position.set(0.5, 1, -0.6); scene.add(moonLight);
-var rimLight = new THREE.DirectionalLight(0x24304a, 0.22);          // faint back light so silhouettes read against the dark
+var rimLight = new THREE.DirectionalLight(0x24304a, 0.1);          // faint back light so silhouettes read against the dark
 rimLight.position.set(-0.6, 0.4, 0.7); scene.add(rimLight);
 
 var flashlight = new THREE.SpotLight(0xfff0d0, 0, 62, 0.5, 0.65, 1.25);
@@ -183,10 +199,11 @@ function resolve(p, r, y) {
   p.z = clamp(p.z, -WORLD + 1.5, WORLD - 1.5);
 }
 // is the straight line between two points cut by a wall or building?
-function losBlocked(x1, z1, x2, z2) {
+// `any` = true asks about anything you cannot walk through (fences, rails), not only what you cannot see through
+function losBlocked(x1, z1, x2, z2, any) {
   var dx = x2 - x1, dz = z2 - z1;
   for (var i = 0; i < boxes.length; i++) {
-    var b = boxes[i]; if (!b.solid || b.off) continue;
+    var b = boxes[i]; if ((!any && !b.solid) || b.off) continue;
     var t0 = 0, t1 = 1, a, c, tmp;
     if (Math.abs(dx) < 1e-9) { if (x1 < b.x1 || x1 > b.x2) continue; }
     else { a = (b.x1 - x1) / dx; c = (b.x2 - x1) / dx; if (a > c) { tmp = a; a = c; c = tmp; } t0 = Math.max(t0, a); t1 = Math.min(t1, c); if (t0 > t1) continue; }
@@ -204,9 +221,22 @@ function inBox(x, z, m) {
   for (var k = 0; k < boxes.length; k++) { var b = boxes[k]; if (x > b.x1 - m && x < b.x2 + m && z > b.z1 - m && z < b.z2 + m) return true; }
   return false;
 }
+// inside a safe room (optionally grown by `extra` metres all round)
 function nearSafe(x, z, extra) {
-  for (var i = 0; i < SAFE.length; i++) if (dist(x, z, SAFE[i].x, SAFE[i].z) < SAFE_R + (extra || 0)) return true;
+  for (var i = 0; i < SAFE.length; i++) if (inRect(x, z, SAFE[i].rect, extra || 0)) return true;
   return false;
+}
+function inSafe(x, z) { return nearSafe(x, z, 0); }
+// keep something (an animal) at least `m` metres clear of every safe room; returns true if it had to be moved
+function pushOutSafe(p, m) {
+  var moved = false;
+  for (var i = 0; i < SAFE.length; i++) {
+    var R = SAFE[i].rect; if (!inRect(p.x, p.z, R, m)) continue;
+    var l = p.x - (R.x1 - m), r = (R.x2 + m) - p.x, t = p.z - (R.z1 - m), b = (R.z2 + m) - p.z, k = Math.min(l, r, t, b);
+    if (k === l) p.x = R.x1 - m; else if (k === r) p.x = R.x2 + m; else if (k === t) p.z = R.z1 - m; else p.z = R.z2 + m;
+    moved = true;
+  }
+  return moved;
 }
 
 // ---------- textures ----------
@@ -250,6 +280,21 @@ var scaleBump = canvasTex(128, function (g, S) {        // pebbly reptile scales
   }
 }, 1, 1, false);
 function scales(rx, ry) { var t = scaleBump.clone(); t.needsUpdate = true; t.repeat.set(rx, ry || rx); return t; }
+/* A tangent-space normal map from a height picture: draw(g, S, H) paints white = high, black = low on a canvas.
+   Sharper and more stable up close than bumpMap.  Use as { normalMap: t, normalScale: new THREE.Vector2(k, k) }. */
+function normalTex(size, draw, strength, rx, ry, h) {
+  var c = document.createElement('canvas'); c.width = size; c.height = h || size;
+  var g = c.getContext('2d'); draw(g, size, h || size);
+  var W2 = c.width, H2 = c.height, src = g.getImageData(0, 0, W2, H2), out = g.createImageData(W2, H2), d = src.data, o = out.data, k = strength || 2, x, y;
+  function hgt(px, py) { return d[(((py + H2) % H2) * W2 + ((px + W2) % W2)) * 4] / 255; }
+  for (y = 0; y < H2; y++) for (x = 0; x < W2; x++) {
+    var dx = (hgt(x - 1, y) - hgt(x + 1, y)) * k, dy = (hgt(x, y - 1) - hgt(x, y + 1)) * k, l = 1 / Math.sqrt(dx * dx + dy * dy + 1), q = (y * W2 + x) * 4;
+    o[q] = (dx * l * 0.5 + 0.5) * 255; o[q + 1] = (-dy * l * 0.5 + 0.5) * 255; o[q + 2] = (l * 0.5 + 0.5) * 255; o[q + 3] = 255;
+  }
+  g.putImageData(out, 0, 0);
+  var t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx || 1, ry || rx || 1); t.anisotropy = 8;
+  return t;
+}
 
 var groundTex = canvasTex(512, function (g, S) {
   speckle('#33421f', ['#26331a', '#3f5226', '#2c3a1d', '#4a5a2e', '#1f2a15'], 17000, 2.5)(g, S);
@@ -382,7 +427,14 @@ var M = {
   tile: std(0xffffff, 0.3, { map: tileTex, metalness: 0.12 }),
   white: std(0xd9d4c4, 0.6), bone: std(0xa89e82, 0.8, { bumpMap: bump(2), bumpScale: 0.02 }),
   binGreen: std(0x1f4a30, 0.5, { metalness: 0.4 }), paint: std(0x7a2a22, 0.6, { bumpMap: bump(2), bumpScale: 0.015 }),
-  blood: std(0x2a0303, 0.2, { transparent: true, opacity: 0.85 }),
+  // old blood: a dried, ragged stain soaked into the ground (the shape is in the texture's alpha), not a red disc
+  blood: new THREE.MeshStandardMaterial({ roughness: 0.82, transparent: true, depthWrite: false, map: canvasTex(128, function (g, S) {
+    g.clearRect(0, 0, S, S);
+    for (var i = 0; i < 26; i++) { var a = Math.random() * 6.283, r = Math.pow(Math.random(), 0.7) * S * 0.3, x = S / 2 + Math.cos(a) * r, y = S / 2 + Math.sin(a) * r, q = 5 + Math.random() * (S * 0.2 - r * 0.4), gr = g.createRadialGradient(x, y, 0, x, y, q);
+      gr.addColorStop(0, 'rgba(38,6,5,.9)'); gr.addColorStop(0.7, 'rgba(30,7,5,.6)'); gr.addColorStop(1, 'rgba(24,8,6,0)'); g.fillStyle = gr; g.fillRect(x - q, y - q, q * 2, q * 2); }
+    g.fillStyle = 'rgba(30,6,5,.75)'; for (i = 0; i < 40; i++) { a = Math.random() * 6.283; r = S * (0.22 + Math.random() * 0.26); g.beginPath(); g.arc(S / 2 + Math.cos(a) * r, S / 2 + Math.sin(a) * r, 0.6 + Math.random() * 2.2, 0, 7); g.fill(); }      // spatter
+    g.strokeStyle = 'rgba(28,6,5,.55)'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(S / 2, S / 2); g.quadraticCurveTo(S * 0.7, S * 0.62, S * 0.95, S * 0.58); g.stroke();                                                                              // dragged
+  }) }),
   gold: std(0xc9a13a, 0.3, { metalness: 0.9 }), red: std(0xb01a14, 0.45), yellow: std(0x94700f, 0.65, { bumpMap: bump(2), bumpScale: 0.01 }),
   glass: std(0x9fd8e8, 0.04, { transparent: true, opacity: 0.16, metalness: 0.4 }),
   window: std(0x05080a, 0.06, { metalness: 0.95 }), rubber: std(0x101011, 0.95),
@@ -452,14 +504,55 @@ function infoTex(title, lines, accent, h) {
   for (var i = 0; i < lines.length; i++) g.fillText(lines[i], 256, 104 + i * 36, 480);
   var t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
 }
-// A framed sign whose printed face points along local +z (rotY = 0 faces south). The back is plain wood.
+// ---------- weathering: what twelve years outdoors does to paint ----------
+function streaks(g, w, h, n, col, len) {            // rain and rust running down a surface
+  for (var q = 0; q < n; q++) {
+    var x = Math.random() * w, y = Math.random() * h * 0.6, l = (len || h * 0.5) * (0.4 + Math.random() * 0.6), gr = g.createLinearGradient(0, y, 0, y + l);
+    gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.globalAlpha = 0.25 + Math.random() * 0.5; g.fillRect(x, y, 1.5 + Math.random() * 5, l);
+  }
+  g.globalAlpha = 1;
+}
+function grime(g, w, h, amount) {                   // dirt gathering at the top edge and along the bottom
+  var gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, 'rgba(20,18,12,' + 0.35 * amount + ')'); gr.addColorStop(0.25, 'rgba(0,0,0,0)');
+  gr.addColorStop(0.7, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(24,26,14,' + 0.6 * amount + ')'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  blotch(g, Math.max(w, h), ['#1c1a12', '#2a2c1a', '#3a3222'], Math.round(10 * amount), 10, Math.max(w, h) * 0.3, 0.35);
+}
+function chips(g, w, h, n, col) {                   // flaked paint
+  g.fillStyle = col;
+  for (var q = 0; q < n; q++) {
+    var x = Math.random() * w, y = Math.random() * h, r = 2 + Math.random() * 9; g.beginPath();
+    for (var a = 0; a < 7; a++) { var an = a / 7 * 6.283, rr = r * (0.5 + Math.random() * 0.7); g.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr * 0.8); }
+    g.fill();
+  }
+}
+var ZOO_FONT = '"Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", sans-serif';
+/* Park signage.  The colour argument picks the kind of board:
+     (none)  park name board: green enamel, cream lettering, mustard border
+     red     a warning: red board, white lettering
+     yellow  a hazard or instruction plate: yellow, black lettering
+     pale    an information board: cream, green lettering
+     blue    the aquarium's boards
+   Every board is weathered.  It stands on two posts set in concrete unless `y` is given, in which case it is fixed to
+   whatever is behind it (a wall, a fence) and gets four bolts instead.  The printed face points along local +z. */
+var SIGN_STYLE = { '#d9534a': ['#8d1f18', '#f1ecdd', '#f1ecdd', 1], '#ffd23a': ['#d9ae35', '#17140e', '#17140e', 1], '#cfd8c0': ['#ded5b6', '#254a30', '#254a30', 0], '#e8e2d0': ['#ded5b6', '#254a30', '#254a30', 0],
+  '#f0e6c8': ['#ded5b6', '#254a30', '#254a30', 0], '#7fd6e8': ['#1d4a58', '#e9e2d0', '#7fd6e8', 0], '#f0cf6a': ['#254a30', '#e2b93b', '#e2b93b', 0] };
+var signBack = null;
 function makeSign(text, x, z, rotY, w, y, color, noPosts) {
   w = w || 7;
-  var grp = new THREE.Group(), h = w / 4, by = y || 3;
-  var tex = textTex([text], 512, 128, '#2b2116', color || '#e2c56a', '#8a7340');
-  box(w + 0.16, h + 0.16, 0.1, M.wood, 0, by, -0.08, grp);
-  mesh(new THREE.PlaneGeometry(w, h), std(0xffffff, 0.75, { map: tex }), 0, by, -0.025, grp);
-  if (!noPosts && !y) [-w / 2 + 0.3, w / 2 - 0.3].forEach(function (px) { box(0.2, 3, 0.2, M.wood, px, 1.5, -0.22, grp); box(0.3, 0.12, 0.3, M.dark, px, 0.06, -0.22, grp); });
+  var st = SIGN_STYLE[color] || ['#254a30', '#ece3c4', '#d9ae35', 0], grp = new THREE.Group(), h = w / 4, by = y || 3, PW = 768, PH = 192;
+  var tex = canvasTex(PW, function (g) {
+    g.fillStyle = st[0]; g.fillRect(0, 0, PW, PH); g.strokeStyle = st[2]; g.lineWidth = 9; g.strokeRect(11, 11, PW - 22, PH - 22);
+    g.fillStyle = st[1]; g.textAlign = 'center'; g.textBaseline = 'middle';
+    var fs = 104; g.font = 'bold ' + fs + 'px ' + (st[3] ? 'Impact, "Arial Black", sans-serif' : ZOO_FONT);
+    while (g.measureText(text).width > PW - 74 && fs > 30) { fs -= 4; g.font = 'bold ' + fs + 'px ' + (st[3] ? 'Impact, "Arial Black", sans-serif' : ZOO_FONT); }
+    g.fillText(text, PW / 2, PH / 2 + 4);
+    chips(g, PW, PH, 26, '#1b1a16'); chips(g, PW, PH, 10, '#6b3a1c'); streaks(g, PW, PH, 26, 'rgba(70,40,18,.9)', PH * 0.9); grime(g, PW, PH, 1.1);
+  }, 1, 1, true, PH);
+  signBack = signBack || std(0xffffff, 0.85, { metalness: 0.35, map: rustTex });
+  box(w + 0.1, h + 0.1, 0.05, signBack, 0, by, -0.03, grp);
+  mesh(new THREE.PlaneGeometry(w, h), std(0xffffff, 0.75, { map: tex, bumpMap: bump(2), bumpScale: 0.006 }), 0, by, -0.004, grp);
+  if (!noPosts && !y) [-w / 2 + 0.3, w / 2 - 0.3].forEach(function (px) { box(0.16, by + h / 2 + 0.25, 0.16, M.wood, px, (by + h / 2 + 0.25) / 2, -0.14, grp); box(0.42, 0.14, 0.42, M.concrete, px, 0.07, -0.14, grp); box(0.2, 0.06, 0.2, M.dark, px, by + h / 2 + 0.28, -0.14, grp); });
+  else [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) { var b = cyl(0.03, 0.03, 0.03, M.rust, c[0] * (w / 2 - 0.12), by + c[1] * (h / 2 - 0.12), 0.005, grp, 6); b.rotation.x = PI / 2; });
   grp.position.set(x, 0, z); grp.rotation.y = rotY || 0; scene.add(grp);
   return grp;
 }
@@ -485,8 +578,8 @@ var dynamic = [];             // things that still move after the scenery is fro
 function dyn(o) { dynamic.push(o); return o; }
 
 // ---------- sound (synthesized effects) ----------
-var prefs = { muted: false, diff: 'normal', duck: false };
-try { var _pr = JSON.parse(localStorage.getItem(PREF_KEY)); if (_pr) { prefs.muted = !!_pr.muted; prefs.duck = !!_pr.duck; if (DIFFS[_pr.diff]) prefs.diff = _pr.diff; } } catch (e) {}
+var prefs = { muted: false, diff: 'normal', duck: false, intro: false, tips: {} };
+try { var _pr = JSON.parse(localStorage.getItem(PREF_KEY)); if (_pr) { prefs.muted = !!_pr.muted; prefs.duck = !!_pr.duck; prefs.intro = !!_pr.intro; prefs.tips = _pr.tips || {}; if (DIFFS[_pr.diff]) prefs.diff = _pr.diff; } } catch (e) {}
 function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) {} }
 
 var Sound = {
@@ -535,6 +628,48 @@ var Sound = {
   step: function (v, f) { this.noise(0.09, f, v); },
   thud: function (vol) { this.tone(70, 28, 0.35, vol, 'sine'); this.noise(0.25, 150, vol * 0.8); },
   beat: function (vol) { this.tone(60, 40, 0.12, vol, 'sine'); this.tone(55, 38, 0.14, vol * 0.8, 'sine', 0.18); },
+  // steady sounds: wind in the trees, a gate motor.  Each is built on first use and then only its loudness changes.
+  drone: function (name, v, make) {
+    if (!this.ctx) return;
+    this.drones = this.drones || {};
+    if (!this.drones[name]) { if (v <= 0) return; var g = this.ctx.createGain(); g.gain.value = 0; g.connect(this.master); make(this.ctx, g, this.buf); this.drones[name] = g; }
+    this.drones[name].gain.setTargetAtTime(v, this.ctx.currentTime, 0.25);
+  },
+  windSet: function (v) {
+    this.drone('wind', v, function (ctx, out, buf) {
+      var n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), lfo = ctx.createOscillator(), lg = ctx.createGain(); n.buffer = buf; n.loop = true; f.type = 'bandpass'; f.frequency.value = 420; f.Q.value = 0.6;
+      lfo.frequency.value = 0.13; lg.gain.value = 180; lfo.connect(lg); lg.connect(f.frequency); n.connect(f); f.connect(out); n.start(); lfo.start();
+    });
+  },
+  motorSet: function (v) {
+    this.drone('motor', v, function (ctx, out, buf) {
+      var o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), m = ctx.createGain();
+      o1.type = 'sawtooth'; o1.frequency.value = 118; o2.type = 'square'; o2.frequency.value = 236.5; n.buffer = buf; n.loop = true; f.type = 'bandpass'; f.frequency.value = 520; f.Q.value = 1.4; m.gain.value = 0.55;
+      o1.connect(m); o2.connect(m); n.connect(m); m.connect(f); f.connect(out); o1.start(); o2.start(); n.start();
+    });
+  },
+  klaxonSet: function (v) {
+    this.drone('klaxon', v, function (ctx, out) {
+      var o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), f = ctx.createBiquadFilter(); o.type = 'sawtooth'; o.frequency.value = 560; lfo.type = 'square'; lfo.frequency.value = 0.9; lg.gain.value = 130;
+      lfo.connect(lg); lg.connect(o.frequency); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 1.2; o.connect(f); f.connect(out); o.start(); lfo.start();
+    });
+  },
+  creak: function (vol) { vol = vol === undefined ? 0.5 : vol; var f = 260 + Math.random() * 120; this.tone(f, f * 0.62, 0.9, 0.09 * vol, 'sawtooth'); this.tone(f * 2.02, f * 1.3, 0.7, 0.05 * vol, 'square', 0.05); this.noise(0.8, 1400, 0.05 * vol); },
+  clang: function () { var me = this; [196, 523, 811, 1307, 1863, 2480].forEach(function (f, i) { me.tone(f, f * 0.985, 1.5 - i * 0.18, 0.22 - i * 0.025, i ? 'sine' : 'triangle'); }); this.thud(0.7); this.noise(0.35, 4200, 0.5); this.noise(1.2, 700, 0.25, 0.05); },
+  rattle: function () { var f = 700 + Math.random() * 500; this.tone(f, f * 0.9, 0.06, 0.12, 'square'); this.noise(0.07, 3600, 0.16); },
+  // the generator in the maintenance shed: a low drone whose loudness game.js sets from how far away you are
+  genSet: function (v) {
+    if (!this.ctx) return;
+    if (!this.gen) {
+      if (v <= 0) return;
+      var ctx = this.ctx, g = ctx.createGain(), o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+      o1.type = 'sawtooth'; o1.frequency.value = 46; o2.type = 'square'; o2.frequency.value = 93.5; n.buffer = this.buf; n.loop = true; f.type = 'lowpass'; f.frequency.value = 240;
+      lfo.frequency.value = 11; lg.gain.value = 0.25; lfo.connect(lg); lg.connect(g.gain); g.gain.value = 0;
+      var m = ctx.createGain(); m.gain.value = 0.5; o1.connect(m); o2.connect(m); n.connect(m); m.connect(f); f.connect(g); g.connect(this.master);
+      o1.start(); o2.start(); n.start(); lfo.start(); this.gen = g;
+    }
+    this.gen.gain.setTargetAtTime(v, this.ctx.currentTime, 0.15);
+  },
   chime: function () { this.tone(660, 660, 0.25, 0.25, 'triangle'); this.tone(990, 990, 0.3, 0.25, 'triangle', 0.12); this.tone(1320, 1320, 0.5, 0.2, 'triangle', 0.24); },
   click: function () { this.tone(900, 700, 0.04, 0.15, 'square'); },
   zap: function () { this.tone(2400, 300, 0.3, 0.2, 'square'); this.noise(0.35, 6000, 0.35); },
@@ -543,17 +678,64 @@ var Sound = {
   save: function () { this.tone(440, 440, 0.12, 0.2, 'square'); this.tone(660, 660, 0.2, 0.2, 'square', 0.13); }
 };
 
+// ---------- recorded effects and voice ----------
+/* Optional audio files, listed in audio/manifest.js as  SFX_FILES = { name: 'audio/sfx/name.mp3', ... }.
+   Sfx.play(name, { vol, rate, pan, loop, delay, fallback })  plays the recording if it has loaded, otherwise calls `fallback`
+   (normally one of the synthesized Sound.* effects), so the game sounds right with or without the files.
+   A name with numbered takes (step_1, step_2 ...) is played as `step` and a take is picked at random. */
+var SFX_FILES = window.SFX_FILES || {};
+var Sfx = {
+  buf: {}, takes: {}, started: false, loops: {},
+  loadAll: function (done) {
+    var me = this, names = Object.keys(SFX_FILES), left = names.length;
+    if (!Sound.ctx || this.started) { if (done) done(); return; }
+    this.started = true;
+    if (!left && done) done();
+    names.forEach(function (n) {
+      fetch(SFX_FILES[n]).then(function (r) { if (!r.ok) throw 0; return r.arrayBuffer(); })
+        .then(function (ab) { return new Promise(function (res, rej) { Sound.ctx.decodeAudioData(ab, res, rej); }); })
+        .then(function (b) { me.buf[n] = b; var m = /^(.*)_\d+$/.exec(n); if (m) (me.takes[m[1]] = me.takes[m[1]] || []).push(n); })
+        .catch(function () {}).then(function () { if (--left === 0 && done) done(); });
+    });
+  },
+  pick: function (n) { if (this.buf[n]) return this.buf[n]; var t = this.takes[n]; return t && t.length ? this.buf[t[(Math.random() * t.length) | 0]] : null; },
+  has: function (n) { return !!this.pick(n); },
+  dur: function (n) { var b = this.pick(n); return b ? b.duration : 0; },
+  play: function (n, o) {
+    o = o || {};
+    var b = Sound.ctx ? this.pick(n) : null;
+    if (!b) { if (o.fallback) o.fallback(); return null; }
+    var ctx = Sound.ctx, t = ctx.currentTime + (o.delay || 0), s = ctx.createBufferSource(), g = ctx.createGain(), last = g;
+    s.buffer = b; s.loop = !!o.loop; s.playbackRate.value = o.rate || 1;
+    g.gain.value = o.vol === undefined ? 1 : o.vol; s.connect(g);
+    if (o.pan && ctx.createStereoPanner) { var p = ctx.createStereoPanner(); p.pan.value = clamp(o.pan, -1, 1); g.connect(p); last = p; }
+    last.connect(o.bus || this.bus || Sound.master); s.start(t, o.offset || 0);
+    return { src: s, gain: g, stop: function (fade) { try { if (fade) { g.gain.setTargetAtTime(0, ctx.currentTime, fade / 3); s.stop(ctx.currentTime + fade); } else s.stop(); } catch (e) {} } };
+  },
+  // a sound at a place in the park: quieter with distance, panned by where it is relative to the way you face
+  at: function (n, x, z, o) {
+    o = o || {};
+    var dx = x - player.x, dz = z - player.z, d = Math.hypot(dx, dz), reach = o.reach || 60, v = clamp(1 - d / reach, 0, 1);
+    if (v <= 0) return null;
+    var right = dx * Math.cos(player.yaw) - dz * Math.sin(player.yaw);
+    var q = {}; for (var k in o) q[k] = o[k];
+    q.vol = (o.vol === undefined ? 1 : o.vol) * v * v; q.pan = d > 0.5 ? clamp(right / d, -1, 1) * 0.8 : 0;
+    return this.play(n, q);
+  }
+};
+
 // ---------- music (mp3 files in the music folder) ----------
 var chaseHold = 0;
 var Music = {
   tracks: {}, started: false,
-  vol: { menu: 0.5, explore: 0.38, escape: 0.55, chase: 0.6 },
+  vol: { menu: 0.5, explore: 0.38, escape: 0.55, chase: 0.6, intro: 0.55 },
   init: function () {
     var me = this;
-    ['menu', 'explore', 'escape', 'chase'].forEach(function (n) { var a = new Audio('music/' + n + '.mp3'); a.loop = true; a.volume = 0; a.preload = 'auto'; me.tracks[n] = a; });
+    ['menu', 'explore', 'escape', 'chase', 'intro'].forEach(function (n) { var a = new Audio('music/' + n + '.mp3'); a.loop = true; a.volume = 0; a.preload = 'auto'; me.tracks[n] = a; });
   },
   want: function () {
     if (state === 'menu') return 'menu';
+    if (state === 'cine') return cine && cine.music ? cine.music : chaseHold > 0 ? 'chase' : null;
     if (state !== 'playing' && state !== 'paused') return null;
     if (P && P.esc) return 'escape';
     return chaseHold > 0 && state === 'playing' ? 'chase' : 'explore';
@@ -567,7 +749,7 @@ var Music = {
       target = n === w && !prefs.muted ? this.vol[n] * (state === 'paused' ? 0.45 : 1) : 0;
       a.volume = clamp(a.volume + clamp(target - a.volume, -dt * 0.6, dt * 0.9), 0, 1);
       if (target > 0 && a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
-      else if (target === 0 && a.volume <= 0.001 && !a.paused) { a.pause(); if (n === 'chase') a.currentTime = 0; }
+      else if (target === 0 && a.volume <= 0.001 && !a.paused) { a.pause(); if (n === 'chase' || n === 'intro') a.currentTime = 0; }
     }
   }
 };
