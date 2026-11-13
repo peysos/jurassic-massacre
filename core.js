@@ -64,8 +64,13 @@ var TERMS = SAFE.concat([{ name: 'Aquarium Lobby', x: 85.5, z: 67, tx: 85.5, tz:
 var NEED_HINT = { pow0: 'no power. Restore it from the generator shed across the plaza', turn: 'open the turnstiles first', pen: 'unlock the holding pen in the paddock first', power: 'no power. Fix the fuse box at the Visitor Center',
   north: 'recover a key piece from the Aviary or T-Rex Kingdom first', aqua: 'recover the key piece across the pool first' };
 var PATHS = [[-4, 4, -118, 113.5], [-100, 100, -4, 4], [-80, 0, 76, 84], [0, 74, 56, 64], [-100, 60, -94, -86]];   // x1, x2, z1, z2
-var BATTERY_SPOTS = [[12, 119], [-8, 96], [26, 93], [-45, 73], [-70, 100], [60, 70], [104, 40], [80, 72], [-14, -8], [-28, -10], [10, -36],
-  [100, 9], [-106, -9], [60, 20], [-60, 22], [-22, -63], [-80, -62], [-60, -97], [40, -84], [70, -110], [-6, -108]];
+/* Where spare cells can turn up (a game picks DIFF.batteries of them).  Each lies on whatever is under it (game.js restY): many
+   are on counters, desks and tables (the gift shop counter, the shed workbench, the food kiosks, the save-point desks, the
+   break room table, picnic tables), the rest where someone dropped them. */
+var BATTERY_SPOTS = [[-8, 96], [26, 93], [-45, 73], [-70, 100], [104, 40], [-14, -8], [-28, -10], [10, -36],
+  [60, 20], [-60, 22], [-22, -63], [-80, -62], [-60, -97], [40, -84], [70, -110],
+  [21.45, 130.6], [-17.25, 124.32], [20.35, 49.05], [17.45, 11.35], [25.65, -81.05], [86.5, 67.45], [30.6, 131.0],
+  [-44.45, 95.3], [-108.3, 0.55], [108.3, -0.55], [-0.55, -126.3], [60.4, 80.1], [-14.56, 12.27], [62.51, 47.95]];
 var ROMAN = ['I', 'II', 'III', 'IV'];
 
 // ---------- helpers ----------
@@ -175,6 +180,75 @@ function renderFrame(t, pulse) {
   else renderer.render(scene, camera);
 }
 function setPixelRatio(pr) { pixelRatio = pr; renderer.setPixelRatio(pr); if (composer) { composer.setPixelRatio(pr); composer.setSize(window.innerWidth, window.innerHeight); } }
+
+/* ---------- Outline: a clean yellow edge round the switch (or port, button, lead) the middle of the view is on ----------
+   Each outlinable thing gets a hull: its own meshes drawn again, back faces only, every vertex pushed out a fixed number of
+   pixels on screen along its smoothed normal and pulled a centimetre toward the eye.  The thing's front faces hide the hull
+   everywhere but a thin rim round its silhouette, the panel it is mounted on does not (the hull sits in front of it), and
+   anything nearer (a hand) still covers it.  Hulls are made at build time, hidden, so the static batching leaves them
+   alone even when what they outline is merged away.  Outline.make(obj) -> handle; Outline.show(handle or null) each frame. */
+var Outline = (function () {
+  var O = {}, cur = null, all = [], dbs = new THREE.Vector2();
+  var mat = new THREE.ShaderMaterial({
+    uniforms: { color: { value: new THREE.Color(0xffc22e) }, width: { value: 2.4 }, res: { value: new THREE.Vector2(1280, 720) }, alpha: { value: 0 }, push: { value: 0.012 } },
+    vertexShader: [
+      'attribute vec3 onormal; uniform float width; uniform vec2 res; uniform float push;',
+      'void main() {',
+      '  vec4 v = modelViewMatrix * vec4(position, 1.0);',
+      '  v.xyz *= 1.0 - push / max(length(v.xyz), 0.05);',                                     // a centimetre toward the eye
+      '  vec4 p = projectionMatrix * v;',
+      '  vec4 q = projectionMatrix * vec4(normalize(normalMatrix * onormal), 0.0);',
+      '  float L = length(q.xy); if (L > 1e-5) p.xy += q.xy / L * width * 2.0 / res * p.w;',    // a fixed number of pixels out
+      '  gl_Position = p;',
+      '}'].join('\n'),
+    fragmentShader: 'uniform vec3 color; uniform float alpha; void main() { gl_FragColor = vec4(color, alpha); }',
+    side: THREE.BackSide, transparent: true, depthWrite: false, fog: false, toneMapped: false
+  });
+  O.mat = mat;
+  function smoothNormals(geo) {                      // an `onormal` attribute: each vertex's normal averaged with every vertex at the same place
+    if (geo.attributes.onormal) return;
+    if (!geo.attributes.normal) geo.computeVertexNormals();
+    var pos = geo.attributes.position, nor = geo.attributes.normal, n = pos.count, sum = {}, out = new Float32Array(n * 3), i, k;
+    function key(j) { return Math.round(pos.getX(j) * 2e4) + ',' + Math.round(pos.getY(j) * 2e4) + ',' + Math.round(pos.getZ(j) * 2e4); }
+    for (i = 0; i < n; i++) { k = key(i); var s = sum[k] || (sum[k] = [0, 0, 0]); s[0] += nor.getX(i); s[1] += nor.getY(i); s[2] += nor.getZ(i); }
+    for (i = 0; i < n; i++) { var t = sum[key(i)], l = Math.hypot(t[0], t[1], t[2]) || 1; out[i * 3] = t[0] / l; out[i * 3 + 1] = t[1] / l; out[i * 3 + 2] = t[2] / l; }
+    geo.setAttribute('onormal', new THREE.BufferAttribute(out, 3));
+  }
+  /* obj: a mesh or a group of them (every mesh under it gets a hull, riding with it). o.skip(mesh) leaves a mesh out. */
+  O.make = function (obj, o) {
+    var h = { hulls: [], k: 0 };
+    var list = []; (Array.isArray(obj) ? obj : [obj]).forEach(function (ob) { ob.traverse(function (m) { if (m.isMesh && !m.userData.isHull && !(o && o.skip && o.skip(m))) list.push(m); }); });
+    list.forEach(function (m) {
+      smoothNormals(m.geometry);
+      var hm = new THREE.Mesh(m.geometry, mat); hm.userData.isHull = true; hm.userData.noCast = true; hm.castShadow = hm.receiveShadow = false;
+      hm.renderOrder = 6; hm.visible = false; hm.frustumCulled = false;
+      hm.position.copy(m.position); hm.quaternion.copy(m.quaternion); hm.scale.copy(m.scale); hm.updateMatrix();    // a sibling, not a child: the batching may merge the mesh itself away
+      (m.parent || scene).add(hm); h.hulls.push(hm);
+    });
+    all.push(h); return h;
+  };
+  /* A flat frame (outer w x h, border b) lying in an object's xy plane, for things that are only a hole in a panel (a port). */
+  O.frame = function (parent, w, hh, b, x, y, z) {
+    var sh = new THREE.Shape(); sh.moveTo(-w / 2, -hh / 2); sh.lineTo(w / 2, -hh / 2); sh.lineTo(w / 2, hh / 2); sh.lineTo(-w / 2, hh / 2); sh.lineTo(-w / 2, -hh / 2);
+    var hole = new THREE.Path(); hole.moveTo(-w / 2 + b, -hh / 2 + b); hole.lineTo(-w / 2 + b, hh / 2 - b); hole.lineTo(w / 2 - b, hh / 2 - b); hole.lineTo(w / 2 - b, -hh / 2 + b); hole.lineTo(-w / 2 + b, -hh / 2 + b); sh.holes.push(hole);
+    var fm = new THREE.Mesh(new THREE.ShapeGeometry(sh), O.flatMat); fm.position.set(x, y, z); fm.renderOrder = 6; fm.visible = false; fm.userData.isHull = true; fm.userData.noCast = true; parent.add(fm);
+    var h = { hulls: [fm], k: 0, flat: true }; all.push(h); return h;
+  };
+  O.flatMat = new THREE.MeshBasicMaterial({ color: 0xffc22e, transparent: true, opacity: 0, depthWrite: false, fog: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  O.show = function (h) { cur = h || null; };
+  O.clear = function () { cur = null; all.forEach(function (h) { h.k = 0; h.hulls.forEach(function (m) { m.visible = false; }); }); };
+  O.update = function (dt) {
+    renderer.getDrawingBufferSize(dbs); mat.uniforms.res.value.copy(dbs); mat.uniforms.width.value = 1.6 * Math.max(1, dbs.y / 720);   // the same weight at any resolution
+    var a = 0;
+    for (var i = 0; i < all.length; i++) {
+      var h = all[i]; h.k = clamp(h.k + (h === cur ? dt / 0.12 : -dt / 0.18), 0, 1);
+      var vis = h.k > 0.01; for (var j = 0; j < h.hulls.length; j++) h.hulls[j].visible = vis;
+      if (vis) a = Math.max(a, h.k);
+    }
+    mat.uniforms.alpha.value = a; O.flatMat.opacity = a;               // (only one thing is ever outlined for long)
+  };
+  return O;
+})();
 window.addEventListener('resize', function () {
   camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);

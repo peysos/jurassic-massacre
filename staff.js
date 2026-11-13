@@ -16,7 +16,7 @@ var Staff = (function () {
   S.room = { x1: RX1, x2: RX2, z1: RZ1, z2: RZ2 }; S.link = { x1: LX1, x2: LX2, z1: LZ1, z2: LZ2 };
   /* Everything behind the shop's back wall is gathered into one group at the end, kept out of the static batching and only
      drawn when it could be seen (from inside it, or from the shop with the door open): nothing culls it behind walls. */
-  var n0 = scene.children.length, wing = new THREE.Group(); wing.userData.keep = true; S.wing = wing;
+  var n0 = scene.children.length, wing = new THREE.Group(); wing.userData.keep = true; wing.userData.batchInside = true; S.wing = wing;
 
   // ---------- surfaces ----------
   // walls: painted blockwork, a dark green dado to a metre, scuffed by chairs and trolleys, grubby at hand height
@@ -172,7 +172,21 @@ var Staff = (function () {
     box(0.5, 0.02, 0.36, chromeS, 29.0, 0.917, kz + 0.04); box(0.44, 0.1, 0.3, std(0x6a6e70, 0.3, { metalness: 0.8 }), 29.0, 0.87, kz + 0.04);   // the sink
     var tap = cyl(0.012, 0.012, 0.25, chromeS, 29.0, 1.04, kz + 0.24, null, 8); var sp2 = cyl(0.01, 0.01, 0.16, chromeS, 29.0, 1.16, kz + 0.17, null, 8); sp2.rotation.x = PI / 2;
     // wall units over it, one door hanging by a hinge
-    for (x = KX1 + 0.3; x < KX2; x += 0.6) { box(0.58, 0.62, 0.34, unitMat, x, 1.85, RZ2 - 0.17); var wd = box(0.56, 0.6, 0.02, unitMat, x, 1.85, RZ2 - 0.35); if (Math.abs(x - 29.7) < 0.1) { wd.rotation.set(0.1, 0.9, 0.35); wd.position.x -= 0.2; wd.position.z -= 0.15; } }
+    for (x = KX1 + 0.3; x < KX2; x += 0.6) {
+      box(0.58, 0.62, 0.34, unitMat, x, 1.85, RZ2 - 0.17);
+      var hinge = new THREE.Group(); hinge.position.set(x - 0.28, 1.85, RZ2 - 0.35); scene.add(hinge);                         // each door on its left-hand hinge
+      var dg = new THREE.Group(); dg.position.set(0, 0.3, 0); hinge.add(dg);                                                           // (the door hangs from its top hinge point)
+      box(0.56, 0.6, 0.02, unitMat, 0.28, -0.3, 0, dg); box(0.1, 0.012, 0.02, chromeS, 0.48, -0.54, -0.016, dg);
+      if (Math.abs(x - 29.7) < 0.1) { hinge.rotation.y = 1.95; dg.rotation.z = -0.22; }                                                // ripped off its bottom hinge: open wide, sagging from the top one
+    }
+    // the splashback: white tiles, grout gone grey, splashed
+    mesh(new THREE.PlaneGeometry(KX2 - KX1, 0.62), std(0xffffff, 0.35, { map: canvasTex(512, function (g, S2, H2) {
+      g.fillStyle = '#8a8d86'; g.fillRect(0, 0, S2, H2); var tw = S2 / 35, th = H2 / 6.2;
+      for (var r = 0; r < 7; r++) for (var c = 0; c < 36; c++) { var v = 222 + ((r * 7 + c * 13) % 9) - 4; g.fillStyle = 'rgb(' + v + ',' + v + ',' + (v - 6) + ')'; g.fillRect(c * tw + 1.2, H2 - (r + 1) * th + 1.2, tw - 2.4, th - 2.4); g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(c * tw + 1.5, H2 - (r + 1) * th + 1.5, tw - 4, 1.5); }
+      E.grime(g, S2, H2, 1.1); E.streaks(g, S2, H2, 14, 'rgba(90,70,40,.5)', H2 * 0.6);
+      g.globalAlpha = 0.85; for (var q = 0; q < 26; q++) { g.fillStyle = 'rgba(70,6,6,' + (0.4 + Math.random() * 0.5) + ')'; g.beginPath(); g.arc(S2 * (0.62 + Math.random() * 0.3), H2 * (0.2 + Math.random() * 0.6), 1 + Math.random() * 4, 0, 7); g.fill(); } g.globalAlpha = 1;
+    }, 1, 1, true, 90) }), (KX1 + KX2) / 2, 0.92 + 0.31, RZ2 - 0.004).rotation.y = PI;
+    box(KX2 - KX1, 0.03, 0.012, std(0x9a9488, 0.5), (KX1 + KX2) / 2, 0.93, RZ2 - 0.008);                                          // the upstand along the worktop
     // microwave, door open
     var mw = new THREE.Group(); mw.position.set(30.55, 0.92, kz + 0.05); mw.rotation.y = PI + 0.08; scene.add(mw);
     box(0.48, 0.28, 0.36, std(0xd7d4c8, 0.5), 0, 0.14, 0, mw); box(0.32, 0.22, 0.3, M.dark, -0.06, 0.14, -0.02, mw);
@@ -181,19 +195,81 @@ var Staff = (function () {
     var cm = new THREE.Group(); cm.position.set(29.75, 0.92, kz + 0.1); cm.rotation.y = PI; scene.add(cm);
     box(0.22, 0.36, 0.26, M.dark, 0, 0.18, 0.02, cm); box(0.22, 0.05, 0.14, M.dark, 0, 0.34, -0.12, cm);
     cyl(0.07, 0.065, 0.14, std(0x3a1e0c, 0.08, { transparent: true, opacity: 0.85 }), 0, 0.08, -0.12, cm, 14); cyl(0.072, 0.072, 0.02, M.dark, 0, 0.16, -0.12, cm, 14);
-    [[28.3, 0], [28.42, 1], [30.0, 2]].forEach(function (m2) { var mg = cyl(0.04, 0.036, 0.09, std([0xe9e2d0, 0x8d1f18, 0x254a30][m2[1]], 0.5), m2[0], 0.965, kz - 0.12, null, 12); if (m2[1] === 1) { mg.rotation.z = PI / 2; mg.position.y = 0.958; } });
+    [[29.38, 0], [29.5, 1], [30.0, 2]].forEach(function (m2) { var mg = cyl(0.04, 0.036, 0.09, std([0xe9e2d0, 0x8d1f18, 0x254a30][m2[1]], 0.5), m2[0], 0.965, kz - 0.12, null, 12); if (m2[1] === 1) { mg.rotation.z = PI / 2; mg.position.y = 0.958; } });
     cyl(0.08, 0.09, 0.2, std(0xb4b8bb, 0.3, { metalness: 0.8 }), 31.0, 1.02, kz + 0.05, null, 14);
     // the answering machine and the desk phone beside it, at the end of the worktop by the door
+    /* A cassette answering machine of the early nineties: a charcoal wedge (low at the front, rising to the back) with the
+       micro-cassette under a smoked lid, the red message counter, a speaker grille and the row of keys, PLAY the big green
+       one.  Cords for the phone line and the mains run out of the back to the wall.  Its front (+z) faces the room. */
+    function wedge(w, d, hf, hb, r) {            // a rounded wedge: d deep (front at +z), hf high at the front, hb at the back, w wide
+      var sh = new THREE.Shape(), f = -d / 2, bk = d / 2;
+      sh.moveTo(f + r, 0); sh.lineTo(bk - r, 0); sh.quadraticCurveTo(bk, 0, bk, r); sh.lineTo(bk, hb - r); sh.quadraticCurveTo(bk, hb, bk - r, hb - r * (hb - hf) / d);
+      sh.lineTo(f + r, hf + r * (hb - hf) / d); sh.quadraticCurveTo(f, hf, f, hf - r); sh.lineTo(f, r); sh.quadraticCurveTo(f, 0, f + r, 0);
+      var g = new THREE.ExtrudeGeometry(sh, { depth: w - 2 * r, bevelEnabled: true, bevelThickness: r, bevelSize: r * 0.6, bevelSegments: 2, curveSegments: 4 });
+      g.translate(0, 0, -(w - 2 * r) / 2); g.rotateY(PI / 2); return g;        // (shape x was depth with the front negative: it becomes z with the front positive)
+    }
+    var amPlastic = std(0xffffff, 0.42, { map: canvasTex(128, function (g, S2) { g.fillStyle = '#1e1f21'; g.fillRect(0, 0, S2, S2); g.globalAlpha = 0.5; speckle('rgba(0,0,0,0)', ['#26272a', '#18191b', '#2c2d30'], 3000, 1)(g, S2); g.globalAlpha = 1; }), bumpMap: bump(6), bumpScale: 0.0015 });
     var AM = new THREE.Group(); AM.position.set(27.95, 0.918, kz - 0.06); AM.rotation.y = PI - 0.5; scene.add(AM); S.amGroup = AM;
-    box(0.22, 0.055, 0.15, std(0x161718, 0.45), 0, 0.0275, 0, AM); box(0.2, 0.012, 0.1, std(0x0c0c0d, 0.3), 0, 0.058, 0.01, AM);
-    box(0.07, 0.004, 0.045, std(0x2a1e14, 0.2, { transparent: true, opacity: 0.8 }), -0.05, 0.063, 0.02, AM);                                   // the tape window
-    S.amLed = livePanel(0.035, 0.024, 64, 44, 0, 0, 0, 0, AM); S.amLed.mesh.material = basic(0xffffff, { map: S.amLed.tex, fog: false }); S.amLed.mesh.position.set(0.055, 0.0645, -0.045); S.amLed.mesh.rotation.x = -PI / 2;
-    S.amPlay = box(0.03, 0.008, 0.02, std(0x2fa84a, 0.5), 0.03, 0.064, 0.035, AM); box(0.03, 0.008, 0.02, std(0x8d1f18, 0.5), 0.07, 0.064, 0.035, AM);
-    var ph = new THREE.Group(); ph.position.set(28.25, 0.918, kz - 0.02); ph.rotation.y = PI + 0.2; scene.add(ph);
-    box(0.18, 0.06, 0.2, std(0xd8d4c4, 0.5), 0, 0.03, 0, ph); var hs = box(0.2, 0.04, 0.05, std(0xd8d4c4, 0.5), 0, 0.075, -0.05, ph); hs.rotation.z = 0.05;
-    var cordC = new THREE.CatmullRomCurve3([new THREE.Vector3(28.3, 0.95, kz + 0.04), new THREE.Vector3(28.2, 0.9, kz - 0.25), new THREE.Vector3(28.05, 0.6, kz - 0.35), new THREE.Vector3(27.95, 0.3, kz - 0.4)]);
-    mesh(new THREE.TubeGeometry(cordC, 20, 0.004, 5, false), std(0xd8d4c4, 0.6));                                                                // the handset was dropped: its cord hangs over the edge
-    box(0.2, 0.04, 0.05, std(0xd8d4c4, 0.5), 27.95, 0.28, kz - 0.4).rotation.set(1.2, 0.3, 0);
+    var AMW = 0.235, AMD = 0.17, AMF = 0.03, AMB = 0.056, AMS = Math.atan2(AMB - AMF, AMD);
+    var amBody = mesh(wedge(AMW, AMD, AMF, AMB, 0.006), amPlastic, 0, 0.002, 0, AM); amBody.castShadow = true;
+    box(AMW - 0.02, 0.003, AMD - 0.02, std(0x0b0b0c, 0.9), 0, 0.0015, 0, AM);                                                                     // the shadowed underside and its feet
+    var TOP = new THREE.Group(); TOP.position.set(0, 0.002 + (AMF + AMB) / 2 + 0.006 * 0.6, 0); TOP.rotation.x = AMS; AM.add(TOP);                                  // the sloping top: x across, z toward the front, y out of it
+    mesh(new THREE.PlaneGeometry(AMW - 0.014, AMD / Math.cos(AMS) - 0.014), std(0xffffff, 0.5, { map: canvasTex(512, function (g, S2, H2) {         // the printed top plate
+      g.fillStyle = '#232427'; g.fillRect(0, 0, S2, H2); g.globalAlpha = 0.35; speckle('rgba(0,0,0,0)', ['#2a2b2e', '#1c1d1f'], 4000, 1)(g, S2); g.globalAlpha = 1;
+      g.strokeStyle = '#3a3c40'; g.lineWidth = 2; g.strokeRect(14, 14, S2 - 28, H2 - 28); g.beginPath(); g.moveTo(14, H2 * 0.52); g.lineTo(S2 - 14, H2 * 0.52); g.stroke();
+      g.fillStyle = '#c9cbce'; g.font = 'bold 22px Arial'; g.textAlign = 'left'; g.fillText('SONITEL', 26, H2 * 0.6); g.font = '13px Arial'; g.fillStyle = '#8a8d92'; g.fillText('TAD-210  ANSWERING SYSTEM', 26, H2 * 0.6 + 20);
+      g.fillStyle = '#b8bbc0'; g.font = 'bold 12px Arial'; g.textAlign = 'center';
+      [['MESSAGES', 410, 22], ['ANNC', 300, H2 * 0.95], ['MEMO', 345, H2 * 0.95], ['REW', 300, H2 * 0.6], ['FF', 345, H2 * 0.6], ['PLAY / STOP', 420, H2 * 0.6], ['ERASE', 440, H2 * 0.95]].forEach(function (l) { g.fillText(l[0], l[1], l[2]); });
+      g.fillStyle = '#d23a2a'; g.beginPath(); g.arc(470, 26, 4, 0, 7); g.fill();
+      E.grime(g, S2, H2, 0.6);
+    }, 1, 1, true, 372) }), 0, 0.0007, 0, TOP).rotation.x = -PI / 2;
+    // the cassette bay: a well with the micro-cassette in it, the smoked lid over
+    mesh(new THREE.PlaneGeometry(0.088, 0.058), std(0xffffff, 0.45, { map: canvasTex(256, function (g, S2, H2) {
+      g.fillStyle = '#0d0d0e'; g.fillRect(0, 0, S2, H2); g.fillStyle = '#2a2b2e'; g.fillRect(40, 30, 176, 110); g.fillStyle = '#e9e2d0'; g.fillRect(52, 40, 152, 26); g.fillStyle = '#1a1a1a'; g.font = 'bold 13px Arial'; g.fillText('MC-60   SIDE A', 60, 58);
+      g.fillStyle = '#4a3a2a'; g.fillRect(70, 84, 116, 36); [98, 158].forEach(function (x) { g.fillStyle = '#5a3c1e'; g.beginPath(); g.arc(x, 102, 22, 0, 7); g.fill(); g.fillStyle = '#e8e3d8'; g.beginPath(); g.arc(x, 102, 8, 0, 7); g.fill(); g.fillStyle = '#1a1a1a'; for (var q = 0; q < 6; q++) { g.save(); g.translate(x, 102); g.rotate(q * PI / 3); g.fillRect(-1.5, 3, 3, 4); g.restore(); } });
+    }, 1, 1, true, 170) }), -0.058, 0.0012, -0.038, TOP).rotation.x = -PI / 2;
+    var lid = box(0.094, 0.004, 0.064, std(0x2a1e14, 0.08, { transparent: true, opacity: 0.55, metalness: 0.3, envMap: envTex, envMapIntensity: 0.6 }), -0.058, 0.0035, -0.038, TOP); lid.userData.noCast = true;
+    // the message counter in its bezel
+    box(0.05, 0.003, 0.036, std(0x0a0a0b, 0.3), 0.068, 0.0016, -0.046, TOP);
+    S.amLed = livePanel(0.035, 0.024, 64, 44, 0, 0, 0, 0, TOP); S.amLed.mesh.material = basic(0xffffff, { map: S.amLed.tex, fog: false }); S.amLed.mesh.position.set(0.068, 0.0034, -0.046); S.amLed.mesh.rotation.x = -PI / 2;
+    // the speaker grille
+    mesh(new THREE.PlaneGeometry(0.072, 0.05), std(0xffffff, 0.6, { map: canvasTex(128, function (g, S2, H2) { g.fillStyle = '#141416'; g.fillRect(0, 0, S2, H2); g.fillStyle = '#050505'; for (var yy = 8; yy < H2 - 4; yy += 8) for (var xx = 8 + (yy % 16 ? 4 : 0); xx < S2 - 4; xx += 8) { g.beginPath(); g.arc(xx, yy, 2.4, 0, 7); g.fill(); } }, 1, 1, true, 90) }), -0.06, 0.0012, 0.045, TOP).rotation.x = -PI / 2;
+    // the keys: PLAY/STOP big and green with its arrow, REW and FF, ANNC and MEMO, ERASE in red
+    var keyGrey = std(0x6a6d72, 0.45), keyDark = std(0x34363a, 0.5);
+    S.amPlay = box(0.036, 0.007, 0.024, std(0x2fa84a, 0.4), 0.071, 0.0045, 0.022, TOP); S.amPlay.userData.y0 = 0.0045; dyn(S.amPlay);
+    mesh(new THREE.PlaneGeometry(0.014, 0.012), std(0xffffff, 0.5, { transparent: true, map: canvasTex(64, function (g, S2) { g.clearRect(0, 0, S2, S2); g.fillStyle = '#0d2a12'; g.beginPath(); g.moveTo(14, 10); g.lineTo(44, 32); g.lineTo(14, 54); g.closePath(); g.fill(); g.fillRect(48, 10, 6, 44); }) }), 0, 0.0036, 0, S.amPlay).rotation.x = -PI / 2;
+    [[0.0, 0.022, keyGrey], [0.026, 0.022, keyGrey], [0.0, 0.058, keyDark], [0.026, 0.058, keyDark], [0.076, 0.058, std(0xa8231c, 0.45)]].forEach(function (kk2) { box(0.02, 0.006, 0.016, kk2[2], kk2[0], 0.003, kk2[1], TOP); });
+    var wheel = cyl(0.012, 0.012, 0.008, keyDark, AMW / 2 + 0.002, 0.03, 0.03, AM, 16); wheel.rotation.z = PI / 2;                                // the volume wheel in the right-hand side
+    for (k = 0; k < 10; k++) { var rib = box(0.0085, 0.0016, 0.0016, keyGrey, AMW / 2 + 0.002, 0.03 + Math.sin(k / 10 * PI * 2) * 0.012, 0.03 + Math.cos(k / 10 * PI * 2) * 0.012, AM); rib.rotation.x = -k / 10 * PI * 2; }
+    S.amWorld = function (out) { S.amPlay.updateWorldMatrix(true, false); return S.amPlay.localToWorld(out.set(0, 0.0035, 0)); };
+    AM.updateMatrixWorld(true);
+    // its cords: the phone line and the mains, out of the back, along the worktop and up into the wall sockets
+    [[-0.05, 0xd8d4c4, 0.0022, 27.7], [0.04, 0x161616, 0.0028, 27.82]].forEach(function (cd) {
+      var p0 = AM.localToWorld(new THREE.Vector3(cd[0], 0.02, -AMD / 2 - 0.004)), p1 = AM.localToWorld(new THREE.Vector3(cd[0], 0.004, -AMD / 2 - 0.05));
+      var c3 = new THREE.CatmullRomCurve3([p0, p1, new THREE.Vector3(cd[3] + 0.06, 0.922, RZ2 - 0.04), new THREE.Vector3(cd[3], 0.95, RZ2 - 0.012), new THREE.Vector3(cd[3], 1.08, RZ2 - 0.012)]);
+      mesh(new THREE.TubeGeometry(c3, 24, cd[2], 6, false), std(cd[1], 0.6));
+    });
+    box(0.07, 0.11, 0.012, std(0xe6e1d2, 0.5), 27.76, 1.12, RZ2 - 0.006); [27.7, 27.82].forEach(function (x) { box(0.014, 0.03, 0.01, std(0x2a2a2a, 0.6), x, 1.1, RZ2 - 0.012); });   // the double socket
+    /* The desk phone: a beige touch-tone base, its cradle empty; the handset was dropped and hangs off the end of the worktop on
+       its coiled cord, a foot off the floor. */
+    var phBeige = std(0xffffff, 0.45, { map: canvasTex(64, function (g, S2) { g.fillStyle = '#d6d0bd'; g.fillRect(0, 0, S2, S2); blotch(g, S2, ['#b9b29c', '#a49c84'], 6, 6, 20, 0.35); }) });
+    var ph = new THREE.Group(); ph.position.set(28.27, 0.918, kz - 0.03); ph.rotation.y = PI + 0.25; scene.add(ph);
+    mesh(wedge(0.19, 0.2, 0.036, 0.07, 0.008), phBeige, 0, 0.002, 0, ph).castShadow = true;
+    var PTOP = new THREE.Group(); PTOP.position.set(0, 0.002 + 0.053 + 0.008 * 0.6, 0); PTOP.rotation.x = Math.atan2(0.034, 0.2); ph.add(PTOP);
+    mesh(new THREE.PlaneGeometry(0.1, 0.12), std(0xffffff, 0.5, { map: canvasTex(128, function (g, S2, H2) {
+      g.fillStyle = '#cfc8b4'; g.fillRect(0, 0, S2, H2);
+      for (var r = 0; r < 4; r++) for (var c = 0; c < 3; c++) { var x = 16 + c * 36, y = 14 + r * 38; g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x + 2, y + 3, 28, 26); g.fillStyle = '#eeeadf'; g.fillRect(x, y, 28, 26); g.fillStyle = '#2a2a2a'; g.font = 'bold 16px Arial'; g.textAlign = 'center'; g.fillText(['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'][r * 3 + c], x + 14, y + 19); }
+    }, 1, 1, true, 160) }), 0.03, 0.0008, 0.035, PTOP).rotation.x = -PI / 2;
+    [-0.065, 0.065].forEach(function (x) { box(0.03, 0.022, 0.05, phBeige, x, 0.012, -0.05, PTOP); box(0.012, 0.006, 0.012, std(0x8a8678, 0.4), x, 0.026, -0.05, PTOP); });   // the cradle, its hook switches standing up: off the hook
+    // the coiled cord from the base, over the edge of the worktop, down to the handset
+    ph.updateMatrixWorld(true);
+    var hsP = new THREE.Vector3(27.86, 0.36, kz - 0.42), cordPath = new THREE.CatmullRomCurve3([ph.localToWorld(new THREE.Vector3(-0.09, 0.02, 0.02)), new THREE.Vector3(28.12, 0.925, kz - 0.18), new THREE.Vector3(28.02, 0.9, kz - 0.33), new THREE.Vector3(27.93, 0.7, kz - 0.4), new THREE.Vector3(27.88, 0.48, kz - 0.42), hsP.clone().add(new THREE.Vector3(0.02, 0.06, 0))]);
+    var coil = [], cN = 520, side = new THREE.Vector3(), up2 = new THREE.Vector3(), tg = new THREE.Vector3();
+    for (k = 0; k <= cN; k++) { var u2 = k / cN; cordPath.getPointAt(u2, tg); var tn = cordPath.getTangentAt(u2); side.set(0, 1, 0).cross(tn); if (side.lengthSq() < 1e-4) side.set(1, 0, 0); side.normalize(); up2.crossVectors(tn, side); var an = u2 * PI * 2 * 62; coil.push(tg.clone().addScaledVector(side, Math.cos(an) * 0.0085).addScaledVector(up2, Math.sin(an) * 0.0085)); }
+    mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(coil), 1400, 0.0022, 5, false), std(0xd6d0bd, 0.55));
+    var HS = new THREE.Group(); HS.position.copy(hsP); HS.rotation.set(0.3, 0.6, 1.25); scene.add(HS);                                                  // the handset: a bar with the ear and mouth cups
+    tube([[-0.1, 0.0, 0, 0.026, 0.02], [-0.085, 0.006, 0, 0.03, 0.022], [-0.06, 0.012, 0, 0.018, 0.016], [0, 0.016, 0, 0.016, 0.014], [0.06, 0.012, 0, 0.018, 0.016], [0.085, 0.006, 0, 0.03, 0.022], [0.1, 0.0, 0, 0.026, 0.02]], phBeige, HS, 14, 3, new THREE.Vector3(0, 0, 1));
+    [-0.092, 0.092].forEach(function (x) { var cup = cyl(0.026, 0.024, 0.008, phBeige, x, -0.012, 0, HS, 16); mesh(new THREE.CircleGeometry(0.019, 14), std(0x3a3830, 0.7), x, -0.0165, 0, HS).rotation.x = PI / 2; });
     boxes.push({ x1: KX1, x2: KX2, z1: RZ2 - KD, z2: RZ2 });
     // the fridge, door ajar, the light inside still on a fraction
     var FG = new THREE.Group(); FG.position.set(31.55, 0, RZ2 - 0.34); scene.add(FG);
@@ -220,12 +296,19 @@ var Staff = (function () {
     decal(BL.spat, 0.9, 0.7, TX + 0.15, 0.762, TZ - 0.05, -PI / 2, 0.4, 0);
     boxes.push({ x1: TX - 0.82, x2: TX + 0.82, z1: TZ - 0.5, z2: TZ + 0.5 });
     // chairs: moulded shells on steel frames
-    var shellMat = std(0x8d1f18, 0.45);
+    var shellMat = std(0xffffff, 0.42, { map: canvasTex(64, function (g, S2) { g.fillStyle = '#8d2a1c'; g.fillRect(0, 0, S2, S2); blotch(g, S2, ['#6a1e14', '#a8432c'], 8, 6, 20, 0.3); E.chips(g, S2, S2, 6, '#3a1a12'); }) });
+    function shell(w, h, d, r) { var sh = new THREE.Shape(), x = w / 2 - r, y = h / 2 - r; sh.moveTo(-x, -h / 2); sh.lineTo(x, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -y); sh.lineTo(w / 2, y); sh.quadraticCurveTo(w / 2, h / 2, x, h / 2); sh.lineTo(-x, h / 2); sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, y); sh.lineTo(-w / 2, -y); sh.quadraticCurveTo(-w / 2, -h / 2, -x, -h / 2);
+      var g = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: true, bevelThickness: d * 0.4, bevelSize: d * 0.4, bevelSegments: 3, curveSegments: 6 }); g.translate(0, 0, -d / 2); return g; }
+    var chairSeat = shell(0.42, 0.4, 0.012, 0.07); chairSeat.rotateX(-PI / 2); var chairBack = shell(0.4, 0.3, 0.012, 0.06);
     function chair(x, z, ry, fallen) {
       var C = new THREE.Group(); C.position.set(x, 0, z); C.rotation.y = ry; scene.add(C);
       var B = new THREE.Group(); C.add(B); if (fallen) { B.rotation.x = fallen; B.position.y = 0.42 * Math.sin(Math.abs(fallen)) * 0.2; }
-      box(0.44, 0.03, 0.42, shellMat, 0, 0.45, 0, B); var bk = box(0.42, 0.38, 0.03, shellMat, 0, 0.66, -0.22, B); bk.rotation.x = -0.12;
-      [[-0.19, -0.18], [0.19, -0.18], [-0.19, 0.18], [0.19, 0.18]].forEach(function (l) { cyl(0.012, 0.012, 0.45, chromeS, l[0], 0.225, l[1], B, 6); });
+      mesh(chairSeat, shellMat, 0, 0.455, 0.01, B).castShadow = true; var bk = mesh(chairBack, shellMat, 0, 0.67, -0.215, B); bk.rotation.x = -0.14; bk.castShadow = true;
+      [-1, 1].forEach(function (sx) {                                                                                  // a bent chrome frame each side: front leg, seat rail, back leg up into the back
+        tube([[sx * 0.19, 0.0, 0.19, 0.011, 0.011], [sx * 0.19, 0.4, 0.18, 0.011, 0.011], [sx * 0.19, 0.44, 0.1, 0.011, 0.011], [sx * 0.19, 0.44, -0.12, 0.011, 0.011], [sx * 0.19, 0.42, -0.19, 0.011, 0.011], [sx * 0.19, 0.0, -0.2, 0.011, 0.011]], chromeS, B, 6, 4);
+        tube([[sx * 0.19, 0.44, -0.19, 0.01, 0.01], [sx * 0.2, 0.62, -0.215, 0.01, 0.01], [sx * 0.2, 0.78, -0.235, 0.01, 0.01]], chromeS, B, 6, 3);
+        cyl(0.014, 0.014, 0.012, M.dark, sx * 0.19, 0.006, 0.19, B, 8); cyl(0.014, 0.014, 0.012, M.dark, sx * 0.19, 0.006, -0.2, B, 8);       // feet
+      });
       return C;
     }
     chair(TX - 0.4, TZ - 0.75, 0.1); chair(TX + 0.55, TZ - 0.7, -0.3);
@@ -288,7 +371,7 @@ var Staff = (function () {
       note(200, 150, 170, 120, '#f0c9c0', 'NETWORK', ['Comms cabinet: DO NOT', 'unplug ANYTHING.', 'Ask Dave first.', 'ext. 214'], -0.04);
       note(385, 210, 110, 80, '#efe9d6', 'LOST', ['blue thermos', 'ask Tilly'], 0.1);
       E.grime(g, S2, H2, 0.8);
-    }, 1, 1, true, 362) }), RX1 + 0.012, 1.55, 129.0); nb.rotation.y = PI / 2;
+    }, 1, 1, true, 362) }), RX1 + 0.022, 1.55, 129.0); nb.rotation.y = PI / 2;
     box(0.03, 0.91, 1.26, M.wood, RX1 + 0.005, 1.55, 129.0);
     var ck = new THREE.Group(); ck.position.set(RX1 + 0.03, 2.2, 130.75); ck.rotation.y = PI / 2; scene.add(ck);                                // the clock over the doorway, stopped
     cyl(0.15, 0.15, 0.04, std(0x1a1a1a, 0.5), 0, 0, 0, ck, 24).rotation.x = PI / 2;
@@ -321,44 +404,111 @@ var Staff = (function () {
   inst(new THREE.PlaneGeometry(0.21, 0.297), std(0xf2efe6, 0.9, { side: THREE.DoubleSide }), papers).userData.noCast = true;
 
   // ---------- the staff room key: on the key cabinet inside the maintenance shed door ----------
-  /* A small steel key cabinet on the shed's east wall, its door hanging open: brass hooks, punched labels, most of the hooks
-     empty.  The one on STAFF ROOM still has its key: a brass cylinder key on a split ring with a red tag. */
-  S.buildKey = function (mirrorText) {
-    var G = new THREE.Group(), brass = std(0xb8913a, 0.32, { metalness: 0.9, envMap: envTex, envMapIntensity: 0.5 });
+  /* A brass cylinder key with a steel split ring through its bow and a red tag on the ring.  The key's own space: the bow is
+     at the origin, the blade runs along +x, the faces look along z, the hole is at H.  The ring always passes through the
+     hole square to the key's face (that is how a ring threads a key), and the tag hangs on the ring with its face the same
+     way as the key's.  hang(d, hung) lays them along d (the way gravity pulls, in key space): held, the ring and tag dangle
+     below the key; hung (from a hook or a finger through the ring), the ring is above the key and the tag hangs beside it. */
+  var keyBrass = std(0xb8913a, 0.32, { metalness: 0.9, envMap: envTex, envMapIntensity: 0.5 }), ringSteel = std(0xa0a4a6, 0.3, { metalness: 0.9, envMap: envTex, envMapIntensity: 0.5 }), tagRed = std(0xa8231c, 0.55);
+  var keyGeo = (function () {
     var sh2 = new THREE.Shape();                                                                         // the key in profile: bow, shoulder, blade with its cuts
     sh2.absarc(0, 0, 0.0125, 0.6, PI * 2 - 0.6, false);
     var bl = [[0.012, -0.0045], [0.017, -0.0045], [0.017, -0.006], [0.058, -0.006], [0.058, -0.0042], [0.054, -0.0042], [0.051, -0.0012], [0.047, -0.0042], [0.043, -0.0042], [0.04, -0.0008], [0.036, -0.0042], [0.031, -0.0042], [0.028, -0.0015], [0.024, -0.0042], [0.02, -0.0042], [0.02, 0.0042], [0.06, 0.0042], [0.062, 0.002], [0.062, -0.003]];
     sh2.lineTo(0.012, -0.0045); for (var q = 1; q < bl.length; q++) sh2.lineTo(bl[q][0], bl[q][1]);
     sh2.lineTo(0.06, 0.0045); sh2.lineTo(0.017, 0.0045); sh2.lineTo(0.017, 0.006); sh2.lineTo(0.0105, 0.0068);
     var hole2 = new THREE.Path(); hole2.absarc(-0.003, 0, 0.0042, 0, PI * 2, true); sh2.holes.push(hole2);
-    var kg = new THREE.ExtrudeGeometry(sh2, { depth: 0.0022, bevelEnabled: true, bevelThickness: 0.0004, bevelSize: 0.0004, bevelSegments: 1, curveSegments: 10 }); kg.translate(0, 0, -0.0011);
-    var km = new THREE.Mesh(kg, brass); km.castShadow = true; G.add(km);
-    box(0.036, 0.0012, 0.0024, std(0x8a6a28, 0.4, { metalness: 0.8 }), 0.04, 0.0015, 0, G);              // the warding groove
-    var ring = mesh(new THREE.TorusGeometry(0.011, 0.0011, 6, 22), std(0xa0a4a6, 0.3, { metalness: 0.9 }), -0.014, 0, 0, G); ring.rotation.y = PI / 2;
-    var tag = new THREE.Group(); tag.position.set(-0.024, -0.006, 0); tag.rotation.z = -1.2; G.add(tag);
-    var tsh = new THREE.Shape(); tsh.moveTo(-0.005, -0.008); tsh.lineTo(0.034, -0.008); tsh.quadraticCurveTo(0.042, -0.008, 0.042, 0); tsh.quadraticCurveTo(0.042, 0.008, 0.034, 0.008); tsh.lineTo(-0.005, 0.008); tsh.lineTo(-0.005, -0.008);
-    var th = new THREE.Path(); th.absarc(0.002, 0, 0.0022, 0, PI * 2, true); tsh.holes.push(th);
-    var tg = new THREE.ExtrudeGeometry(tsh, { depth: 0.0018, bevelEnabled: false }); tg.translate(-0.01, 0, -0.0009);
-    mesh(tg, std(0xa8231c, 0.55), 0, 0, 0, tag);
-    var lab = mesh(new THREE.PlaneGeometry(0.03, 0.011), std(0xffffff, 0.6, { map: canvasTex(128, function (g, S2, H2) { g.fillStyle = '#f1ecdd'; g.fillRect(0, 0, S2, H2); g.fillStyle = '#1a1a1a'; g.font = 'bold 26px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; if (mirrorText) { g.translate(S2, 0); g.scale(-1, 1); } g.fillText('STAFF RM', S2 / 2, H2 / 2 + 1, S2 - 8); }, 1, 1, true, 46) }), 0.007, 0, 0.001, tag);
+    var kg = new THREE.ExtrudeGeometry(sh2, { depth: 0.0022, bevelEnabled: true, bevelThickness: 0.0004, bevelSize: 0.0004, bevelSegments: 1, curveSegments: 12 }); kg.translate(0, 0, -0.0011); return kg;
+  })();
+  var tagGeo = (function () {                                                                           // the tag, its hole at the origin, hanging along +x
+    var tsh = new THREE.Shape(); tsh.moveTo(-0.007, -0.008); tsh.lineTo(0.032, -0.008); tsh.quadraticCurveTo(0.04, -0.008, 0.04, 0); tsh.quadraticCurveTo(0.04, 0.008, 0.032, 0.008); tsh.lineTo(-0.007, 0.008); tsh.quadraticCurveTo(-0.0085, 0.008, -0.0085, 0.0055); tsh.lineTo(-0.0085, -0.0055); tsh.quadraticCurveTo(-0.0085, -0.008, -0.007, -0.008);
+    var th = new THREE.Path(); th.absarc(-0.003, 0, 0.0022, 0, PI * 2, true); tsh.holes.push(th);
+    var tg = new THREE.ExtrudeGeometry(tsh, { depth: 0.0016, bevelEnabled: false, curveSegments: 6 }); tg.translate(0.003, 0, -0.0008); return tg;
+  })();
+  var tagLabel = {};
+  function tagLabelMat(mirror, text) {
+    var id = text + (mirror ? '|m' : '');
+    return tagLabel[id] || (tagLabel[id] = std(0xffffff, 0.6, { map: canvasTex(128, function (g, S2, H2) { g.fillStyle = '#f1ecdd'; g.fillRect(0, 0, S2, H2); g.fillStyle = '#1a1a1a'; g.font = 'bold 30px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; if (mirror) { g.translate(S2, 0); g.scale(-1, 1); } g.fillText(text, S2 / 2, H2 / 2 + 1, S2 - 10); }, 1, 1, true, 40) }));
+  }
+  S.buildKey = function (mirrorText, label) {
+    label = label || 'STAFF RM';
+    var G = new THREE.Group(), RR = 0.0125, H0 = new THREE.Vector3(-0.003, 0, 0);
+    var km = new THREE.Mesh(keyGeo, keyBrass); km.castShadow = true; G.add(km);
+    box(0.036, 0.0012, 0.0026, std(0x8a6a28, 0.4, { metalness: 0.8 }), 0.04, 0.0015, 0, G);              // the warding groove
+    var ringG = new THREE.Group(); G.add(ringG); mesh(new THREE.TorusGeometry(RR, 0.0011, 6, 28), ringSteel, RR, 0, 0, ringG);
+    var tagG = new THREE.Group(); G.add(tagG); mesh(tagGeo, tagRed, 0, 0, 0, tagG);
+    [1, -1].forEach(function (sd) { var lb = mesh(new THREE.PlaneGeometry(0.03, 0.0105), tagLabelMat(sd > 0 ? mirrorText : !mirrorText, label), 0.019, 0, sd * 0.00085, tagG); if (sd < 0) lb.rotation.y = PI; });
+    var X = new THREE.Vector3(), Y = new THREE.Vector3(), Z = new THREE.Vector3(0, 0, 1), m4 = new THREE.Matrix4(), dd = new THREE.Vector3();
+    G.userData.hang = function (d, hung) {
+      dd.copy(d); dd.z = 0; if (dd.lengthSq() < 1e-6) dd.set(1, 0, 0); dd.normalize();
+      X.copy(dd).multiplyScalar(hung ? -1 : 1); Y.copy(Z); ringG.quaternion.setFromRotationMatrix(m4.makeBasis(X, Y, new THREE.Vector3().crossVectors(X, Y))); ringG.position.copy(H0);
+      tagG.quaternion.setFromRotationMatrix(m4.makeBasis(dd, new THREE.Vector3().crossVectors(Z, dd), Z));
+      tagG.position.copy(H0); if (hung) tagG.position.z += 0.0032; else tagG.position.addScaledVector(dd, 2 * RR);
+    };
+    var inv = new THREE.Matrix4(), dn = new THREE.Vector3();
+    G.userData.hangWorld = function (hung) { G.updateWorldMatrix(true, false); inv.copy(G.matrixWorld).invert(); G.userData.hang(dn.set(0, -1, 0).transformDirection(inv), hung); };
+    G.userData.support = function (out) { return out.copy(H0).addScaledVector(dd.lengthSq() ? dd : dd.set(1, 0, 0), -2 * RR); };   // the top of the ring when it is hung (where a hook or a finger carries it)
+    G.userData.hang(new THREE.Vector3(1, 0, 0), false);
+    G.userData.RR = RR; G.userData.H = H0;
     return G;
   };
-  var KB = new THREE.Group(); KB.position.set(-16.13, 1.45, 128.55); KB.rotation.y = -PI / 2; scene.add(KB);    // on the shed's east wall, facing in
-  box(0.3, 0.38, 0.06, steelGrey, 0, 0, 0.03, KB);
-  var kbd = box(0.3, 0.38, 0.012, steelGrey, -0.17, 0, 0.21, KB); kbd.rotation.y = -1.9; kbd.position.set(-0.15 - 0.15 * Math.cos(1.9), 0, 0.066 + 0.15 * Math.sin(1.9));
-  mesh(new THREE.PlaneGeometry(0.28, 0.36), std(0xffffff, 0.7, { map: canvasTex(256, function (g, S2, H2) {
-    g.fillStyle = '#d8d4c6'; g.fillRect(0, 0, S2, H2); g.fillStyle = '#1a1a1a'; g.font = 'bold 13px Arial'; g.textAlign = 'center';
-    ['SHED', 'BUGGY', 'GATE 1', 'STAFF RM', 'AVIARY', 'PADDOCK', 'BUNKER', 'SPARE', 'PUMP', 'V.C.', 'TICKETS', 'OFFICE'].forEach(function (t, n2) { var x = 36 + (n2 % 4) * 61, y = 52 + Math.floor(n2 / 4) * 104; g.fillStyle = '#efeadb'; g.fillRect(x - 26, y + 22, 52, 15); g.fillStyle = '#1a1a1a'; g.fillText(t, x, y + 34); });
-    g.fillStyle = '#8d1f18'; g.font = 'bold 15px Arial'; g.fillText('KEYS — SIGN OUT IN BOOK', S2 / 2, 22); E.grime(g, S2, H2, 0.8);
-  }, 1, 1, true, 330) }), 0, 0, 0.061, KB);
-  var hookP = []; for (k = 0; k < 12; k++) hookP.push([-0.105 + (k % 4) * 0.07, 0.12 - Math.floor(k / 4) * 0.12, 0.07]);
+  /* The cabinet: a pressed-steel box (an open front, so you see into it), its door standing open on the right-hand hinge so it
+     swings clear of the wall and of your reaching arm.  Inside, twelve brass hooks in three rows, each under a printed label
+     sized to fit; most hooks empty. */
+  var KW = 0.34, KH = 0.5, KD = 0.08;
+  var KB = new THREE.Group(); KB.position.set(-16.12, 1.45, 128.55); KB.rotation.y = -PI / 2; scene.add(KB);    // on the shed's east wall, facing in
+  var keyPaint = std(0xffffff, 0.5, { metalness: 0.35, map: canvasTex(128, function (g, S2) { g.fillStyle = '#4f5e55'; g.fillRect(0, 0, S2, S2); g.globalAlpha = 0.3; speckle('rgba(0,0,0,0)', ['#43514a', '#5f6e64'], 900, 1.2)(g, S2); g.globalAlpha = 1; E.chips(g, S2, S2, 10, '#2a2c2a'); E.chips(g, S2, S2, 4, '#7a4a22'); E.grime(g, S2, S2, 0.7); }) });
+  box(KW, KH, 0.006, keyPaint, 0, 0, 0.003, KB);                                                                   // back
+  [-1, 1].forEach(function (e) { box(KW, 0.008, KD, keyPaint, 0, e * (KH / 2 - 0.004), KD / 2, KB); box(0.008, KH, KD, keyPaint, e * (KW / 2 - 0.004), 0, KD / 2, KB); });   // top, bottom, sides
+  [-1, 1].forEach(function (e) { box(KW + 0.006, 0.012, 0.004, keyPaint, 0, e * (KH / 2 - 0.006), KD + 0.002, KB); box(0.012, KH, 0.004, keyPaint, e * (KW / 2 - 0.006), 0, KD + 0.002, KB); });   // the folded lip round the opening
+  var KLAB = ['SHED', 'BUGGY', 'GATE 1', 'STAFF RM', 'AVIARY', 'PADDOCK', 'BUNKER', 'SPARE', 'PUMP', 'V.C.', 'TICKETS', 'OFFICE'];
+  var hookP = []; for (k = 0; k < 12; k++) hookP.push([-0.1125 + (k % 4) * 0.075, 0.15 - Math.floor(k / 4) * 0.15]);
+  var IW = KW - 0.016, IH = KH - 0.016, PXM = 1100;                                                                 // the printed back panel, PXM pixels a metre
+  mesh(new THREE.PlaneGeometry(IW, IH), std(0xffffff, 0.75, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, map: canvasTex(Math.round(IW * PXM), function (g, S2, H2) {
+    function X(x) { return (x + IW / 2) * PXM; } function Y(y) { return (IH / 2 - y) * PXM; }
+    g.fillStyle = '#d9d4c4'; g.fillRect(0, 0, S2, H2); g.globalAlpha = 0.25; speckle('rgba(0,0,0,0)', ['#c9c3b0', '#e6e1d2'], 2500, 1.4)(g, S2); g.globalAlpha = 1;
+    function fit(t, max, size, weight) { var f = size; do { g.font = weight + ' ' + f + 'px Arial, Helvetica, sans-serif'; f -= 1; } while (g.measureText(t).width > max && f > 8); }
+    // the header strip
+    g.fillStyle = '#2b3a31'; g.fillRect(0, 0, S2, Y(0.198)); g.fillStyle = '#e2b93b'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    fit('KEY CABINET', S2 - 30, 30, 'bold'); g.fillText('KEY CABINET', S2 / 2, Y(0.222)); g.fillStyle = '#efe9d6'; fit('SIGN EVERY KEY OUT IN THE BOOK', S2 - 30, 14, 'bold'); g.fillText('SIGN EVERY KEY OUT IN THE BOOK', S2 / 2, Y(0.204) - 1);
+    hookP.forEach(function (h, n2) {
+      var lx = X(h[0]), ly = Y(h[1] + 0.026), lw = 0.066 * PXM, lh = 0.02 * PXM;
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(lx - lw / 2 + 1.5, ly - lh / 2 + 1.5, lw, lh);
+      g.fillStyle = '#f4efe0'; g.fillRect(lx - lw / 2, ly - lh / 2, lw, lh); g.strokeStyle = '#8a8270'; g.lineWidth = 1.2; g.strokeRect(lx - lw / 2 + 0.5, ly - lh / 2 + 0.5, lw - 1, lh - 1);
+      g.fillStyle = n2 === 3 ? '#8d1f18' : '#1a1a1a'; fit(KLAB[n2], lw - 10, 15, 'bold'); g.fillText(KLAB[n2], lx, ly + 1);
+      g.fillStyle = '#6a6458'; g.font = 'bold 9px Arial'; g.fillText(String(n2 + 1), lx - lw / 2 - 7, ly);
+      g.fillStyle = 'rgba(40,36,28,.35)'; g.beginPath(); g.arc(lx, Y(h[1]), 5.5, 0, PI * 2); g.fill();                          // the hook's rosette shadow
+    });
+    E.grime(g, S2, H2, 0.6);
+  }, 1, 1, true, Math.round(IH * PXM)) }), 0, 0, 0.0065, KB);
   var hookMat = std(0xb8913a, 0.35, { metalness: 0.9 });
-  hookP.forEach(function (h, n2) { var hk = cyl(0.0022, 0.0022, 0.022, hookMat, h[0], h[1], h[2], KB, 6); hk.rotation.x = PI / 2; if (n2 === 1 || n2 === 6) { var kk = S.buildKey(false); kk.scale.setScalar(0.9); kk.position.set(h[0], h[1] - 0.012, h[2] + 0.004); kk.rotation.z = -PI / 2; KB.add(kk); } });
-  S.hookKey = S.buildKey(false); S.hookKey.position.set(hookP[3][0], hookP[3][1] - 0.012, hookP[3][2] + 0.004); S.hookKey.rotation.z = -PI / 2; KB.add(dyn(S.hookKey));
+  hookP.forEach(function (h) {                                                                                    // a brass cup hook: a rosette, the shank out of the panel, the upturned tip
+    cyl(0.0045, 0.0045, 0.002, hookMat, h[0], h[1], 0.0075, KB, 10).rotation.x = PI / 2;
+    cyl(0.0019, 0.0019, 0.024, hookMat, h[0], h[1], 0.019, KB, 6).rotation.x = PI / 2;
+    cyl(0.0017, 0.0017, 0.007, hookMat, h[0], h[1] + 0.0032, 0.0305, KB, 6);
+  });
+  /* A key hung on hook n: the peg runs through the ring, so the ring hangs from the peg and the key from the ring.  A ring cannot
+     hang square to the wall from a peg and also thread a key that faces you, so the key turns a little to the side (as they do). */
+  var supV = new THREE.Vector3();
+  function hangOnHook(kk, n2, yaw) {
+    var q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, -PI / 2, 'YXZ'));                       // blade down, turned `yaw` off square
+    kk.userData.hang(new THREE.Vector3(1, 0, 0), true); kk.quaternion.copy(q);
+    var sp = kk.userData.support(supV).applyQuaternion(q);
+    kk.position.set(hookP[n2][0] - sp.x, hookP[n2][1] + 0.0019 + 0.0011 - sp.y, 0.025 - sp.z);                  // the top of the ring on the top of the peg
+  }
+  [[6, 0.45], [11, -0.6]].forEach(function (h) { var kk = S.buildKey(false, KLAB[h[0]]); KB.add(kk); hangOnHook(kk, h[0], h[1]); });          // two more nobody came back for
+  S.hookKey = S.buildKey(false); KB.add(dyn(S.hookKey)); hangOnHook(S.hookKey, 3, 0.62);
   S.keyGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex('rgba(255,220,140,.5)', 'rgba(255,200,100,.1)'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 }));
-  S.keyGlow.scale.set(0.2, 0.2, 1); S.hookKey.add(S.keyGlow);
+  S.keyGlow.scale.set(0.16, 0.16, 1); S.keyGlow.position.set(0.035, 0, 0.012); S.hookKey.add(S.keyGlow);
+  // the door, open on its hinge
+  var KDR = new THREE.Group(); KDR.position.set(KW / 2, 0, KD + 0.004); KDR.rotation.y = 1.72; KB.add(KDR);
+  box(KW - 0.004, KH - 0.004, 0.01, keyPaint, -(KW - 0.004) / 2, 0, 0.005, KDR);
+  box(KW - 0.03, KH - 0.03, 0.003, keyPaint, -(KW - 0.004) / 2, 0, -0.0015, KDR);                                  // the stiffening panel on its inside
+  [0.17, -0.17].forEach(function (y) { cyl(0.004, 0.004, 0.05, M.dark, 0.002, y, 0.004, KDR, 8); });                // hinge knuckles
+  cyl(0.009, 0.009, 0.012, chromeS, -KW + 0.03, 0.02, 0.014, KDR, 14).rotation.x = PI / 2; box(0.002, 0.008, 0.002, M.dark, -KW + 0.03, 0.02, 0.021, KDR);   // the lock
+  mesh(new THREE.PlaneGeometry(0.2, 0.07), std(0xffffff, 0.6, { map: textTex(['KEYS'], 256, 90, '#e2b93b', '#17140e', null, false) }), -(KW - 0.004) / 2, 0.12, 0.0106, KDR);
   S.keyBoard = KB; KB.updateMatrixWorld(true);
-  S.keyPoint = function (out) { S.hookKey.updateWorldMatrix(true, false); return S.hookKey.localToWorld(out.set(-0.008, 0, 0)); };
+  // where the index finger goes to lift it: through the ring, a little past its middle
+  S.keyPoint = function (out) { S.hookKey.updateWorldMatrix(true, false); var R0 = S.hookKey.userData.RR; return S.hookKey.localToWorld(out.copy(S.hookKey.userData.H).addScaledVector(supV.set(1, 0, 0), -R0)); };
   S.keySpot = { x: -16.75, z: 128.55 };
   // the key the hand carries (its tag printed in mirror: the left hand's frame is mirrored), and the one left turned in the door
   S.handKey = S.buildKey(true); S.handKey.visible = false;
@@ -464,11 +614,126 @@ var Staff = (function () {
   for (var n3 = 1; n3 <= 12; n3++) { var hb = mesh(new THREE.BoxGeometry(0.03, 0.034, 0.03), hitMat, 0, 0, 0); S.portWorld(n3, hb.position); hb.userData = { kind: 'port', n: n3 }; S.hits.push(hb); }
   var upsHit = mesh(new THREE.BoxGeometry(0.05, 0.05, 0.03), hitMat, 0, 0, 0); S.upsWorld(upsHit.position); upsHit.userData = { kind: 'ups' }; S.hits.push(upsHit);
   ['a', 'b'].forEach(function (id) { var h2 = dyn(mesh(new THREE.BoxGeometry(0.045, 0.06, 0.045), hitMat, 0, 0, 0)); h2.userData = { kind: 'lead', id: id }; S.leads[id].hit = h2; S.hits.push(h2); });
+  // the yellow edges for what the middle of the view rests on: a frame round each port's opening, the UPS button, each loose lead's plug
+  S.portOutline = []; for (n3 = 1; n3 <= 12; n3++) S.portOutline[n3] = Outline.frame(CAB, 0.027, 0.025, 0.0024, PORTX(n3), PP_Y - 0.0055, 0.4216);
+  S.upsOutline = Outline.make(upsBtn);
+  ['a', 'b'].forEach(function (id) { S.leads[id].outline = Outline.make(S.leads[id].plug); });
   var ray = new THREE.Raycaster(), ndc = new THREE.Vector2(0, 0);
   S.aim = function () { ray.setFromCamera(ndc, camera); ray.far = 1.7; var h3 = ray.intersectObjects(S.hits, false); return h3.length ? h3[0].object.userData : null; };
   S.cabSpot = { x: 31.35, z: RZ1 + 0.95 };
   S.amSpot = { x: 28.2, z: RZ2 - 0.95 };
   S.doorSpot = { x: 24.15, z: 132.15 };
+
+  // ---------- what the room tells you: it came down through the ceiling, and went back up ----------
+  (function () {
+    var HOLE = { x: 28.4, z: 133.5 };
+    // raptor prints in blood: three toes, the sickle claw held up off the ground (a dot), from the pool under the table to under the hole
+    function printTex(left) {
+      return canvasTex(128, function (g, S2, H2) {
+        g.clearRect(0, 0, S2, H2); if (left) { g.translate(S2, 0); g.scale(-1, 1); }
+        g.fillStyle = 'rgba(70,4,4,.97)'; g.strokeStyle = 'rgba(70,4,4,.97)'; g.lineCap = 'round';
+        [[64, 22, 64, 100, 24], [30, 50, 54, 106, 20], [98, 54, 74, 108, 20]].forEach(function (t) { g.lineWidth = t[4]; g.beginPath(); g.moveTo(t[0], t[1]); g.quadraticCurveTo((t[0] + t[2]) / 2 + (t[0] < 64 ? -4 : t[0] > 64 ? 4 : 0), (t[1] + t[3]) / 2, t[2], t[3]); g.stroke(); g.beginPath(); g.moveTo(t[0] - 3, t[1] + 2); g.lineTo(t[0], t[1] - 12); g.lineTo(t[0] + 3, t[1] + 2); g.fill(); });
+        g.beginPath(); g.ellipse(64, 118, 27, 20, 0, 0, PI * 2); g.fill();                                                   // the heel pad
+        g.beginPath(); g.arc(24, 126, 8, 0, PI * 2); g.fill();                                                               // the sickle claw's tip, touching down
+        g.globalCompositeOperation = 'destination-out'; for (var q = 0; q < 30; q++) { g.globalAlpha = Math.random() * 0.35; g.beginPath(); g.arc(Math.random() * S2, Math.random() * H2, 1 + Math.random() * 4, 0, 7); g.fill(); }
+      }, 1, 1, true, 150);
+    }
+    var pr = [printTex(false), printTex(true)];
+    var from = new THREE.Vector2(30.25, 132.2), to = new THREE.Vector2(HOLE.x + 0.15, HOLE.z - 0.15), dir = to.clone().sub(from), len = dir.length(); dir.normalize();
+    var side = new THREE.Vector2(dir.y, -dir.x), rot = Math.atan2(-dir.x, -dir.y), nP = Math.floor(len / 0.5) + 1;
+    for (k = 0; k < nP; k++) {
+      var at = from.clone().addScaledVector(dir, k * 0.5).addScaledVector(side, (k % 2 ? 1 : -1) * 0.1);
+      var pm = new THREE.MeshStandardMaterial({ map: pr[k % 2], transparent: true, depthWrite: false, roughness: 0.3, metalness: 0.1, opacity: 1 - k * 0.12, polygonOffset: true, polygonOffsetFactor: -4 });
+      var fp = floorDecal(pm, 0.24, 0.28, at.x, at.y, rot + (k % 2 ? 0.12 : -0.12), 0.049 + k * 0.0003); fp.renderOrder = 4;
+    }
+    // claw gouges: four torn lines through the paint, the plaster showing white and the cores dark
+    var clawTex = canvasTex(128, function (g, S2) {
+      g.clearRect(0, 0, S2, S2); g.lineCap = 'round';
+      for (var q = 0; q < 4; q++) { var x0 = 22 + q * 26, bend = (q - 1.5) * 4; [[10, 'rgba(232,226,210,.9)'], [4, 'rgba(20,16,12,.95)']].forEach(function (L) { g.lineWidth = L[0] * (q === 0 || q === 3 ? 0.75 : 1); g.strokeStyle = L[1]; g.beginPath(); g.moveTo(x0, 10 + q * 3); g.quadraticCurveTo(x0 + 8 + bend, 64, x0 + 2 + bend * 2, 118 - q * 4); g.stroke(); }); }
+    });
+    var clawMat = new THREE.MeshStandardMaterial({ map: clawTex, transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -4 });
+    decal(clawMat, 0.32, 0.36, HOLE.x + 0.45, RH - 0.004, HOLE.z, PI / 2, 0, 0.6).renderOrder = 4;                                   // on the ceiling round the hole
+    decal(clawMat, 0.3, 0.34, HOLE.x - 0.1, RH - 0.004, HOLE.z - 0.42, PI / 2, 0, -0.9).renderOrder = 4;
+    decal(clawMat, 0.4, 0.5, RX1 + 0.004, 1.35, 133.7, 0, PI / 2, 0.35).renderOrder = 4;                                           // down the west wall by the link
+    decal(clawMat, 0.36, 0.45, 32.6, 1.5, RZ1 + 0.004, 0, 0, -0.2).renderOrder = 4;                                                // beside the comms cabinet
+    // the hole itself: shards of tile hanging off its edges, the flexible duct pulled down out of it, a live cable that still sparks
+    var tileMat = std(0xbab5a2, 0.95, { map: ceilTex });
+    [[-0.27, 0, 0.18, 0.5, 0.0, 0.8], [0.1, 0.28, 0.3, 0.16, -0.7, 0.2], [0.27, -0.1, 0.12, 0.28, 0.0, -0.9]].forEach(function (t) { var sh = box(t[2], 0.012, t[3], tileMat, HOLE.x + t[0], RH - 0.06, HOLE.z + t[1]); sh.rotation.set(t[4], 0.2, t[5]); });
+    var duct = []; for (k = 0; k <= 16; k++) { var u = k / 16; duct.push([HOLE.x - 0.1 + u * 0.35, RH + 0.15 - Math.sin(u * PI * 0.9) * 0.7, HOLE.z + 0.05 - u * 0.15, 0.085, 0.085]); }
+    var ductM = tube(duct, std(0xc8ccd0, 0.35, { metalness: 0.8, envMap: envTex, envMapIntensity: 0.4, map: canvasTex(64, function (g, S2) { for (var q = 0; q < S2; q += 4) { g.fillStyle = q % 8 ? '#9aa0a6' : '#e3e6e8'; g.fillRect(0, q, S2, 4); } }, 6, 1) }), null, 12, 2, new THREE.Vector3(0, 0, 1));
+    var cab = new THREE.CatmullRomCurve3([new THREE.Vector3(HOLE.x + 0.18, RH + 0.1, HOLE.z + 0.15), new THREE.Vector3(HOLE.x + 0.2, RH - 0.3, HOLE.z + 0.18), new THREE.Vector3(HOLE.x + 0.12, RH - 0.75, HOLE.z + 0.1), new THREE.Vector3(HOLE.x + 0.16, RH - 0.95, HOLE.z + 0.16)]);
+    mesh(new THREE.TubeGeometry(cab, 16, 0.006, 6, false), std(0x1a1a1a, 0.6));
+    S.sparkAt = cab.getPointAt(1).clone();
+    S.spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex('rgba(255,250,230,1)', 'rgba(140,190,255,.5)'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, fog: false }));
+    S.spark.position.copy(S.sparkAt); S.spark.scale.set(0.12, 0.12, 1); scene.add(S.spark);
+    // FEEDING TONIGHT: the keepers' whiteboard
+    var WBX = 30.45;
+    box(0.98, 0.66, 0.02, std(0xb0b4b8, 0.3, { metalness: 0.7 }), WBX, 1.58, RZ1 + 0.011); box(0.9, 0.025, 0.05, std(0xb0b4b8, 0.3, { metalness: 0.7 }), WBX, 1.235, RZ1 + 0.035);   // frame, marker tray
+    mesh(new THREE.PlaneGeometry(0.94, 0.62), std(0xffffff, 0.2, { map: canvasTex(512, function (g, S2, H2) {
+      g.fillStyle = '#f2f2ee'; g.fillRect(0, 0, S2, H2); g.fillStyle = 'rgba(150,150,170,.08)'; for (var q = 0; q < 8; q++) g.fillRect(Math.random() * S2, Math.random() * H2, 80 + Math.random() * 120, 14);   // ghosts of old writing
+      var hand = '"Marker Felt", "Bradley Hand", "Comic Sans MS", cursive';
+      g.fillStyle = '#1b3f8f'; g.font = 'bold 34px ' + hand; g.fillText('FEEDING TONIGHT', 22, 46); g.fillRect(22, 54, 300, 3);
+      g.font = '22px ' + hand; var L = [['#a8231c', 'RAPTORS  6pm  -  2 KEEPERS MIN!!'], ['#1a1a1a', 'T-REX  -  goat  (Dave\'s turn)'], ['#1a1a1a', 'PTEROS  -  40kg herring'], ['#1b3f8f', 'PLESIO  -  check the pool filter'], ['#1a1a1a', 'Tilly\'s bday Fri - cake in fridge :)']];
+      L.forEach(function (l, i) { g.fillStyle = l[0]; g.fillText(l[1], 26, 96 + i * 36, S2 - 60); });
+      g.strokeStyle = '#a8231c'; g.lineWidth = 3; g.beginPath(); g.moveTo(26, 102); g.lineTo(380, 104); g.stroke();
+      g.strokeStyle = '#1a1a1a'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(400, 250); g.quadraticCurveTo(430, 205, 470, 222); g.lineTo(495, 236); g.lineTo(468, 240); g.quadraticCurveTo(450, 262, 412, 268); g.stroke(); g.beginPath(); g.arc(462, 228, 3, 0, 7); g.stroke();   // somebody's raptor doodle
+      g.fillStyle = '#1a1a1a'; g.font = '15px ' + hand; g.fillText('"clever girl"', 404, 292);
+    }, 1, 1, true, 340) }), WBX, 1.58, RZ1 + 0.0225);
+    decal(BL.hand, 0.22, 0.36, WBX + 0.3, 1.48, RZ1 + 0.024, 0, 0, 0.5).renderOrder = 4;                                           // dragged across it
+    [[-0.3, 0x1b3f8f], [-0.2, 0xa8231c], [-0.12, 0x1a1a1a]].forEach(function (m3) { var mk = cyl(0.008, 0.008, 0.12, std(m3[1], 0.5), WBX + m3[0], 1.255, RZ1 + 0.04, null, 8); mk.rotation.z = PI / 2; });
+    // the safety board: DAYS WITHOUT AN INCIDENT, and the flip cards turned back to nought
+    var SB = mesh(new THREE.PlaneGeometry(0.62, 0.46), std(0xffffff, 0.6, { map: canvasTex(512, function (g, S2, H2) {
+      g.fillStyle = '#254a30'; g.fillRect(0, 0, S2, H2); g.fillStyle = '#e2b93b'; g.textAlign = 'center'; g.font = 'bold 34px ' + FONT; g.fillText('FAMILY ZOO', S2 / 2, 46);
+      g.fillStyle = '#efe9d6'; g.font = 'bold 24px ' + FONT; g.fillText('THIS SITE HAS GONE', S2 / 2, 86);
+      [-1, 1].forEach(function (e) { var x = S2 / 2 + e * 52 - 46; g.fillStyle = '#0d0d0d'; g.fillRect(x - 3, 104, 98, 152); g.fillStyle = '#f4f1e6'; g.fillRect(x, 107, 92, 146); g.fillStyle = '#121212'; g.font = 'bold 128px Arial'; g.fillText('0', x + 46, 226); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x, 178, 92, 3); });
+      g.fillStyle = '#efe9d6'; g.font = 'bold 24px ' + FONT; g.fillText('DAYS WITHOUT AN', S2 / 2, 298); g.fillText('ANIMAL INCIDENT', S2 / 2, 328);
+      g.fillStyle = '#e2b93b'; g.font = '16px ' + FONT; g.fillText('Report every incident to your supervisor.', S2 / 2, 360); E.grime(g, S2, H2, 0.9);
+    }, 1, 1, true, 380) }), RX2 - 0.018, 1.62, 131.35); SB.rotation.y = -PI / 2;
+    box(0.02, 0.5, 0.66, std(0x2a2c2a, 0.5, { metalness: 0.4 }), RX2 - 0.006, 1.62, 131.35);
+    // the first-aid box on the west wall, its door open, gone through in a hurry
+    var FA = new THREE.Group(); FA.position.set(RX1 + 0.06, 1.5, 127.68); FA.rotation.y = PI / 2; scene.add(FA);
+    var faGreen = std(0x2f7a45, 0.45); box(0.32, 0.32, 0.1, faGreen, 0, 0, -0.01, FA); box(0.3, 0.3, 0.004, std(0xe9e6da, 0.6), 0, 0, 0.0385, FA);
+    var faD = new THREE.Group(); faD.position.set(-0.16, 0, 0.042); faD.rotation.y = -1.25; FA.add(faD); box(0.32, 0.32, 0.012, faGreen, 0.16, 0, 0, faD);
+    mesh(new THREE.PlaneGeometry(0.2, 0.2), std(0xffffff, 0.5, { map: canvasTex(64, function (g, S2) { g.fillStyle = '#2f7a45'; g.fillRect(0, 0, S2, S2); g.fillStyle = '#f4f1e6'; g.fillRect(24, 8, 16, 48); g.fillRect(8, 24, 48, 16); }) }), 0.16, 0, 0.0065, faD);
+    cyl(0.03, 0.03, 0.07, std(0xf2efe6, 0.9), 0.06, -0.08, 0.0, FA, 10).rotation.z = PI / 2;                                         // one bandage left on its shelf
+    var bnd = cyl(0.03, 0.03, 0.07, std(0xf2efe6, 0.9), RX1 + 0.45, 0.08, 127.95, null, 10); bnd.rotation.set(PI / 2, 0.5, 0); decal(BL.spat, 0.25, 0.25, RX1 + 0.45, 0.049, 127.95, -PI / 2, 0, 0);
+    // the extinguisher by the link, on its bracket under its sign
+    var EX = new THREE.Group(); EX.position.set(RX1 + 0.1, 0, 131.2); scene.add(EX);
+    cyl(0.072, 0.072, 0.5, std(0xb01a12, 0.35, { metalness: 0.3, envMap: envTex, envMapIntensity: 0.4 }), 0, 0.62, 0, EX, 18); mesh(new THREE.SphereGeometry(0.072, 18, 8, 0, PI * 2, 0, PI / 2), std(0xb01a12, 0.35, { metalness: 0.3 }), 0, 0.87, 0, EX);
+    cyl(0.02, 0.025, 0.06, M.dark, 0, 0.95, 0, EX, 10); box(0.14, 0.012, 0.03, M.dark, 0.03, 1.0, 0, EX).rotation.z = 0.15; box(0.12, 0.012, 0.03, M.dark, 0.03, 0.97, 0, EX).rotation.z = -0.05;
+    mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0.02, 0.94, 0.03), new THREE.Vector3(0.06, 0.8, 0.07), new THREE.Vector3(0.07, 0.55, 0.075), new THREE.Vector3(0.05, 0.42, 0.07)]), 12, 0.009, 6, false), M.dark, 0, 0, 0, EX);
+    mesh(new THREE.PlaneGeometry(0.13, 0.08), std(0xffffff, 0.6, { map: textTex(['LIFT PIN', 'AIM AT BASE'], 128, 80, '#efe9d6', '#1a1a1a', null, false) }), 0.0, 0.62, 0.0725, EX).userData.noCast = true;
+    box(0.1, 0.04, 0.04, darkSteel, -0.06, 0.75, 0, EX); mesh(new THREE.PlaneGeometry(0.18, 0.18), std(0xffffff, 0.6, { map: textTex(['FIRE', 'EXT.'], 128, 128, '#b01a12', '#ffffff', null, false) }), RX1 + 0.004, 1.32, 131.2).rotation.y = PI / 2;
+    // coat hooks on the west wall: two ranger jackets and a bush hat, nobody came back for them
+    box(0.04, 0.08, 1.0, M.wood, RX1 + 0.02, 1.74, 130.35);
+    var khaki = std(0xffffff, 0.92, { map: canvasTex(64, function (g, S2) { g.fillStyle = '#6e6a48'; g.fillRect(0, 0, S2, S2); g.globalAlpha = 0.4; speckle('rgba(0,0,0,0)', ['#5a5638', '#807a56'], 900, 1.2)(g, S2); g.globalAlpha = 1; }), bumpMap: bump(3), bumpScale: 0.01 });
+    [[129.98, 0.0], [130.3, 0.12], [130.62, -0.1], [130.82, 0]].forEach(function (h, n2) { var hk = cyl(0.006, 0.006, 0.07, chromeS, RX1 + 0.06, 1.76, h[0], null, 6); hk.rotation.z = PI / 2; });
+    [[130.0, 0.08], [130.32, -0.15]].forEach(function (j) {
+      var J = new THREE.Group(); J.position.set(RX1 + 0.12, 1.74, j[0]); J.rotation.set(0, PI / 2, j[1]); scene.add(J);
+      tube([[0, 0.0, 0, 0.05, 0.03], [0, -0.06, 0, 0.17, 0.06], [0, -0.3, 0.01, 0.2, 0.07], [0, -0.62, 0.0, 0.21, 0.065], [0, -0.72, -0.005, 0.2, 0.06]], khaki, J, 14, 3, new THREE.Vector3(1, 0, 0));   // the body, hung by its collar
+      [-1, 1].forEach(function (sx) { tube([[sx * 0.16, -0.1, 0.0, 0.05, 0.045], [sx * 0.19, -0.38, 0.03, 0.045, 0.04], [sx * 0.18, -0.62, 0.05, 0.04, 0.036]], khaki, J, 10, 3, new THREE.Vector3(1, 0, 0)); });   // sleeves
+      mesh(new THREE.PlaneGeometry(0.09, 0.05), std(0xffffff, 0.8, { map: textTex(['FZ RANGER'], 128, 64, '#254a30', '#e2b93b', null, false) }), -0.09, -0.2, 0.072, J);
+    });
+    var hat = new THREE.Group(); hat.position.set(RX1 + 0.14, 1.72, 130.66); hat.rotation.set(0.3, 0, 1.2); scene.add(hat);
+    cyl(0.17, 0.17, 0.01, khaki, 0, 0, 0, hat, 20); cyl(0.09, 0.1, 0.09, khaki, 0, 0.05, 0, hat, 16); cyl(0.102, 0.102, 0.025, std(0x3a2a1a, 0.7), 0, 0.02, 0, hat, 16);
+    // the water cooler in the far corner, its bottle knocked off and emptied across the floor
+    var WC = new THREE.Group(); WC.position.set(33.05, 0, 134.95); WC.rotation.y = -PI * 0.75; scene.add(WC);
+    box(0.3, 0.95, 0.3, std(0xd8d6ce, 0.5), 0, 0.475, 0, WC); box(0.26, 0.2, 0.02, std(0x9a9a92, 0.4), 0, 0.72, 0.15, WC); box(0.2, 0.02, 0.1, std(0x4a4a48, 0.4), 0, 0.6, 0.16, WC);
+    [[-0.05, 0x2f6ad8], [0.05, 0xc8102e]].forEach(function (tp) { box(0.03, 0.04, 0.04, std(tp[1], 0.4), tp[0], 0.78, 0.17, WC); });
+    cyl(0.06, 0.08, 0.05, std(0x9a9a92, 0.4), 0, 0.975, 0, WC, 14);
+    var BT = new THREE.Group(); BT.position.set(32.35, 0.19, 134.45); BT.rotation.set(0, 0.6, PI / 2); scene.add(BT);
+    var bottleMat = std(0x9fc8e8, 0.05, { transparent: true, opacity: 0.45, metalness: 0.1, envMap: envTex, envMapIntensity: 0.8 });
+    cyl(0.135, 0.135, 0.38, bottleMat, 0, 0, 0, BT, 20); mesh(new THREE.SphereGeometry(0.135, 20, 8, 0, PI * 2, 0, PI / 2), bottleMat, 0, 0.19, 0, BT); cyl(0.03, 0.03, 0.08, bottleMat, 0, 0.3, 0, BT, 10);
+    [-0.1, 0.0, 0.1].forEach(function (y) { var rg = mesh(new THREE.TorusGeometry(0.136, 0.006, 4, 24), bottleMat, 0, y, 0, BT); rg.rotation.x = PI / 2; });
+    var puddle = floorDecal(new THREE.MeshStandardMaterial({ color: 0x0a0c0e, roughness: 0.04, metalness: 0.6, transparent: true, opacity: 0.55, depthWrite: false, envMap: envTex, envMapIntensity: 1.2, alphaMap: softTex('rgba(255,255,255,1)', 'rgba(255,255,255,.85)'), polygonOffset: true, polygonOffsetFactor: -4 }), 1.4, 1.0, 32.3, 134.4, 0.4, 0.0485);
+    puddle.renderOrder = 3; circles.push({ x: 32.35, z: 134.45, r: 0.25 }, { x: 33.05, z: 134.95, r: 0.25 });
+    // the bin by the lockers, tipped over and spilled
+    var BN = new THREE.Group(); BN.position.set(27.62, 0.17, 128.05); BN.rotation.set(0, 0.4, PI / 2 - 0.05); scene.add(BN);
+    var binM = std(0x3a4a3e, 0.6, { side: THREE.DoubleSide }); mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.36, 16, 1, true), binM, 0, 0, 0, BN); cyl(0.13, 0.13, 0.008, binM, 0, -0.18, 0, BN, 16);
+    var trash = []; for (k = 0; k < 9; k++) trash.push([27.62 + 0.25 + srand() * 0.5, 0.075, 128.05 + (srand() - 0.5) * 0.5, 0.8 + srand() * 0.5, 0.8 + srand() * 0.5, 0.8 + srand() * 0.5, srand() * 3, srand() * 3, 0]);
+    inst(new THREE.IcosahedronGeometry(0.04, 0), std(0xe9e6dc, 0.95), trash).userData.noCast = true;                                // crumpled paper
+    var can = cyl(0.033, 0.033, 0.12, std(0xb0281e, 0.3, { metalness: 0.8 }), 28.2, 0.083, 128.3, null, 12); can.rotation.set(0, 0.8, PI / 2);
+  })();
 
   // gather the wing (not the door and its frame, the key cabinet in the shed, or the lights, which the light pool wants at the top)
   scene.children.slice(n0).forEach(function (o) { if (o === door || o === KB || o.isLight || (o.userData && o.userData.shopSide)) return; wing.add(o); });
@@ -500,9 +765,9 @@ var Staff = (function () {
   S.netUp = function () { var N = P.net; return !!(P.pow0 && N.ups && N.a === N.A && N.b === N.B); };
   S.reset = function () {                                                     // a new game or a load: put everything back as the state says
     var N = P.net; S.held = null; seq = []; amT = -1; S.subs('');
-    S.handKey.visible = false; if (S.handKey.parent) S.handKey.parent.remove(S.handKey);
+    S.handKey.visible = false; if (S.handKey.parent) S.handKey.parent.remove(S.handKey); keySpin = null; if (spinG.parent) spinG.parent.remove(spinG);
     S.hookKey.visible = !N.key; lockKey.visible = N.door >= 1;
-    if (lockKey.visible) { lockKey.position.set(LOCKP.x - 0.003 - 0.017, LOCKP.y, LOCKP.z); lockKey.rotation.set(-PI / 2, 0, 0); }
+    if (lockKey.visible) { lockKey.position.set(LOCKP.x - 0.003 - 0.017, LOCKP.y, LOCKP.z); lockKey.rotation.set(-PI, 0, 0); lockKey.userData.hangWorld(false); }
     doorA = N.door >= 2 ? 1 : 0; S.buildDeco(N.A, N.B);
     ['a', 'b'].forEach(function (id) { S.leads[id].last.set(1e9, 0, 0); });
   };
@@ -525,7 +790,10 @@ var Staff = (function () {
     // power: the room's lights come on with the shop's circuit; the UPS and the network behind it
     var pw = !!P.pow0, up = pw && N.ups, net = S.netUp(), fl = pw ? (Math.sin(t * 17) + Math.sin(t * 6.1 + 1) + Math.sin(t * 41) * 0.5 > -1.2 ? 1 : 0) : 0, fl2 = pw ? ((Math.sin(t * 3.3) > 0.2 && Math.sin(t * 29) > -0.6) || Math.sin(t * 0.7) > 0.85 ? 1 : 0) : 0;
     var seen = player.x > LX1 - 0.3 || (doorA > 0.2 && player.x > 11 && player.x < 25 && player.z > 121 && player.z < 135);    // only light the room when it can be seen
-    E.lights.staffA.intensity = seen && pw ? 0.95 * (0.85 + 0.15 * fl) : 0; E.lights.staffB.intensity = seen ? 0.8 * fl2 : 0; E.lights.staffExit.intensity = seen ? 0.35 + (pw ? 0.15 : 0) : 0;
+    E.lights.staffA.intensity = seen && pw ? 0.66 * (0.8 + 0.2 * fl) : 0; E.lights.staffB.intensity = seen ? 0.55 * fl2 : 0;
+    // the cable hanging out of the ceiling: while there is power it arcs now and then, a blue-white spit and a crackle
+    if (pw && seen) { S.sparkT = (S.sparkT || 0) - dt; if (S.sparkT <= 0) { S.sparkT = 1.2 + Math.random() * 3.5; S.sparkK = 1; Sfx.play('spark', { vol: 0.25, rate: 0.9 + Math.random() * 0.3, fallback: function () { Sound.noise(0.08, 4000, 0.06); } }); } }
+    S.sparkK = Math.max(0, (S.sparkK || 0) - dt * 7); S.spark.material.opacity = S.sparkK > 0 ? S.sparkK * (0.6 + Math.random() * 0.4) : 0; S.spark.scale.setScalar(0.06 + S.sparkK * 0.12 * (0.7 + Math.random() * 0.6)); E.lights.staffExit.intensity = seen ? 0.35 + (pw ? 0.15 : 0) : 0;
     S.tubes[0].color.setHex(pw ? (fl ? 0xf4f7ff : 0x9aa0a8) : 0x1c1c1a); S.tubes[1].color.setHex(fl2 ? 0xf4f7ff : 0x1c1c1a);
     S.fridgeLight.color.setHex(pw ? (Math.sin(t * 11) > 0.7 ? 0x3a3a30 : 0x8a8a7a) : 0x1a1a14);
     S.upsBtnLed.color.setHex(up ? 0x35ff8a : pw ? (Math.sin(t * 4) > 0 ? 0x5a1a10 : 0x1a0805) : 0x0a0a0a);
@@ -535,11 +803,13 @@ var Staff = (function () {
       var on = 0; if (up) { if (i2 === S.leads.a.sw) on = N.a ? (N.a === N.A ? 1 : 2) : 0; else if (i2 === S.leads.b.sw) on = N.b ? (N.b === N.B ? 1 : 2) : 0; else on = 1; }
       S.swLeds[i2].color.setHex(on === 1 ? (Math.sin(t * 9 + i2 * 1.7) > -0.5 ? 0x35ff8a : 0x0a2a10) : on === 2 ? 0xffa020 : 0x0a0a0a);
     }
-    // the key on its hook
+    // the key on its hook, and on the finger
     S.keyGlow.material.opacity = 0.18 + 0.12 * Math.sin(t * 2.6);
+    spinStep(dt);
     // the answering machine's counter: a red 1 blinking until the message has been heard; and its playback
     var led = N.heard ? (amT >= 0 ? '1' : '0') : (Math.sin(t * 5) > 0 ? '1' : ' ');
     if (led !== S.amLedState) { S.amLedState = led; var g2 = S.amLed.g; g2.fillStyle = '#120202'; g2.fillRect(0, 0, 64, 44); g2.fillStyle = led === ' ' ? '#200404' : '#ff2a14'; g2.font = 'bold 38px Consolas, monospace'; g2.textAlign = 'center'; g2.fillText(led === ' ' ? '8' : led, 32, 38); S.amLed.tex.needsUpdate = true; }
+    if (S.amPressT !== undefined) { var pk = clamp((t - S.amPressT) / 0.2, 0, 1); S.amPlay.position.y = S.amPlay.userData.y0 - Math.sin(pk * PI) * 0.0028; }   // the key goes down under the finger and springs back
     if (amT >= 0) { amT += dt; var line = ''; for (i2 = 0; i2 < amSubs.length; i2++) if (amT >= amSubs[i2][0] && amT < amSubs[i2][1]) line = amSubs[i2][2]; if (line !== S.amLine) { S.amLine = line; S.subs(line); } if (amT > amSubs[amSubs.length - 1][1] + 0.3) { amT = -1; S.subs(''); } }
     // sounds of the room: flies over the blood, the tube that will not settle
     var dp = dist(player.x, player.z, 30.6, 131.9), inRoom = player.x > LX1 - 0.5;
@@ -550,19 +820,67 @@ var Staff = (function () {
 
   // ---------- doing things ----------
   var tmpV = new THREE.Vector3(), XV = new THREE.Vector3(1, 0, 0);
+  /* Taking the key: the index finger goes through the ring and lifts it off its hook; the hand draws back and the key swings
+     on the finger, then the wrist starts a small circle and the key spins round the finger, three or four turns; the fingers
+     close over it to catch it and the hand drops it into the left trouser pocket.  The key rides on a pivot on the finger's
+     middle bone (spinG): turned about the finger so the key hangs the way gravity pulls, plus the spin. */
+  var spinG = new THREE.Group(), keySpin = null, spinV = new THREE.Vector3(), spinInv = new THREE.Matrix4(), SPIN_Q = new THREE.Quaternion(), ZAX = new THREE.Vector3(0, 0, 1);
+  (function () {                                                                // the key's place on the pivot: ring round the finger, blade pointing out from it
+    var q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(1, 0, 0)));
+    SPIN_Q.copy(q);
+  })();
+  var FIN_R = 0.0108;                                                           // the ring rests on the top of the finger: the finger's radius plus the wire's
+  function spinStep(dt) {
+    var K = keySpin; if (!K) return;
+    var u = playTime - K.t0, b1 = Hands.L.F[0][1];
+    if (spinG.parent !== b1) { b1.add(spinG); }
+    spinG.position.set(0, 0, lerp(-0.034, -0.008, sstep((u - 0.45) / 0.4)));                   // the ring slides down the finger toward the knuckle as it is lifted
+    // gravity: which way is down, in the finger bone's own frame, round the finger
+    b1.updateWorldMatrix(true, false); spinInv.copy(b1.matrixWorld).invert(); spinV.set(0, -1, 0).transformDirection(spinInv);
+    var phiG = Math.atan2(spinV.x, -spinV.y);
+    // the spin: wound up, carried round, stopped dead by the catch; before it, a pendulum swing from being lifted off the hook
+    var w = u < 2.36 ? 21 * sstep((u - 1.02) / 0.32) : 0; K.spin += w * dt;
+    var swing = u < 1.2 ? 0.7 * Math.exp(-3.2 * Math.max(0, u - 0.42)) * Math.sin(Math.max(0, u - 0.42) * 8.5) : 0;
+    K.ang = phiG + K.spin + swing;
+    spinG.quaternion.setFromAxisAngle(ZAX, K.ang);
+    var turns = Math.floor(K.spin / (PI * 2)); if (turns > K.turns) { K.turns = turns; Sfx.play('keys_pick', { vol: 0.12, rate: 1.4 + Math.random() * 0.2, fallback: function () {} }); }   // the keys chink each time round
+    if (u >= 2.42 && S.handKey.parent === spinG) { S.handKey.visible = false; spinG.remove(S.handKey); Sfx.play('keys_pick', { vol: 0.4, rate: 1.1, fallback: function () { Sound.pickup(); } }); }   // caught in the palm
+    if (u >= 2.9 && !K.pocketed) { K.pocketed = true; Sfx.play('keys_pick', { vol: 0.25, rate: 0.75, fallback: function () {} }); }   // into the pocket
+    if (u > 3.4) { keySpin = null; if (spinG.parent) spinG.parent.remove(spinG); }
+  }
   S.takeKey = function () {
-    stepTo(-16.72, 128.55, S.keyPoint(new THREE.Vector3()), 0.35);
-    Hands.use('keyTake', { point: function () { return S.keyPoint(tmpV); }, pose: 'pinch', tip: 'pinch', rot: [0.1, -0.15, 1.25], dur: 0.95, reach: 0.4,
-      move: function (t) { return lv2.set(0, sstep((t - 0.42) / 0.2) * 0.03, 0); },
+    var t0 = playTime, kp = S.keyPoint(new THREE.Vector3()), into = new THREE.Vector3(1, 0, 0);                        // into the wall the cabinet hangs on
+    stepTo(-16.72, 128.55, kp, 0.35);
+    var target = kp.clone().addScaledVector(into, 0.012); target.y -= 0.002;
+    var spinCam = new THREE.Vector3(-0.1, -0.085, -0.31), pv = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), hip = new THREE.Vector3(), mv = new THREE.Vector3();
+    var R0 = [0.08, 0.0, 0.05], R1 = [0.12, -1.12, 0.22], R2 = [0.9, 0.35, 0.9], rr = [0, 0, 0], ps = [];
+    keySpin = null;
+    Hands.use('keyTake', { pose: 'point', tip: 'point', rot: R0, dur: 3.05, reach: 0.44, outT: 0.45,
+      point: function () {
+        var u = playTime - t0, w1 = sstep((u - 0.78) / 0.32), w2 = sstep((u - 2.42) / 0.42);
+        a.copy(target).addScaledVector(into, -0.04 * sstep((u - 0.5) / 0.3)); a.y += 0.03 * sstep((u - 0.44) / 0.22) - 0.05 * sstep((u - 0.62) / 0.3);          // lifted off the hook, drawn back
+        camera.updateMatrixWorld(true); b.copy(spinCam).applyMatrix4(camera.matrixWorld);                                         // held up in front of you
+        hip.set(player.x + Math.cos(player.yaw) * -0.24 - Math.sin(player.yaw) * 0.08, player.y + 1.0, player.z + Math.sin(player.yaw) * 0.24 - Math.cos(player.yaw) * 0.08);   // the left trouser pocket
+        return pv.copy(a).lerp(b, w1).lerp(hip, w2);
+      },
+      rotAt: function (t) {
+        var u = playTime - t0, w1 = sstep((u - 0.78) / 0.32), w2 = sstep((u - 2.42) / 0.42);
+        for (var i = 0; i < 3; i++) rr[i] = lerp(lerp(R0[i], R1[i], w1), R2[i], w2);
+        return rr;
+      },
+      poseAt: function () { var u = playTime - t0; return Hands.mixPose(Hands.POSE.point, Hands.POSE.fist, sstep((u - 2.33) / 0.1), ps); },
+      move: function () {                                                                 // the wrist's small circle that drives the spin
+        var u = playTime - t0, k = sstep((u - 0.95) / 0.3) * (1 - sstep((u - 2.3) / 0.12));
+        if (!keySpin || k <= 0) return mv.set(0, 0, 0);
+        var al = keySpin.spin + 1.6; mv.set(Math.cos(al) * 0.007 * k, Math.sin(al) * 0.007 * k, 0).applyQuaternion(camera.quaternion);
+        return mv;
+      },
       onTouch: function () {
-        P.net.key = true; S.hookKey.visible = false; inHand(S.handKey, KEYLOCAL); Sfx.play('keys_pick', { vol: 0.6, fallback: function () { Sound.pickup(); } });
-        S.after(0.18, function () {                                              // bring it up and turn it to the light: the tag reads STAFF RM
-          var lookM = new THREE.Matrix4(), lq2 = new THREE.Quaternion(), qc = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0.9, 0.42, 0).normalize(), new THREE.Vector3(-0.42, 0.9, 0).normalize(), new THREE.Vector3(0, 0, 1))), pv = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
-          Hands.hold = { kind: 'key', inv: KEYLOCAL.clone().invert(), want: 1, speed: 1 / 0.5, posK: easeIO, pose: Hands.POSE.pinch,
-            world: function () { camera.updateMatrixWorld(true); pv.set(-0.035, -0.045, -0.27).applyMatrix4(camera.matrixWorld); lq2.copy(camera.quaternion).multiply(qc); return lookM.compose(pv, lq2, one); } };
-          showMsg('The staff room key. STAFF RM — the door behind the gift shop counter.', 4);
-          S.after(1.35, function () { if (Hands.hold && Hands.hold.kind === 'key') { Hands.hold.want = 0; Hands.hold.speed = 1 / 0.4; } S.after(0.42, function () { S.handKey.visible = false; }); });
-        });
+        P.net.key = true; S.hookKey.visible = false; Sfx.play('keys_pick', { vol: 0.6, fallback: function () { Sound.pickup(); } });
+        var k2 = S.handKey; if (k2.parent) k2.parent.remove(k2); spinG.add(k2); k2.visible = true; k2.userData.hang(new THREE.Vector3(1, 0, 0), true);
+        k2.quaternion.copy(SPIN_Q); var sp = k2.userData.support(spinV).applyQuaternion(SPIN_Q); k2.position.set(-sp.x, FIN_R - sp.y, -sp.z); k2.scale.set(1, 1, 1);
+        keySpin = { t0: t0, spin: 0, turns: 0, ang: 0 };
+        S.after(0.6, function () { showMsg('The staff room key. STAFF RM — the door behind the gift shop counter.', 4); });
       } });
   };
   S.tryDoor = function () {
@@ -577,6 +895,7 @@ var Staff = (function () {
     S.unlockT = 0;
     Hands.hold = { kind: 'unlock', inv: KEYLOCAL.clone().invert(), want: 1, speed: 1 / 0.6, posK: easeIO, pose: Hands.POSE.pinch,
       world: function () {
+        if (S.handKey.parent === Hands.L.hand) S.handKey.userData.hangWorld(false);
         var u = playTime - t0, ins = sstep((u - 0.62) / 0.32), turn = sstep((u - 1.05) / 0.28) * PI / 2;
         door.updateMatrixWorld(true); door.localToWorld(lf.set(LOCKP.x - 0.003, LOCKP.y, LOCKP.z));
         lf.x -= 0.017 + (1 - ins) * 0.05;
@@ -584,10 +903,10 @@ var Staff = (function () {
         return km.compose(lf, kq, one);
       } };
     S.after(1.2, function () { P.net.door = 1; Sfx.play('door_unlock', { vol: 0.7, fallback: function () { Sound.clunk(); } }); });
-    S.after(1.5, function () { lockKey.position.set(LOCKP.x - 0.003 - 0.017, LOCKP.y, LOCKP.z); lockKey.rotation.set(-PI / 2 - PI / 2, 0, 0); lockKey.visible = true; S.handKey.visible = false; if (Hands.hold && Hands.hold.kind === 'unlock') { Hands.hold.want = 0; Hands.hold.speed = 1 / 0.35; } });
+    S.after(1.5, function () { lockKey.position.set(LOCKP.x - 0.003 - 0.017, LOCKP.y, LOCKP.z); lockKey.rotation.set(-PI / 2 - PI / 2, 0, 0); lockKey.visible = true; lockKey.userData.hangWorld(false); S.handKey.visible = false; if (Hands.hold && Hands.hold.kind === 'unlock') { Hands.hold.want = 0; Hands.hold.speed = 1 / 0.35; } });
     S.after(1.9, function () {
-      Hands.use('doorPush', { point: function () { return S.pushPoint(tmpV); }, pose: 'wipe', tip: 'flat', rot: [1.3, 0.25, 0.2], dur: 1.0, reach: 0.38, press: 0.06,
-        onTouch: function () { P.net.door = 2; Sfx.play('door_open', { vol: 0.75, fallback: function () { Sound.creak(0.7); } }); } });
+      Hands.pushDoor('doorPush', door, new THREE.Vector3(-0.0225, 1.15, -(DZ2 - DZ1) + 0.22), new THREE.Vector3(-1, 0, 0),
+        function () { P.net.door = 2; Sfx.play('door_open', { vol: 0.75, fallback: function () { Sound.creak(0.7); } }); }, { reach: 0.36, hold: 0.24 });
     });
   };
   S.playMessage = function () {
@@ -595,7 +914,7 @@ var Staff = (function () {
     Hands.use('amPlay', { point: function () { return S.amWorld(tmpV); }, pose: 'point', tip: 'point', rot: [0.95, 0.25, 0.35], dur: 0.55, reach: 0.35, press: 0.006,
       onTouch: function () {
         var N = P.net, v = N.vm || 1, A = N.A, B = N.B, words = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'], aw = words[A], bw = words[B];
-        Sound.click(); amT = 0; N.heard = true;
+        Sound.click(); amT = 0; N.heard = true; S.amPressT = playTime;
         var D = Sfx.dur('vm_dave' + v) || 26.3, t1 = 6.0, tE = t1 + D + 0.5;
         Sfx.play('vm_intro', { vol: 0.9 }); Sound.tone(1000, 1000, 0.32, 0.12, 'sine', 5.55); Sfx.play('vm_dave' + v, { vol: 1.0, delay: t1 }); Sound.tone(1000, 1000, 0.32, 0.12, 'sine', tE - 0.4); Sfx.play('vm_end', { vol: 0.9, delay: tE });
         var dave = ["“Hey, Marla, it's Dave, from I.T.  Uh... listen, I swapped the old switch out in the cabinet in here this afternoon,", '“so everything’s been re-patched. The sheet taped on the door is wrong now, so ignore it.', '“The gift shop till goes in port ' + aw + '... and entry control is port ' + bw + '.  Okay?  ' + aw.charAt(0).toUpperCase() + aw.slice(1) + ' and ' + bw + '.', '“And if the power drops again, the battery backup shuts itself right off. Just press the button on the front.', '“Alright. Cheers.”'];
@@ -640,7 +959,7 @@ var Staff = (function () {
     if (!N) return null;
     // the key cabinet in the shed
     if (!N.key && px < -16.0 && px > -18.2 && pz > 127.6 && pz < 129.6) {
-      if (Hands.carried || (Hands.hold && Hands.hold.kind !== 'key')) return { text: 'A key cabinet, its door hanging open. One key left: STAFF RM.  (your left hand is full)' };
+      if (Hands.carried || (Hands.hold && Hands.hold.kind !== 'key')) return { text: 'A key cabinet, its door hanging open. The STAFF RM key is still on its hook.  (your left hand is full)' };
       return { text: '[E] Take the STAFF RM key', fn: S.takeKey };
     }
     // the staff door, from the shop
@@ -662,13 +981,13 @@ var Staff = (function () {
         var nm = S.leads[S.held].name;
         if (a && a.kind === 'port') {
           var taken = S.layout(N.A, N.B).indexOf(a.n) >= 0 || N.a === a.n || N.b === a.n;
-          return taken ? { text: 'Port ' + a.n + ' is in use.' } : { text: '[E] Plug the ' + nm + ' lead into port ' + a.n, fn: (function (n4) { return function () { S.plugInto(n4); }; })(a.n) };
+          return taken ? { text: 'Port ' + a.n + ' is in use.', outline: S.portOutline[a.n] } : { text: '[E] Plug the ' + nm + ' lead into port ' + a.n, outline: S.portOutline[a.n], fn: (function (n4) { return function () { S.plugInto(n4); }; })(a.n) };
         }
         return { text: 'Holding the ' + nm + ' lead: aim at a port on the patch panel.   [E] Let go of it', fn: S.drop };
       }
-      if (a && a.kind === 'lead') { var L3 = S.leads[a.id]; return { text: N[a.id] ? '[E] Unplug the ' + L3.name + ' lead from port ' + N[a.id] : '[E] Take the loose ' + L3.name + ' lead', fn: (function (id2) { return function () { S.takeLead(id2); }; })(a.id) }; }
-      if (a && a.kind === 'ups') return N.ups ? { text: '[E] Switch the battery backup off', fn: S.pressUps } : { text: '[E] Press the power button on the battery backup', fn: S.pressUps };
-      if (a && a.kind === 'port') return { text: 'Patch panel, port ' + a.n + '.' };
+      if (a && a.kind === 'lead') { var L3 = S.leads[a.id]; return { text: N[a.id] ? '[E] Unplug the ' + L3.name + ' lead from port ' + N[a.id] : '[E] Take the loose ' + L3.name + ' lead', outline: L3.outline, fn: (function (id2) { return function () { S.takeLead(id2); }; })(a.id) }; }
+      if (a && a.kind === 'ups') return N.ups ? { text: '[E] Switch the battery backup off', outline: S.upsOutline, fn: S.pressUps } : { text: '[E] Press the power button on the battery backup', outline: S.upsOutline, fn: S.pressUps };
+      if (a && a.kind === 'port') return { text: 'Patch panel, port ' + a.n + '.', outline: S.portOutline[a.n] };
       return { text: 'The staff network cabinet. ' + (N.ups ? '' : 'Everything in it is dark. ') + (N.a && N.b ? '' : 'Two leads hang loose from the switch.') };
     }
     return null;

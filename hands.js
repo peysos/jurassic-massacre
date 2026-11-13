@@ -286,18 +286,64 @@ var Hands = (function () {
   R.root.position.copy(HOLD.pos); R.root.quaternion.copy(HOLD.q); R.hand.rotation.copy(WRIST); applyPose(R, POSE.grip);
 
   // ---------- things the hands hold ----------
-  H.buildBattery = function (parent) {            // a flashlight cell, lying along z (button end toward -z); 50 mm long
-    var G = new THREE.Group(), wrap = std(0xffffff, 0.42, { metalness: 0.35, envMap: envTex, envMapIntensity: 0.35, map: canvasTex(256, function (g, S, HH) {
-      g.fillStyle = '#16171a'; g.fillRect(0, 0, S, HH); g.fillStyle = '#b5762c'; g.fillRect(0, 0, 58, HH);                       // copper shoulder
-      g.fillStyle = '#d9a23a'; g.fillRect(58, 0, 5, HH); g.fillStyle = '#2fb85a'; g.fillRect(196, 0, 22, HH);
-      g.fillStyle = '#e9e2d0'; g.font = 'bold 30px Arial, sans-serif'; g.textBaseline = 'middle'; g.fillText('VOLTA', 74, 34); g.font = 'bold 13px Arial, sans-serif'; g.fillText('HEAVY DUTY  1.5V', 76, 60);
-      g.font = 'bold 34px Arial, sans-serif'; g.fillText('+', 20, 34); g.fillStyle = '#9aa0a4'; g.font = '11px Arial, sans-serif'; g.fillText('DO NOT RECHARGE · LR14', 74, 82);
-      blotch(g, S, ['#000000', '#5a4a30'], 8, 6, 28, 0.25);
-    }, 1, 1, true, 96) });
-    var b = new THREE.Mesh(new THREE.CylinderGeometry(0.0115, 0.0115, 0.046, 20, 1, true), wrap); b.rotation.z = PI / 2; b.rotation.y = PI / 2; G.add(b);
-    var cap = metal(0xb9bcc0, 0.3);
-    function disc(r, h, z) { var m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 20), cap); m.rotation.x = PI / 2; m.position.z = z; G.add(m); return m; }
-    disc(0.0113, 0.002, -0.0238); disc(0.0042, 0.0024, -0.026); disc(0.0113, 0.0016, 0.0236); disc(0.0118, 0.0012, -0.019);
+  /* A VOLTA alkaline C cell, lying along z (button end toward -z); 50 mm long.  Gold-yellow gloss wrap (the colour of the
+     flashlight's charge bars), a black band round the + end, the spark bolt in a black roundel, and the brand running along
+     the length so it reads from above, printed twice round the cell.  Crimped steel ends, the + nub.  `glow` (pickups in the
+     world) lets the spark and the band's pinstripe give off a faint warm light. */
+  var batWrapMap = null, batGlowMap = null, batNormal = null;
+  function batteryMaps() {
+    if (batWrapMap) return;
+    var W2 = 512, H2 = 316, BAND = 0.24;                           // canvas: x runs round the cell (72 mm), y along it (44.5 mm: square pixels); top = the flat - end, bottom = the + end
+    function bolt(g, cx, cy, s) {                                    // the spark: a lightning bolt pointing along the cell, toward the + end
+      g.beginPath(); g.moveTo(cx + 0.18 * s, cy - 0.5 * s); g.lineTo(cx - 0.3 * s, cy + 0.06 * s); g.lineTo(cx - 0.02 * s, cy + 0.06 * s); g.lineTo(cx - 0.2 * s, cy + 0.5 * s);
+      g.lineTo(cx + 0.32 * s, cy - 0.1 * s); g.lineTo(cx + 0.04 * s, cy - 0.1 * s); g.lineTo(cx + 0.22 * s, cy - 0.5 * s); g.closePath();
+    }
+    function along(g, x, y, fn) { g.save(); g.translate(x, y); g.rotate(-PI / 2); fn(); g.restore(); }    // text running along the cell
+    batWrapMap = canvasTex(W2, function (g) {
+      var gr = g.createLinearGradient(0, 0, 0, H2); gr.addColorStop(0, '#f6cf43'); gr.addColorStop(0.5, '#efbd2c'); gr.addColorStop(1, '#e6aa22');
+      g.fillStyle = gr; g.fillRect(0, 0, W2, H2);
+      g.globalAlpha = 0.18; speckle('rgba(0,0,0,0)', ['#d99a1a', '#fff0a8'], 2600, 1.1)(g, W2); g.globalAlpha = 1;
+      var by = H2 * (1 - BAND);
+      g.fillStyle = '#121213'; g.fillRect(0, by, W2, H2 - by);                                                  // the + end band
+      g.fillStyle = '#ffd75a'; g.fillRect(0, by - 5, W2, 3); g.fillStyle = '#7a5410'; g.fillRect(0, by - 2, W2, 2);   // gold pinstripe and its shadow
+      [0, W2 / 2].forEach(function (x0) {
+        // roundel with the spark
+        var cx = x0 + 64, cy = by * 0.5;
+        g.fillStyle = '#121213'; g.beginPath(); g.arc(cx, cy, 46, 0, PI * 2); g.fill();
+        g.strokeStyle = '#ffd75a'; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, 40, 0, PI * 2); g.stroke();
+        g.fillStyle = '#ffd23a'; bolt(g, cx, cy, 62); g.fill();
+        // the brand and the small print, along the cell
+        along(g, x0 + 150, by - 10, function () { g.fillStyle = '#121213'; g.font = 'italic 900 64px "Arial Black", Impact, sans-serif'; g.textBaseline = 'alphabetic'; g.fillText('VOLTA', 0, 0, by - 20); });
+        along(g, x0 + 176, by - 10, function () { g.fillStyle = '#3a2a0a'; g.font = 'bold 19px Arial, sans-serif'; g.fillText('ALKALINE  ·  LONG LIFE', 0, 0, by - 20); });
+        along(g, x0 + 206, by - 10, function () { g.fillStyle = '#5a4210'; g.font = '14px Arial, sans-serif'; g.fillText('C · LR14 · 1.5 V', 0, 0, by - 20); });
+        // + in the band, and a power meter row of little cells
+        g.fillStyle = '#ffd23a'; g.font = 'bold 40px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('+', cx, by + (H2 - by) / 2 + 2); g.textAlign = 'left';
+        for (var q = 0; q < 5; q++) { g.fillStyle = q < 4 ? '#ffd23a' : '#5a4a20'; g.fillRect(x0 + 140 + q * 15, by + 16, 11, 26); }
+        g.fillStyle = '#9aa0a4'; g.font = 'bold 13px Arial, sans-serif'; g.fillText('POWER CHECK', x0 + 222, by + 34);
+      });
+      g.globalAlpha = 0.5; g.fillStyle = 'rgba(70,40,10,.35)'; for (var s2 = 0; s2 < 30; s2++) g.fillRect(Math.random() * W2, Math.random() * H2, 6 + Math.random() * 30, 1);   // handling scuffs
+      g.globalAlpha = 1;
+    }, 1, 1, true, H2);
+    batGlowMap = canvasTex(W2, function (g) {
+      g.fillStyle = '#000'; g.fillRect(0, 0, W2, H2); var by = H2 * (1 - BAND);
+      g.fillStyle = '#6a5010'; g.fillRect(0, by - 5, W2, 3);
+      [0, W2 / 2].forEach(function (x0) { var cx = x0 + 64, cy = by * 0.5; g.fillStyle = '#ffcf50'; bolt(g, cx, cy, 62); g.fill(); g.strokeStyle = '#5a4210'; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, 40, 0, PI * 2); g.stroke(); for (var q = 0; q < 4; q++) { g.fillStyle = '#8a6a18'; g.fillRect(x0 + 140 + q * 15, by + 16, 11, 26); } });
+    }, 1, 1, true, H2);
+    batNormal = normalTex(128, function (g, S) { g.fillStyle = '#808080'; g.fillRect(0, 0, S, S); var by = S * (1 - BAND); g.fillStyle = '#5a5a5a'; g.fillRect(0, by - 2, S, 2); g.fillStyle = '#a8a8a8'; g.fillRect(0, by, S, 1.5); }, 1.5, 1, 1);
+  }
+  var batCapMat = null;
+  H.buildBattery = function (parent, glow) {
+    batteryMaps();
+    var G = new THREE.Group();
+    var wrap = std(0xffffff, 0.3, { metalness: 0.15, envMap: envTex, envMapIntensity: 0.55, map: batWrapMap, normalMap: batNormal, normalScale: new THREE.Vector2(0.6, 0.6),
+      emissive: glow ? 0xffc040 : 0x000000, emissiveMap: glow ? batGlowMap : null, emissiveIntensity: glow ? 0.9 : 0 });
+    var b = new THREE.Mesh(new THREE.CylinderGeometry(0.0115, 0.0115, 0.0445, 28, 1, true), wrap); b.rotation.z = PI / 2; b.rotation.y = PI / 2; G.add(b);
+    var cap = batCapMat || (batCapMat = metal(0xc4c7ca, 0.26, { envMapIntensity: 0.8 }));
+    // the ends: a lathe from the + nub round the crimped shoulder, and the flat - end with its crimp
+    var plus = new THREE.Mesh(new THREE.LatheGeometry([[0.0001, -0.0268], [0.0044, -0.0268], [0.0047, -0.0262], [0.0047, -0.0246], [0.0068, -0.0243], [0.0102, -0.0238], [0.0112, -0.0232], [0.0117, -0.0224], [0.0117, -0.0218]].map(function (p) { return new THREE.Vector2(p[0], p[1]); }), 28), cap);
+    plus.rotation.x = PI / 2; G.add(plus);
+    var minus = new THREE.Mesh(new THREE.LatheGeometry([[0.0117, 0.0218], [0.0117, 0.0228], [0.0111, 0.0236], [0.0098, 0.024], [0.0084, 0.0236], [0.0001, 0.0236]].map(function (p) { return new THREE.Vector2(p[0], p[1]); }), 28), cap);
+    minus.rotation.x = PI / 2; G.add(minus);
     G.traverse(function (o) { if (o.isMesh) o.castShadow = true; }); if (parent) parent.add(G); return G;
   };
   function buildCard() {                           // the staff pass, 86 x 54 mm
@@ -328,11 +374,12 @@ var Hands = (function () {
   POSE.wipe  = [0.1, 0.05, 0, 0.1, 0.12,   0.12, 0.16, 0.1,  0.14, 0.18, 0.1,  0.14, 0.18, 0.12,  0.18, 0.2, 0.12,   0.02, 0, 0, -0.03];
   POSE.barOpen = [-0.6, -0.3, 0, 0.15, 0.15,   0.18, 0.22, 0.12,  0.16, 0.2, 0.12,  0.18, 0.22, 0.12,  0.22, 0.24, 0.14,   0.02, 0, 0, -0.04];   // fingers open, ready to close round something
   POSE.wipeFlat = [-0.3, -0.3, 0, 0.1, 0.12,   -0.58, 0.05, 0.03,  -0.55, 0.05, 0.03,  -0.52, 0.06, 0.04,  -0.46, 0.08, 0.05,   0.02, 0, 0, -0.03];   // fingers flat on a surface, the palm lifted off it (bent back at the knuckles), thumb laid out to the side   // fingers flat on a surface, bent back a little at the knuckles
+  POSE.push = [-0.38, -0.22, 0.05, 0.06, 0.06,   0.13, 0.03, 0.01,  0.12, 0.03, 0.01,  0.12, 0.04, 0.02,  0.14, 0.05, 0.03,   -0.05, -0.015, 0.03, 0.08];   // flat on a door: fingers spread a little and just touching, thumb out
   POSE.grip[0] = 0.05; POSE.grip[1] = 0.22; POSE.grip[2] = 0.1; POSE.grip[3] = 0.3; POSE.grip[4] = 0.4;
   var GRIP_PRESS = POSE.grip.slice(); GRIP_PRESS[1] = 0.34; GRIP_PRESS[3] = 0.52; GRIP_PRESS[4] = 0.86;
   function mixPose(a, b, t, out) { out = out || []; for (var i = 0; i < 21; i++) out[i] = a[i] + (b[i] - a[i]) * t; return out; }
   // where each pose touches things, in hand space (right-hand coordinates; x is mirrored for the left)
-  var TIP = { point: new V(-0.037, -0.008, -0.186), wipe: new V(-0.004, -0.014, -0.13), flat: new V(0, -0.02, -0.07), hook: new V(-0.002, -0.036, -0.088), fist: new V(-0.002, -0.034, -0.082), pinch: new V(-0.05, -0.03, -0.122) };
+  var TIP = { palm: new V(0.0, -0.021, -0.058), point: new V(-0.037, -0.008, -0.186), wipe: new V(-0.004, -0.014, -0.13), flat: new V(0, -0.02, -0.07), hook: new V(-0.002, -0.036, -0.088), fist: new V(-0.002, -0.034, -0.082), pinch: new V(-0.05, -0.03, -0.122) };
 
   // ---------- the left hand at work ----------
   /* H.use(key, o) sends the left hand to a point in the world and keeps it there while the call is repeated (or for o.dur
@@ -344,8 +391,33 @@ var Hands = (function () {
   H.use = function (key, o) {
     if (use && use.key === key && !use.leaving) { use.alive = o && o.dur ? use.alive : 0.16; if (o && o.spin !== undefined) use.spin = o.spin; return use; }
     use = { key: key, t: 0, alive: o.dur || 0.16, oneShot: !!o.dur, point: o.point, pose: POSE[o.pose] || POSE.point, tip: TIP[o.tip || o.pose] || TIP.point, rot: o.rot || [0.1, 0.25, 0.4],
-      move: o.move, onTouch: o.onTouch, touched: false, leaving: false, out: 0, press: o.press || 0, spin: 0, body: !!o.body, from: { pos: Lcur.pos.clone(), q: Lcur.q.clone(), wq: Lcur.wq.clone(), pose: Lcur.pose.slice() }, reach: o.reach || 0.24, prop: o.prop };
+      move: o.move, onTouch: o.onTouch, touched: false, leaving: false, out: 0, press: o.press || 0, spin: 0, body: !!o.body, poseAt: o.poseAt, rotAt: o.rotAt, outT: o.outT || 0.34, from: { pos: Lcur.pos.clone(), q: Lcur.q.clone(), wq: Lcur.wq.clone(), pose: Lcur.pose.slice() }, reach: o.reach || 0.24, prop: o.prop };
     return use;
+  };
+  /* Pushing a door open with the flat of the left hand.  lp is a point on the door's face and ln the face's outward normal
+     (toward you), both in the door's own space.  The palm comes to rest flat on the face, square to it however the door is
+     turned, fingers up and leaning out a little; the door starts to swing as the hand lands, the hand goes with it for `hold`
+     seconds (the first few degrees, while an arm can follow), then lets the door carry on and comes back. */
+  var dpN = new V(), dpF = new V(), dpX = new V(), dpL = new V(), dpM = new THREE.Matrix4(), dpQ = new Q(), dpC = new Q(), dpE = new THREE.Euler(0, 0, 0, 'YXZ');
+  H.pushDoor = function (key, door, lp, ln, onTouch, o) {
+    o = o || {};
+    var reach = o.reach || 0.34, hold = o.hold || 0.3, t0 = null, frozen = null, pt = new V(), rot = [0, 0, 0], P0 = lp.clone(), N0 = ln.clone();
+    function place() {
+      door.updateMatrixWorld(true); pt.copy(P0).applyMatrix4(door.matrixWorld); dpN.copy(N0).transformDirection(door.matrixWorld); pt.addScaledVector(dpN, 0.004);
+      dpL.set(-Math.cos(player.yaw), 0, Math.sin(player.yaw));                                   // your left
+      dpF.set(0, 1, 0).addScaledVector(dpL, 0.3); dpF.addScaledVector(dpN, -dpF.dot(dpN)).normalize();   // fingers up the door, leaning out to the left
+      dpX.crossVectors(dpF, dpN);                                                                 // the thumb's side
+      dpQ.setFromRotationMatrix(dpM.makeBasis(dpX, dpN, dpF.negate()));                         // (left hand: thumb +x, back +y, fingers -z)
+      dpQ.premultiply(dpC.copy(camera.quaternion).invert()); dpE.setFromQuaternion(dpQ, 'YXZ'); rot[0] = dpE.x; rot[1] = dpE.y; rot[2] = dpE.z;
+    }
+    return H.use(key, { pose: 'push', tip: 'palm', rot: rot, dur: reach + hold, reach: reach, outT: o.outT || 0.45, onTouch: onTouch,
+      point: function () {
+        if (t0 === null) t0 = H.time;
+        if (H.time - t0 < reach + hold || !frozen) { place(); if (H.time - t0 >= reach + hold) frozen = pt.clone(); }
+        else pt.copy(frozen);                                                                     // let go: the door swings on without the hand
+        return pt;
+      },
+      rotAt: function () { return rot; } });
   };
   H.busy = function () { return !!(use && !use.leaving) || clipT >= 0; };
   H.current = function () { return use; };            // (the frame checks in .dev look at the action in progress)
@@ -515,6 +587,8 @@ var Hands = (function () {
     } else if (use) {
       var u = use; u.t += dt; u.alive -= dt;
       if (u.alive <= 0 && !u.leaving) { u.leaving = true; u.out = 0; }
+      if (u.poseAt) u.pose = u.poseAt(u.t, u);                                     // a long move may change the hand's shape and turn as it goes
+      if (u.rotAt) u.rot = u.rotAt(u.t, u);
       var pt = u.point ? u.point() : null;
       if (pt) {
         var hv = new V().copy(pt); if (u.move) hv.add(u.move(u.t, u)); camera.worldToLocal(hv);
@@ -523,7 +597,7 @@ var Hands = (function () {
         var inn = easeIO(clamp(u.t / u.reach, 0, 1)), pr = u.press ? Math.sin(clamp((u.t - u.reach) / 0.16, 0, 1) * PI) * u.press : 0;
         hv.sub(to); hv.z -= pr;
         if (!u.touched && u.t >= u.reach) { u.touched = true; if (u.onTouch) u.onTouch(); }
-        if (u.leaving) { u.out += dt; var o2 = easeIO(clamp(u.out / 0.34, 0, 1)); tp = hv.clone().lerp(tp, o2); tq = uq.clone().slerp(tq, o2); tPose = mixPose(u.pose, tPose, o2, []); if (u.out >= 0.34) use = null; }
+        if (u.leaving) { u.out += dt; var o2 = easeIO(clamp(u.out / u.outT, 0, 1)); tp = hv.clone().lerp(tp, o2); tq = uq.clone().slerp(tq, o2); tPose = mixPose(u.pose, tPose, o2, []); if (u.out >= u.outT) use = null; }
         else { tp = u.from.pos.clone().lerp(hv, inn); tq = u.from.q.clone().slerp(uq, inn); tPose = mixPose(u.from.pose, u.pose, inn, []); }
         H.tipCam.copy(u.tip); H.tipCam.x = -H.tipCam.x; H.tipCam.applyQuaternion(tq).add(tp);          // where the working part of the hand is now (camera space)
       } else use = null;
@@ -538,7 +612,8 @@ var Hands = (function () {
       if (Ho.speed) { var kd = Ho.want - (Ho.k || 0); Ho.k = (Ho.k || 0) + clamp(kd, -Ho.speed * dt, Ho.speed * dt); }          // a fixed-length move (grips: arrive open, then close)
       else { Ho.k = damp(Ho.k || 0, Ho.want, Ho.rate || 5, dt); if (Math.abs(Ho.k - Ho.want) < 0.004) Ho.k = Ho.want; }
       if (Ho.k > 0.001) {
-        hM.copy(Ho.world()).multiply(Ho.inv); camInv.copy(camera.matrixWorld).invert(); hM.premultiply(camInv).multiply(MIRX); hM.decompose(hP, hQ2, hS);
+        var Wm = Ho.world(); hM.copy(Wm).multiply(Ho.invAt ? Ho.invAt(Wm, Ho.k) : Ho.inv);          // invAt: the held thing may turn in the hand
+        camInv.copy(camera.matrixWorld).invert(); hM.premultiply(camInv).multiply(MIRX); hM.decompose(hP, hQ2, hS);
         var kp = Ho.posK ? Ho.posK(Ho.k) : Ho.k;
         tp = tp.clone().lerp(hP, kp); tq = tq.clone().slerp(hQ2, kp); tPose = mixPose(tPose, (Ho.poseAt && Ho.poseAt(Ho.k)) || Ho.pose || POSE.carry, kp, []);
       }

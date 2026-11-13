@@ -118,10 +118,64 @@
   // a glass display case set into the counter: a few things nobody took, on faded velvet
   box(0.7, 0.04, 2.0, std(0x3a1a1a, 1), CX1 + 0.4, 0.62, 126.3); var cg = mesh(new THREE.PlaneGeometry(2.0, 0.42), EM.glassDirty, CX1 - 0.01, 0.82, 126.3); cg.rotation.y = -PI / 2; cg.userData.noCast = true;
   [[CX1 + 0.3, 125.7], [CX1 + 0.45, 126.4], [CX1 + 0.3, 127.0]].forEach(function (p, n) { mesh(new THREE.SphereGeometry(0.045, 14, 10), std([0x9fd8e8, 0xd9ae35, 0xe9e2d0][n], 0.15, { metalness: n === 1 ? 0.8 : 0.1, transparent: n === 0, opacity: 0.6 }), p[0], 0.69, p[1]); cyl(0.04, 0.05, 0.035, dark, p[0], 0.657, p[1], null, 12); });   // snow globes, a medal, an egg
-  // cash register: drawer hanging open, empty
-  var reg = new THREE.Group(); reg.position.set(21.62, 1.06, 126.5); reg.rotation.y = 0.15; scene.add(reg);
-  box(0.42, 0.16, 0.44, dark, 0, 0.08, 0, reg); box(0.4, 0.18, 0.3, dark, 0, 0.24, -0.06, reg).rotation.x = -0.35; box(0.3, 0.14, 0.03, basic(0x0b140d), 0, 0.42, -0.2, reg);
-  box(0.36, 0.07, 0.36, std(0x2a2b2e, 0.6), 0.05, 0.035, 0.3, reg);
+  /* The cash register: a cream electronic till of the early nineties.  The drawer housing, the sloping keyboard deck (printed
+     keys with relief: the number pad, the department keys, CLEAR in red, CASH/TOTAL in green), the printer block behind it
+     with the operator's display and a receipt curling out of the slot, the mode key in its lock, the customer's pole display
+     at the back.  Its drawer hangs open: the insert's coin cups and note slots, the note clips standing up, nothing left in
+     it but a few coins.  Front (local +z) faces the staff side of the counter; the displays come on with the shop circuit. */
+  var reg = new THREE.Group(); reg.position.set(21.6, 1.06, 126.5); reg.rotation.y = PI / 2 + 0.12; scene.add(reg);
+  function rbx(w, h, d, r) { var sh = new THREE.Shape(), x = w / 2 - r, y = h / 2 - r; sh.moveTo(-x, -h / 2); sh.lineTo(x, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -y); sh.lineTo(w / 2, y); sh.quadraticCurveTo(w / 2, h / 2, x, h / 2); sh.lineTo(-x, h / 2); sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, y); sh.lineTo(-w / 2, -y); sh.quadraticCurveTo(-w / 2, -h / 2, -x, -h / 2);
+    var g = new THREE.ExtrudeGeometry(sh, { depth: d - 2 * r, bevelEnabled: true, bevelThickness: r, bevelSize: r * 0.6, bevelSegments: 2, curveSegments: 4 }); g.translate(0, 0, -(d - 2 * r) / 2); return g; }
+  var tillCream = std(0xffffff, 0.5, { map: canvasTex(128, function (g, S) { g.fillStyle = '#cfc6ad'; g.fillRect(0, 0, S, S); g.globalAlpha = 0.3; speckle('rgba(0,0,0,0)', ['#bdb49a', '#ddd5bf'], 1500, 1.2)(g, S); g.globalAlpha = 1; blotch(g, S, ['#8a7f62', '#6a604a'], 8, 8, 30, 0.3); }) });
+  var tillDark = std(0x2a2b2e, 0.55), tillBlack = std(0x111214, 0.45);
+  mesh(rbx(0.4, 0.11, 0.42, 0.012), tillCream, 0, 0.055, 0, reg).castShadow = true;                                                       // the drawer housing
+  box(0.37, 0.088, 0.02, tillBlack, 0, 0.048, 0.205, reg);                                                                                  // the dark mouth the drawer came out of
+  var blk = mesh(rbx(0.4, 0.12, 0.16, 0.012), tillCream, 0, 0.17, -0.125, reg); blk.castShadow = true;                                     // the printer block
+  // the keyboard deck, sloping down toward you
+  var DK = new THREE.Group(); DK.position.set(0, 0.135, 0.07); DK.rotation.x = 0.2; reg.add(DK);
+  mesh(rbx(0.39, 0.05, 0.27, 0.01), tillCream, 0, -0.012, 0, DK).castShadow = true;
+  var keyCanvas = function (g, S, HH, relief) {
+    g.fillStyle = relief ? '#808080' : '#bfb69c'; g.fillRect(0, 0, S, HH);
+    function key(x, y, w, h, col, label, fs) {
+      if (relief) { g.fillStyle = '#c8c8c8'; g.fillRect(x, y, w, h); g.fillStyle = '#e8e8e8'; g.fillRect(x + 2, y + 2, w - 4, h - 4); return; }
+      g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + 2, y + 3, w, h); g.fillStyle = col; g.fillRect(x, y, w, h); g.fillStyle = 'rgba(255,255,255,.22)'; g.fillRect(x + 2, y + 2, w - 4, 3);
+      g.fillStyle = col === '#f0ece0' || col === '#e6c33a' ? '#1a1a1a' : '#f4f1e6'; g.font = 'bold ' + (fs || 14) + 'px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, x + w / 2, y + h / 2 + 1, w - 4);
+    }
+    var nums = [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['0', '00', '.']];
+    nums.forEach(function (row, r) { row.forEach(function (n, c) { key(196 + c * 44, 40 + r * 44, 38, 38, '#f0ece0', n, 18); }); });
+    [['DEPT 1', '#a8231c'], ['DEPT 2', '#2f5a8a'], ['DEPT 3', '#2f7a45'], ['DEPT 4', '#e6c33a'], ['DEPT 5', '#c8661c'], ['DEPT 6', '#6a4a8a']].forEach(function (d, n) { key(18 + (n % 2) * 84, 40 + Math.floor(n / 2) * 44, 78, 38, d[1], d[0], 13); });
+    key(18, 172, 78, 38, '#55585c', 'VOID', 13); key(102, 172, 78, 38, '#55585c', 'X / TIME', 12);
+    key(340, 40, 76, 38, '#a8231c', 'CLEAR', 14); key(340, 84, 76, 38, '#55585c', 'SUBTOTAL', 11); key(340, 128, 76, 82, '#2f7a45', 'CASH', 17);
+    key(424, 40, 70, 82, '#55585c', 'NO SALE', 11); key(424, 128, 70, 82, '#e6c33a', 'TOTAL', 15);
+    if (!relief) { g.fillStyle = '#5a5240'; g.font = 'bold 13px Arial'; g.textAlign = 'left'; g.fillText('SUNMATE  ECR-450', 18, 20); g.fillStyle = '#7a705a'; g.fillText('TILL 1', 440, 20); E.grime(g, S, HH, 0.7); }
+  };
+  var deckTop = mesh(new THREE.PlaneGeometry(0.36, 0.236), std(0xffffff, 0.5, { map: canvasTex(512, function (g, S, HH) { keyCanvas(g, S, HH, false); }, 1, 1, true, 336), normalMap: normalTex(256, function (g, S, HH) { g.scale(0.5, 0.5); keyCanvas(g, 512, 336, true); }, 3, 1, 1, 168), normalScale: new THREE.Vector2(1.2, 1.2) }), 0, 0.0205, 0, DK);
+  deckTop.rotation.x = -PI / 2;
+  // the operator's display (front of the printer block) and the customer's pole display (at the back); both green when there is power
+  E.tillScreen = livePanel(0.17, 0.045, 256, 68, 0, 0, 0, 0, reg); E.tillScreen.mesh.material = basic(0xffffff, { map: E.tillScreen.tex, fog: false }); E.tillScreen.mesh.position.set(-0.07, 0.19, -0.0335);
+  box(0.19, 0.06, 0.012, tillBlack, -0.07, 0.19, -0.04, reg);
+  cyl(0.012, 0.012, 0.22, tillDark, 0.12, 0.33, -0.18, reg, 8);
+  var pole = new THREE.Group(); pole.position.set(0.12, 0.47, -0.18); pole.rotation.y = PI; reg.add(pole);
+  mesh(rbx(0.2, 0.06, 0.05, 0.01), tillDark, 0, 0, 0, pole); E.tillPole = livePanel(0.17, 0.035, 256, 52, 0, 0, 0.0255, 0, pole); E.tillPole.mesh.material = basic(0xffffff, { map: E.tillPole.tex, fog: false });
+  // the printer: its slot, the paper roll's window, the tear bar, a receipt curling out
+  box(0.13, 0.006, 0.012, tillBlack, 0.1, 0.231, -0.09, reg); box(0.13, 0.003, 0.004, std(0x9aa0a4, 0.3, { metalness: 0.8 }), 0.1, 0.232, -0.083, reg);
+  mesh(new THREE.PlaneGeometry(0.1, 0.06), std(0x3a3020, 0.1, { transparent: true, opacity: 0.6 }), 0.1, 0.2315, -0.15, reg).rotation.x = -PI / 2;
+  var rcG = new THREE.PlaneGeometry(0.075, 0.24, 1, 24), rp = rcG.attributes.position;
+  for (var q = 0; q < rp.count; q++) { var ry = rp.getY(q) + 0.12, ang = ry / 0.24 * 2.3; rp.setXYZ(q, rp.getX(q), Math.sin(ang) * 0.06, -(1 - Math.cos(ang)) * 0.06); }    // up out of the slot and curling over toward you
+  rcG.computeVertexNormals();
+  var rc = mesh(rcG, std(0xffffff, 0.8, { side: THREE.DoubleSide, map: canvasTex(64, function (g, S, HH) { g.fillStyle = '#f2efe6'; g.fillRect(0, 0, S, HH); g.fillStyle = '#5a5a5a'; for (var r2 = 0; r2 < 26; r2++) g.fillRect(6 + (r2 % 3) * 2, 8 + r2 * 9, 20 + (r2 * 13 % 30), 2); g.fillRect(8, 140, 48, 3); }, 1, 1, true, 256) }), 0.1, 0.233, -0.088, reg);
+  rc.userData.noCast = true;
+  // the mode lock on the side, its key in it, turned to REG
+  var lk = cyl(0.014, 0.014, 0.01, std(0xc9cdd0, 0.25, { metalness: 0.9 }), 0.203, 0.17, -0.1, reg, 14); lk.rotation.z = PI / 2;
+  box(0.012, 0.022, 0.004, std(0x9aa0a4, 0.3, { metalness: 0.8 }), 0.212, 0.175, -0.1, reg).rotation.x = 0.6;
+  // the drawer, pulled out and empty
+  var DR = new THREE.Group(); DR.position.set(0, 0.012, 0.18); reg.add(DR);
+  box(0.36, 0.006, 0.38, tillDark, 0, 0, 0, DR); [-1, 1].forEach(function (e) { box(0.006, 0.07, 0.38, tillDark, e * 0.177, 0.035, 0, DR); }); box(0.36, 0.07, 0.006, tillDark, 0, 0.035, -0.187, DR);
+  mesh(rbx(0.39, 0.085, 0.018, 0.006), tillCream, 0, 0.04, 0.196, DR).castShadow = true; box(0.12, 0.012, 0.012, tillDark, 0, 0.012, 0.21, DR);   // its front, the finger pull
+  for (q = 0; q < 4; q++) box(0.004, 0.05, 0.2, tillBlack, -0.135 + q * 0.09, 0.03, -0.08, DR);                                            // the note slots
+  for (q = 0; q < 5; q++) { var clip = new THREE.Group(); clip.position.set(-0.144 + q * 0.072, 0.056, -0.17); clip.rotation.x = -0.1; DR.add(clip); box(0.05, 0.004, 0.13, std(0x9aa0a4, 0.35, { metalness: 0.8 }), 0, 0, 0.065, clip); }   // the note clips, down on empty slots
+  for (q = 0; q < 5; q++) { cyl(0.03, 0.026, 0.035, tillBlack, -0.14 + q * 0.07, 0.02, 0.11, DR, 14); mesh(new THREE.CircleGeometry(0.026, 14), std(0x050505, 0.8), -0.14 + q * 0.07, 0.038, 0.11, DR).rotation.x = -PI / 2; }   // the coin cups
+  [[-0.06, 0.1, 0xb8913a], [0.08, 0.13, 0x9aa0a4]].forEach(function (cn) { cyl(0.011, 0.011, 0.002, std(cn[2], 0.35, { metalness: 0.9 }), cn[0], 0.0045, cn[1], DR, 12); });   // two coins nobody bothered with
   // the staff computer: beige CRT, keyboard, mouse, tower under the counter
   var PC = new THREE.Group(); PC.position.set(21.56, 1.06, 128.2); scene.add(PC);
   var beige = std(0xb9b29c, 0.7, { map: canvasTex(64, function (g, S) { g.fillStyle = '#b9b29c'; g.fillRect(0, 0, S, S); blotch(g, S, ['#7d7662', '#8f8870'], 8, 6, 30, 0.4); }) });
@@ -392,7 +446,12 @@
   [-0.46, 0.46].forEach(function (x) { box(0.1, 0.14, 2.5, EM.rustSteel, x, 0.07, 0, GEN); });
   box(1.04, 0.05, 2.4, EM.rustSteel, 0, 0.13, 0, GEN);
   E.genShake = dyn(new THREE.Group()); GEN.add(E.genShake);                                                                           // the parts that tremble when it runs
-  var canopy = box(1.08, 1.12, 2.3, genGreen, 0, 0.72, 0, E.genShake); box(1.1, 0.06, 2.32, genGreen, 0, 1.31, 0, E.genShake);
+  function roundSection(w, h, r, len) {           // a box with its four long edges rounded, running along z
+    var sh = new THREE.Shape(), x = w / 2 - r, y = h / 2 - r; sh.moveTo(-x, -h / 2); sh.lineTo(x, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -y); sh.lineTo(w / 2, y); sh.quadraticCurveTo(w / 2, h / 2, x, h / 2); sh.lineTo(-x, h / 2); sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, y); sh.lineTo(-w / 2, -y); sh.quadraticCurveTo(-w / 2, -h / 2, -x, -h / 2);
+    var g = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false, curveSegments: 5 }); g.translate(0, 0, -len / 2); return g;
+  }
+  var canopy = mesh(roundSection(1.08, 1.12, 0.05, 2.3), genGreen, 0, 0.72, 0, E.genShake); canopy.castShadow = true;
+  mesh(roundSection(1.12, 0.06, 0.025, 2.36), genGreen, 0, 1.31, 0, E.genShake).castShadow = true;                                        // the rain lip round the roof
   var louv = []; for (i = 0; i < 9; i++) { louv.push([0.545, 0.42 + i * 0.065, -0.55, 1, 1, 1, 0, 0, 0.5]); louv.push([-0.545, 0.42 + i * 0.065, -0.55, 1, 1, 1, 0, 0, -0.5]); }
   inst(new THREE.BoxGeometry(0.02, 0.045, 0.8), EM.rustSteel, louv, E.genShake);
   box(0.9, 0.85, 0.02, std(0x1a1c1a, 0.6, { metalness: 0.5, map: canvasTex(64, function (g, S) { g.fillStyle = '#141614'; g.fillRect(0, 0, S, S); g.fillStyle = '#4a4a44'; for (var q = 0; q < S; q += 4) { g.fillRect(0, q, S, 1.5); g.fillRect(q, 0, 1.5, S); } }, 6, 6) }), 0, 0.72, -1.16, E.genShake);   // radiator grille
@@ -429,6 +488,42 @@
   E.genNote = livePanel(0.26, 0.2, 256, 196, 0, 0, 0, 0, E.genShake); E.genNote.mesh.position.set(0.556, 1.1, -0.2); E.genNote.mesh.rotation.set(0, PI / 2, 0.06);
   boxes.push({ x1: -21.6, x2: -20.35, z1: 126.15, z2: 128.65 });
   E.genSpot = { x: -19.45, z: 127.85 };
+  /* What makes it a real set: frames round the louvre banks, a hooded grille at the radiator end, the silencer on the roof with
+     its rain cap, the bunded fuel tank in the base with its sight gauge and drain, rubber mounts under the canopy, T-handles
+     on the doors, the maker's badge and the warning labels, the earth lead to its rod, and the oil it has leaked over the years. */
+  (function () {
+    var GS = E.genShake, steelDk = std(0x2a2d2b, 0.55, { metalness: 0.5 });
+    [[0.546, -0.55]].forEach(function (lp) { [-1, 1].forEach(function (sd) { box(0.02, 0.66, 0.03, steelDk, sd * lp[0], 0.68, lp[1] - 0.415, GS); box(0.02, 0.66, 0.03, steelDk, sd * lp[0], 0.68, lp[1] + 0.415, GS); box(0.02, 0.03, 0.86, steelDk, sd * lp[0], 0.36, lp[1], GS); box(0.02, 0.03, 0.86, steelDk, sd * lp[0], 1.0, lp[1], GS); }); });   // louvre frames
+    // the radiator end: a hood over the grille, and the grille's frame
+    var hood = box(1.0, 0.06, 0.18, genGreen, 0, 1.2, -1.24, GS); hood.rotation.x = 0.25; [-1, 1].forEach(function (sd) { box(0.03, 0.9, 0.12, genGreen, sd * 0.48, 0.74, -1.21, GS); });
+    box(0.94, 0.03, 0.06, steelDk, 0, 0.29, -1.17, GS);
+    // the silencer on the roof, piped from the exhaust stack, with a flapping rain cap on its tailpipe
+    var sil = cyl(0.13, 0.13, 0.62, std(0x5a5650, 0.6, { metalness: 0.5, map: rustTex }), -0.2, 1.55, -0.45, GS, 18); sil.rotation.x = PI / 2;
+    [-0.76, -0.14].forEach(function (z) { var bnd = cyl(0.135, 0.135, 0.03, steelDk, -0.2, 1.55, z, GS, 18); bnd.rotation.x = PI / 2; box(0.05, 0.2, 0.04, steelDk, -0.2, 1.43, z, GS); });
+    var cap2 = new THREE.Group(); cap2.position.set(-0.2, 2.86, -0.8); GEN.add(cap2); var flap = cyl(0.075, 0.075, 0.008, std(0x5a5650, 0.5, { metalness: 0.6 }), 0, 0, 0.04, cap2, 16); flap.rotation.x = 1.2;
+    // the base tank: a bunded steel tank the canopy sits on, its sight gauge, the drain plug, the fill vent
+    var tankM = std(0x26332a, 0.6, { metalness: 0.35, map: rustTex });
+    box(1.06, 0.15, 2.44, tankM, 0, 0.08, 0, GEN);                                                                                  // the canopy stands on it; the skid runners show at its ends
+    var gl = mesh(new THREE.PlaneGeometry(0.1, 0.03), std(0x8a6a1a, 0.15, { transparent: true, opacity: 0.85, emissive: 0x1a1204 }), 0.532, 0.085, 0.75, GEN); gl.rotation.y = PI / 2; box(0.012, 0.045, 0.13, steelDk, 0.532, 0.085, 0.75, GEN);
+    E.genSight = gl;
+    cyl(0.025, 0.025, 0.02, std(0x9a9a92, 0.4, { metalness: 0.8 }), 0.536, 0.035, -0.9, GEN, 8).rotation.z = PI / 2;
+    mesh(new THREE.PlaneGeometry(0.3, 0.05), std(0xffffff, 0.6, { map: textTex(['BUNDED BASE TANK  ·  DIESEL'], 384, 64, '#e2b93b', '#17140e', null, false) }), 0.532, 0.1, 0.25, GEN).rotation.y = PI / 2;
+    // T-handles and locks on the service doors (the old latches stay under them)
+    [0.15, -0.55].forEach(function (dz) { var th = cyl(0.012, 0.012, 0.05, EM.steel, 0.575, 0.72, dz + 0.29, GS, 8); th.rotation.z = PI / 2; box(0.02, 0.1, 0.02, EM.steel, 0.6, 0.72, dz + 0.29, GS); cyl(0.012, 0.012, 0.01, std(0xc9cdd0, 0.25, { metalness: 0.9 }), 0.553, 0.64, dz + 0.29, GS, 10).rotation.z = PI / 2; });
+    // the maker's badge and the labels
+    mesh(new THREE.PlaneGeometry(0.34, 0.1), std(0xffffff, 0.35, { metalness: 0.6, map: canvasTex(256, function (g, S2, H2) {
+      var gr = g.createLinearGradient(0, 0, 0, H2); gr.addColorStop(0, '#d6d2c4'); gr.addColorStop(1, '#8e897a'); g.fillStyle = gr; g.fillRect(0, 0, S2, H2); g.strokeStyle = '#4a463c'; g.lineWidth = 3; g.strokeRect(3, 3, S2 - 6, H2 - 6);
+      g.fillStyle = '#1d3a28'; g.font = 'italic 900 38px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.fillText('ATLAS', S2 / 2 - 36, 48); g.fillStyle = '#a8231c'; g.font = 'bold 18px Arial'; g.fillText('POWER', S2 / 2 + 70, 46); g.fillStyle = '#2a2a2a'; g.font = 'bold 14px Arial'; g.fillText('DIESEL GENERATING SET  ·  12 kVA', S2 / 2, 70);
+      E.grime(g, S2, H2, 0.8);
+    }, 1, 1, true, 76) }), 0.556, 1.13, -0.62, GS).rotation.y = PI / 2;
+    function warn(lines, x, y, z, ry, col, w) { var m = mesh(new THREE.PlaneGeometry(w || 0.16, 0.12), std(0xffffff, 0.6, { map: canvasTex(128, function (g, S2, H2) { g.fillStyle = col || '#e2b93b'; g.fillRect(0, 0, S2, H2); g.fillStyle = '#17140e'; g.beginPath(); g.moveTo(26, 12); g.lineTo(46, 48); g.lineTo(6, 48); g.closePath(); g.fill(); g.fillStyle = col || '#e2b93b'; g.font = 'bold 26px Arial'; g.textAlign = 'center'; g.fillText('!', 26, 45); g.fillStyle = '#17140e'; g.font = 'bold 15px Arial'; g.textAlign = 'left'; lines.forEach(function (l, i) { g.fillText(l, 54, 26 + i * 18, S2 - 58); }); g.fillRect(4, 62, S2 - 8, 2); g.font = '10px Arial'; g.fillText('Isolate before opening', 6, 80); E.grime(g, S2, H2, 0.9); }, 1, 1, true, 96) }), x, y, z, GS); m.rotation.y = ry; return m; }
+    warn(['DANGER', '415 V'], 0.557, 0.55, 0.95, PI / 2); warn(['HOT', 'SURFACES'], -0.12, 1.2, -1.253, PI, null, 0.15).rotation.x = 0.25; warn(['MOVING', 'PARTS'], 0.557, 0.55, -0.1, PI / 2);
+    mesh(new THREE.PlaneGeometry(0.07, 0.07), std(0xffffff, 0.6, { map: canvasTex(64, function (g, S2) { g.fillStyle = '#2f7a45'; g.fillRect(0, 0, S2, S2); g.strokeStyle = '#f4f1e6'; g.lineWidth = 4; g.beginPath(); g.moveTo(32, 10); g.lineTo(32, 34); g.moveTo(16, 34); g.lineTo(48, 34); g.moveTo(21, 42); g.lineTo(43, 42); g.moveTo(26, 50); g.lineTo(38, 50); g.stroke(); }) }), 0.533, 0.085, 1.08, GEN).rotation.y = PI / 2;   // the earth point
+    // the earth lead (green and yellow) from the tank to its rod in the floor, and the oil it has leaked
+    var ec = new THREE.CatmullRomCurve3([new THREE.Vector3(0.535, 0.06, 1.12), new THREE.Vector3(0.58, 0.05, 1.18), new THREE.Vector3(0.66, 0.085, 1.25), new THREE.Vector3(0.7, 0.12, 1.3)]);
+    mesh(new THREE.TubeGeometry(ec, 10, 0.007, 6, false), std(0x6a8a2a, 0.6), 0, 0, 0, GEN); cyl(0.008, 0.008, 0.08, std(0xb8913a, 0.4, { metalness: 0.8 }), 0.7, 0.11, 1.3, GEN, 6);
+    var oil = mesh(new THREE.PlaneGeometry(1.5, 2.6), new THREE.MeshStandardMaterial({ color: 0x0b0a08, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.7, depthWrite: false, alphaMap: softTex('rgba(255,255,255,1)', 'rgba(255,255,255,.6)'), polygonOffset: true, polygonOffsetFactor: -3 }), -20.85, 0.079, 127.5); oil.rotation.x = -PI / 2; oil.userData.noCast = true;
+  })();
   // the diesel, falling from the spout into the neck while you pour
   E.stream = dyn(mesh(new THREE.CylinderGeometry(0.0055, 0.0045, 1, 8, 1, true), std(0x8a6a1a, 0.08, { metalness: 0.2, transparent: true, opacity: 0.75, emissive: 0x1a1204 }), 0, 0, 0)); E.stream.visible = false; E.stream.userData.noCast = true; E.stream.userData.keep = true;
   // an empty can stood down by the set after the pour (shown once the tank is filled)
@@ -440,11 +535,12 @@
   var bdoor = box(0.02, 1.0, 0.66, boardGrey, 0.67, 0, 0.44, BD);                                                                          // its cover hangs open
   cyl(0.02, 0.02, 1.2, EM.steel, -0.4, -1.1, 0.05, BD, 6); cyl(0.02, 0.02, 0.7, EM.steel, 0.3, 0.85, 0.05, BD, 6);
   mesh(new THREE.PlaneGeometry(0.9, 0.08), std(0xffffff, 0.6, { map: textTex(['MAIN DISTRIBUTION · 415V'], 512, 44, '#d8d2c2', '#17140e', null, false) }), 0, 0.43, 0.1415, BD);
-  E.brk = []; E.brkLamps = []; E.brkLabels = []; E.brkHit = [];
+  E.brk = []; E.brkLamps = []; E.brkLabels = []; E.brkHit = []; E.brkOutline = [];
   var hitMat = new THREE.MeshBasicMaterial({ visible: false });
   for (i = 0; i < 6; i++) {
     var bx2 = -0.4 + (i % 3) * 0.4, by2 = 0.18 - Math.floor(i / 3) * 0.44;
-    box(0.2, 0.22, 0.03, dark, bx2, by2, 0.155, BD); box(0.06, 0.12, 0.02, std(0x101112, 0.5), bx2, by2, 0.172, BD);                       // breaker body and the slot the toggle moves in
+    var bbody = box(0.2, 0.22, 0.03, dark, bx2, by2, 0.155, BD); box(0.06, 0.12, 0.02, std(0x101112, 0.5), bx2, by2, 0.172, BD);         // breaker body and the slot the toggle moves in
+    E.brkOutline.push(Outline.make(bbody));                                                                                                    // the yellow edge when you aim at it
     var hd = dyn(new THREE.Group()); hd.position.set(bx2, by2, 0.18); BD.add(hd);
     box(0.034, 0.075, 0.034, std(0xd8d2c2, 0.45), 0, 0.03, 0.025, hd); box(0.05, 0.03, 0.05, std(0x1c1c1c, 0.5), 0, 0.072, 0.03, hd); E.brk.push(hd);
     var bl = glow(0x1a0505); mesh(new THREE.CircleGeometry(0.014, 10), bl, bx2 + 0.075, by2 + 0.08, 0.172, BD); E.brkLamps.push(bl);
@@ -672,6 +768,14 @@
     for (n = 0; n < E.shopTubes.length; n++) E.shopTubes[n].color.setHex(shopOn > 0.1 ? (n === 1 && flick < 1 ? 0x55534a : 0xfff4d6) : 0x1c1c1a);
     E.shopGlow.material.opacity = shopOn * 0.5;
     L.term.intensity = P.pow0 ? 0.55 * warm : 0; E.pcLed.color.setHex(P.pow0 ? 0x35ff8a : 0x0a1a0a);
+    if (E.tillOn !== !!P.pow0) {          // the till's displays: dead, or the green of a vacuum-fluorescent readout
+      E.tillOn = !!P.pow0;
+      [[E.tillScreen, '      0.00', 'CLERK 01   REG'], [E.tillPole, 'THANK YOU', null]].forEach(function (d) {
+        var g = d[0].g, w = d[0].canvas.width, h = d[0].canvas.height; g.fillStyle = '#04100a'; g.fillRect(0, 0, w, h);
+        if (E.tillOn) { g.fillStyle = '#5dffb0'; g.shadowColor = '#2aff8a'; g.shadowBlur = 8; g.font = 'bold ' + Math.round(h * (d[2] ? 0.5 : 0.62)) + 'px Consolas, "Courier New", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(d[1], w / 2, d[2] ? h * 0.36 : h / 2); if (d[2]) { g.font = Math.round(h * 0.26) + 'px Consolas, monospace'; g.fillText(d[2], w / 2, h * 0.8); } g.shadowBlur = 0; }
+        d[0].tex.needsUpdate = true;
+      });
+    }
     var lampsOn = run && N.brk[N.order.indexOf(2)] ? warm : 0; L.plaza.intensity = lampsOn * 1.25;
     for (n = 0; n < E.plazaBulbs.length; n++) E.plazaBulbs[n].color.setHex(lampsOn > 0.1 ? (n === 2 && flick < 1 ? 0x4a4030 : 0xffe2b0) : 0x16130c);
     if (E.screenOn !== !!P.pow0 || E.screenTurn !== !!P.turn || E.screenLog !== !!N.login) { E.screenOn = !!P.pow0; E.screenTurn = !!P.turn; E.screenLog = !!N.login; E.drawScreen(); }

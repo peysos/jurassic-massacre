@@ -897,7 +897,8 @@ function buildWorldLate() {
   /* Nothing floats.  Each section of the master key lies on something: a keeper's key stand, a plinth, the floor of the
      aviary cage, the bottom of the lockbox.  Cells and fuses lie on the ground.  A soft glow marks them in the dark. */
   var keyMat = std(0xffc933, 0.25, { metalness: 0.85, emissive: 0xd08a00, emissiveIntensity: 0.9 });
-  var glowGold = softTex('rgba(255,214,110,.75)', 'rgba(255,180,60,.2)'), glowGreen = softTex('rgba(150,255,190,.7)', 'rgba(60,230,120,.18)');
+  var glowGold = softTex('rgba(255,214,110,.75)', 'rgba(255,180,60,.2)'), glowCell = softTex('rgba(255,236,170,.8)', 'rgba(255,196,72,.26)');
+  var cellPoolMat = new THREE.MeshBasicMaterial({ map: softTex('rgba(255,214,110,.42)', 'rgba(255,180,60,.12)'), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });   // the cells glow the warm yellow of the flashlight's charge bars
   function glowSprite(tex, size, y, parent) { var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 })); sp.position.y = y; sp.scale.set(size, size, 1); parent.add(sp); return sp; }
   var KEY_Y = [0.985, 0.725, 0.925, 0.69, 0.47], stand = std(0x8d1f18, 0.6, { bumpMap: bump(2), bumpScale: 0.01 });
   box(0.5, 0.9, 0.5, stand, ZONES[0].key[0], 0.45, ZONES[0].key[1]); box(0.56, 0.06, 0.56, M.dark, ZONES[0].key[0], 0.93, ZONES[0].key[1]); box(0.56, 0.5, 0.04, stand, ZONES[0].key[0] + 0.3, 1.2, ZONES[0].key[1]).rotation.set(0, PI / 2, 0.25);
@@ -913,8 +914,11 @@ function buildWorldLate() {
   }
   W.keyY = KEY_Y;
   for (i = 0; i < BATTERY_SPOTS.length; i++) {
-    var bg = dyn(new THREE.Group()), cell = Hands.buildBattery(bg); cell.scale.setScalar(1.7); cell.position.y = 0.021; cell.rotation.y = srand() * 6;
-    bg.userData.glow = glowSprite(glowGreen, 0.55, 0.07, bg); scene.add(bg); batMeshes.push(bg);
+    var bg = dyn(new THREE.Group()), cell = Hands.buildBattery(bg, true); cell.scale.setScalar(1.7); cell.position.y = 0.0118 * 1.7; cell.rotation.y = srand() * 6;   // lying on its side
+    /* its glow: a warm pool of light on whatever it lies on, and a small halo round the cell (a big upright sprite would be cut
+       off by the counter it sits on) */
+    var pool = mesh(new THREE.PlaneGeometry(0.44, 0.44), cellPoolMat.clone(), 0, 0.003, 0, bg); pool.rotation.x = -PI / 2; pool.renderOrder = 2; pool.userData.noCast = true;
+    bg.userData.glow = glowSprite(glowCell, 0.13, 0.026, bg); bg.userData.glow.renderOrder = 3; bg.userData.pool = pool; scene.add(bg); batMeshes.push(bg);
   }
   var fuseCols = { 5: 0x9a9a9a, 10: 0xc8102e, 15: 0x2c7dd8, 20: 0xe2b93b, 25: 0xeeeeee, 30: 0x2fb85a, 40: 0xff7a1a };
   W.fuseMats = [];
@@ -990,9 +994,13 @@ function batchStatic() {
   scene.traverse(function (o) {
     if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || o.matrixAutoUpdate || Array.isArray(o.material) || o.material.transparent || o.material.wireframe) return;
     var g = o.geometry, a = g.attributes; if (!a.position || !a.normal || !a.uv || a.color) return;
-    for (var p = o; p && p !== scene; p = p.parent) if (!p.visible || (p.userData && p.userData.keep) || (p !== o && p.matrixAutoUpdate)) return;
-    var e = o.matrixWorld.elements, key = o.material.uuid + '|' + (o.castShadow ? 1 : 0) + (o.receiveShadow ? 1 : 0) + '|' + Math.floor(e[12] / CH) + ',' + Math.floor(e[14] / CH) + '|' + (o.renderOrder || 0);
-    (groups[key] = groups[key] || []).push(o);
+    var home = null;                       // a kept group that batches inside itself (the staff wing: switched on and off whole)
+    for (var p = o; p && p !== scene; p = p.parent) {
+      if (p.userData && p.userData.keep) { if (p.userData.batchInside && !home && p !== o) { home = p; continue; } return; }
+      if (!p.visible || (p !== o && p.matrixAutoUpdate)) return;
+    }
+    var e = o.matrixWorld.elements, key = (home ? home.uuid + '#' : '') + o.material.uuid + '|' + (o.castShadow ? 1 : 0) + (o.receiveShadow ? 1 : 0) + '|' + Math.floor(e[12] / CH) + ',' + Math.floor(e[14] / CH) + '|' + (o.renderOrder || 0);
+    (groups[key] = groups[key] || []).push(o); o.userData.batchHome = home;
   });
   Object.keys(groups).forEach(function (key) {
     var L = groups[key]; if (L.length < 2) return;
@@ -1012,7 +1020,9 @@ function batchStatic() {
       vo += n; if (o.parent) o.parent.remove(o); gone++;
     });
     var bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); bg.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); bg.setIndex(new THREE.BufferAttribute(idx, 1));
-    var m = new THREE.Mesh(bg, L[0].material); m.castShadow = L[0].castShadow; m.receiveShadow = L[0].receiveShadow; m.renderOrder = L[0].renderOrder; m.matrixAutoUpdate = false; scene.add(m); made++;
+    var home = L[0].userData.batchHome;
+    if (home) { home.updateMatrixWorld(true); bg.applyMatrix4(new THREE.Matrix4().copy(home.matrixWorld).invert()); }
+    var m = new THREE.Mesh(bg, L[0].material); m.castShadow = L[0].castShadow; m.receiveShadow = L[0].receiveShadow; m.renderOrder = L[0].renderOrder; m.matrixAutoUpdate = false; m.updateMatrix(); (home || scene).add(m); made++;
   });
   /* Things that move keep their groups (a gate leaf, a raptor's jaw), but the parts inside one rigid group are merged in the
      same way, in that group's own space: a mouthful of teeth becomes one mesh. */

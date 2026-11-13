@@ -130,12 +130,32 @@ function stepWorld(dt, instant) {
   for (i = 0; i < W.safeViz.length; i++) if (W.safeViz[i] && W.safeViz[i].set) W.safeViz[i].set(!!esc, blink);
   W.skeleton.hat.visible = prefs.duck;
 }
+/* The height of whatever a small thing set down at x, z would rest on: the first upward-facing solid surface under 1.5 m
+   (a counter, a desk, a table, a step, the floor), found once by a ray straight down through the scenery and kept. */
+var restCache = {}, restRay = new THREE.Raycaster(), restSkip = null;
+function restY(x, z) {
+  var key = x.toFixed(2) + ',' + z.toFixed(2); if (restCache[key] !== undefined) return restCache[key];
+  if (!restSkip) { restSkip = new Set(); [batMeshes, keyMeshes, fuseMeshes, [camera]].forEach(function (L) { L.forEach(function (o) { restSkip.add(o); }); }); }
+  restRay.set(new THREE.Vector3(x, 1.5, z), new THREE.Vector3(0, -1, 0)); restRay.far = 3; restRay.camera = camera;      // (sprites need a camera to be tested at all)
+  scene.updateMatrixWorld(true);
+  var hits = restRay.intersectObjects(scene.children, true), y = null, nm = new THREE.Matrix3(), n = new THREE.Vector3();
+  for (var h = 0; h < hits.length && y === null; h++) {
+    var o = hits[h].object, ok = o.isMesh && !o.isInstancedMesh, p;
+    for (p = o; ok && p; p = p.parent) if (restSkip.has(p) || (!p.visible && p !== Staff.wing)) ok = false;
+    var mt = ok && (Array.isArray(o.material) ? o.material[hits[h].face.materialIndex] : o.material);
+    if (!mt || mt.visible === false || mt.transparent || mt.alphaTest > 0 || mt.wireframe) continue;
+    n.copy(hits[h].face.normal).applyMatrix3(nm.getNormalMatrix(o.matrixWorld)).normalize();
+    if (n.y > 0.75) y = hits[h].point.y + 0.002;
+  }
+  if (y === null) y = groundAt(x, z, 0);
+  return (restCache[key] = y);
+}
 function placeItems() {
   var i;
   for (i = 0; i < ZONES.length; i++) keyMeshes[i].visible = !keysGot[i];
   for (i = 0; i < batMeshes.length; i++) {
     batMeshes[i].visible = i < batPos.length && !batGot[i];
-    if (i < batPos.length) batMeshes[i].position.set(batPos[i][0], inSafe(batPos[i][0], batPos[i][1]) ? 0.085 : 0, batPos[i][1]);
+    if (i < batPos.length) batMeshes[i].position.set(batPos[i][0], restY(batPos[i][0], batPos[i][1]), batPos[i][1]);
   }
   refreshClues(); stepWorld(0, true);
 }
@@ -192,7 +212,7 @@ function setState(s) {
   show('menu', s === 'menu'); show('pause', s === 'paused'); show('dead', s === 'dead'); show('won', s === 'won');
   show('hud', s === 'playing' || s === 'paused');
   document.body.classList.toggle('cine', s === 'cine');
-  if (s !== 'playing') { keysDown = {}; stopBreath(); if (s !== 'cine' && document.pointerLockElement) document.exitPointerLock(); }
+  if (s !== 'playing') { keysDown = {}; stopBreath(); if (s !== 'paused') Outline.clear(); if (s !== 'cine' && document.pointerLockElement) document.exitPointerLock(); }
   if (s !== 'playing' && s !== 'cine') { Sound.genSet(0); Sound.klaxonSet(0); if (ZooNet.open) { uiOpen = false; ZooNet.close(); } }
   if (s === 'paused') $('pauseDiff').textContent = DIFF.label + ' difficulty';
   if (window.Settings && Settings.open) Settings.close();
@@ -377,9 +397,27 @@ function setCarry(what) {
     carriedCan = Entrance.buildCan(Hands.L.hand); carriedCan.rotation.y = PI / 2; carriedCan.scale.x = -1;
     var gp = carriedCan.userData.grip; carriedCan.position.set(-0.002 - gp.z, -0.036 - gp.y, -0.088 + gp.x);
   }
-  carriedCan.visible = what === 'can'; Hands.carried = what === 'can' ? carriedCan : null;
+  canUntilt(); carriedCan.visible = what === 'can'; Hands.carried = what === 'can' ? carriedCan : null;
 }
-function canInv() { carriedCan.updateMatrix(); return new THREE.Matrix4().copy(carriedCan.matrix).invert(); }
+function canInv() { canUntilt(); carriedCan.updateMatrix(); return new THREE.Matrix4().copy(carriedCan.matrix).invert(); }
+/* Tipping the can without wringing the wrist.  The can tips some eighty degrees to pour; a hand welded to it would have to
+   turn just as far, which no wrist does.  Nobody tries: the handle rolls inside the hooked fingers (the bar runs along the
+   very axis the can tips about) and the hand only follows part of the way.  So while it is tipped the can turns in the hand
+   about its handle by the rest, and the hand is put wherever that leaves the can exactly where the pour wants it. */
+var CAN_FOLLOW = 0.32, canC0 = new THREE.Matrix4(), canRg = new THREE.Matrix4(), canRz = new THREE.Matrix4(), canT2 = new THREE.Matrix4(), canInvM = new THREE.Matrix4(), canAx = new THREE.Vector3(), canAy = new THREE.Vector3(), canAz = new THREE.Vector3(), canUp = new THREE.Vector3();
+function canTip(M) {               // how far a can (world matrix M) is tipped about its handle axis (its own z) from standing level
+  M.extractBasis(canAx, canAy, canAz); canAz.normalize(); canAy.normalize();
+  canUp.set(0, 1, 0).addScaledVector(canAz, -canAz.y); if (canUp.lengthSq() < 1e-6) return 0; canUp.normalize();
+  return Math.atan2(canAx.crossVectors(canUp, canAy).dot(canAz), canUp.dot(canAy));
+}
+function canInvAt(Wm, k) {         // H.hold.invAt: the can's place in the hand for world pose Wm (rolled on its handle), inverted
+  carriedCan.updateMatrix(); canC0.copy(carriedCan.matrix);
+  var a = (1 - CAN_FOLLOW) * canTip(Wm) * clamp(k === undefined ? 1 : k, 0, 1), g = carriedCan.userData.grip;
+  canRg.makeTranslation(g.x, g.y, g.z).multiply(canRz.makeRotationZ(a)).multiply(canT2.makeTranslation(-g.x, -g.y, -g.z));
+  carriedCan.matrixAutoUpdate = false; carriedCan.matrix.copy(canC0).multiply(canRg); carriedCan.matrixWorldNeedsUpdate = true;
+  return canInvM.copy(carriedCan.matrix).invert();
+}
+function canUntilt() { if (carriedCan && !carriedCan.matrixAutoUpdate) { carriedCan.matrixAutoUpdate = true; carriedCan.updateMatrix(); carriedCan.matrixWorldNeedsUpdate = true; } }
 /* Stepping up to something to work on it: for a moment the body walks itself to `x, z` and the eyes go to the point. */
 var approach = null;
 function stepTo(x, z, look, secs) { approach = { x: x, z: z, look: look, t: secs || 0.4 }; }
@@ -432,7 +470,7 @@ function genPour(dt) {
   if (!H2 || H2.kind !== 'pour') {
     var gw = new THREE.Vector3();
     Hands.hold = H2 = { kind: 'pour', inv: canInv(), want: 0, speed: 1 / 0.55, pose: Hands.POSE.carry, leanMax: 0.3, pk: 0, posK: easeIO,
-      world: function () { return pourWorld(this.pk); }, reach: function () { return gw.copy(carriedCan.userData.grip).applyMatrix4(pourWorld(H2.pk)); } };
+      world: function () { return pourWorld(this.pk); }, invAt: canInvAt, reach: function () { return gw.copy(carriedCan.userData.grip).applyMatrix4(pourWorld(H2.pk)); } };
     if (!Entrance.capOpen) flickCap(true);
   }
   if (Entrance.capOpen && (Entrance.capA || 0) > 0.7) H2.want = 1;                              // the cap is up: bring the can over
@@ -446,7 +484,7 @@ function genPour(dt) {
 }
 function canStep(dt) {           // the can's comings and goings: picked up off the buggy, tipped and tipped back at the neck, stood down when empty
   if (capShutAt && playTime >= capShutAt) { capShutAt = 0; if (Entrance.capOpen) { stepTo(POUR_AT.x, POUR_AT.z, Entrance.genNeck, 0.4); flickCap(false); } }
-  var H2 = Hands.hold; if (!H2) { Sfx.zone('pour', 'pour', 0); return; }
+  var H2 = Hands.hold; if (!H2) { Sfx.zone('pour', 'pour', 0); canUntilt(); return; }
   glugK = Math.max(0, glugK - dt * 7);
   if (H2.kind === 'pour') {
     pourHold -= dt;
@@ -459,7 +497,7 @@ function canStep(dt) {           // the can's comings and goings: picked up off 
       var fromM = pourWorld(0).clone(), toM = new THREE.Matrix4(), fP = new THREE.Vector3(), fQ = new THREE.Quaternion(), tP = new THREE.Vector3(), tQ = new THREE.Quaternion(), sc = new THREE.Vector3(), outM = new THREE.Matrix4(), t0 = playTime;
       Entrance.emptyCan.updateMatrixWorld(true); toM.copy(Entrance.emptyCan.matrixWorld); fromM.decompose(fP, fQ, sc); toM.decompose(tP, tQ, sc);
       stepTo(-19.95, 128.9, Entrance.emptyCan.position, 0.6);
-      Hands.hold = { kind: 'down', inv: canInv(), want: 1, k: 1, pose: Hands.POSE.carry, leanMax: 0.35, reach: function () { return Entrance.emptyCan.position; },
+      Hands.hold = { kind: 'down', inv: canInv(), invAt: canInvAt, want: 1, k: 1, pose: Hands.POSE.carry, leanMax: 0.35, reach: function () { return Entrance.emptyCan.position; },
         world: function () {
           var u = clamp((playTime - t0) / 1.0, 0, 1), ur = easeIO(clamp(u / 0.6, 0, 1)), ud = easeIO(u);
           sc.set(1, 1, 1); var p = fP.clone().lerp(tP, ud); p.y += Math.sin(ud * PI) * 0.06;
@@ -489,9 +527,13 @@ function findInteract() {
   var st = Staff.interact(px, pz); if (st) return st;
   if (!N.door && dist(px, pz, -15.5, 127) < 1.6) return { text: '[E] Open the shed door', fn: function () {
     function open() { N.door = true; Sound.grind(); Sound.noise(0.9, 700, 0.18); }
-    stepTo(-15.15, 127.0, new THREE.Vector3(-16.0, 1.2, 127.1), 0.35);
-    if (Hands.carried) Hands.useR('door', { point: at(En.shedDoor, 0.04, 1.15, 0.7), rot: [0.15, -0.2, -0.4], tip: 'fist', dur: 1.1, reach: 0.45, press: 0.08, onTouch: open });   // the can in one hand: shoulder it open with the torch hand
-    else Hands.use('door', { point: at(En.shedDoor, 0.06, 1.25, 0.85), pose: 'wipe', tip: 'flat', rot: [1.3, 0.25, 0.2], dur: 1.0, press: 0.05, onTouch: open });
+    stepTo(-15.42, 127.0, new THREE.Vector3(-16.0, 1.4, 127.1), 0.35);
+    if (Hands.carried) {                             // the can in one hand: knock it open with the knuckles of the torch hand, follow it a moment, let it swing
+      var dp = at(En.shedDoor, 0.07, 1.12, 0.78), t0 = null, fr = null;
+      Hands.useR('door', { point: function () { if (t0 === null) t0 = Hands.time; var u = Hands.time - t0; if (u < 0.62 || !fr) { var p = dp(); if (u >= 0.62) fr = p.clone(); return p; } return fr; },
+        rot: [0.1, -0.25, -0.55], tip: 'fist', dur: 0.62, reach: 0.38, press: 0, onTouch: open });
+    }
+    else Hands.pushDoor('door', En.shedDoor, new THREE.Vector3(0.025, 1.18, 0.68), new THREE.Vector3(1, 0, 0), open, { reach: 0.34, hold: 0.3 });
   } };
   /* Taking the can: one motion of about a second.  The open hand goes to the handle (the body leaning in), the fingers close,
      the can comes up off the bed with the body dipping under its weight, and swings down to hang at your side. */
@@ -518,7 +560,7 @@ function findInteract() {
     }
     if (dist(px, pz, En.boardSpot.x, En.boardSpot.z) < 1.5) {            // throw the breakers by hand: aim at one, press E
       var bi = aimBreaker();
-      if (bi >= 0) { var cn = En.CIRCUITS[N.order[bi]]; return { text: '[E] ' + (N.brk[bi] ? 'Switch OFF' : 'Switch ON') + '  ' + cn + '  (' + N.kw[N.order[bi]] + ' kW)   ·   board load ' + entLoad() + ' / ' + N.max + ' kW', fn: (function (k) { return function () { flipBreaker(k); }; })(bi) }; }
+      if (bi >= 0) { var cn = En.CIRCUITS[N.order[bi]]; return { text: '[E] ' + (N.brk[bi] ? 'Switch OFF' : 'Switch ON') + '  ' + cn + '  (' + N.kw[N.order[bi]] + ' kW)   ·   board load ' + entLoad() + ' / ' + N.max + ' kW', outline: En.brkOutline[bi], fn: (function (k) { return function () { flipBreaker(k); }; })(bi) }; }
       return { text: 'Distribution board: aim at a breaker to throw it.   Load ' + entLoad() + ' / ' + N.max + ' kW' };
     }
   }
@@ -961,7 +1003,7 @@ function update(dt) {
   // batteries and fuses
   for (i = 0; i < batPos.length; i++) {
     if (batGot[i]) continue;
-    var b = batMeshes[i]; b.userData.glow.material.opacity = 0.3 + 0.2 * Math.sin(playTime * 3 + i * 1.7);
+    var b = batMeshes[i], pulse = Math.sin(playTime * 3 + i * 1.7); b.userData.glow.material.opacity = 0.55 + 0.25 * pulse; b.userData.pool.material.opacity = 0.75 + 0.25 * pulse;
     if (dist(player.x, player.z, batPos[i][0], batPos[i][1]) < 1.7 && Math.abs(player.y) < 1) {
       batGot[i] = true; b.visible = false; Sound.pickup();
       if (player.battery <= 100 - DIFF.charge * 0.75) { player.battery = Math.min(100, player.battery + DIFF.charge); showMsg('Battery found  +' + DIFF.charge + '%', 2.5); }
@@ -979,6 +1021,7 @@ function update(dt) {
   /* Held actions: the bar under the prompt shows only while E is held on something (and fades for a moment after).  Letting
      go of a one-motion action (a lever, a key section, a ratchet) lets it spring back: its `reset` runs once. */
   var it = findInteract(), holding = !!(it && it.hold && keysDown.KeyE);
+  Outline.show(it && it.outline && !Hands.busy() ? it.outline : null); Outline.update(dt);          // the yellow edge on the switch you are aiming at
   if (holding) { it.hold(dt); heldIt = it; holdVis = 1; }
   else {
     holdProg.winch = Math.max(0, (holdProg.winch || 0) - dt * 0.5);
