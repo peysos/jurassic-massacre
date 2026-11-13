@@ -15,7 +15,8 @@
 var SAVE_KEY = 'jurassicMassacreSave_v5', PREF_KEY = 'jurassicMassacrePrefs';
 var WORLD = 150, SAFE_R = 7, PI = Math.PI;        // park spans -150..150; north is -z; the entrance gate is in the south wall
 var START = { x: 0, z: 141.5 };
-var ENTR = { x1: -27, x2: 28, z1: 112.5, z2: 150 };      // the entrance plaza: built by entrance.js, nothing else is scattered here
+var ENTR = { x1: -27, x2: 28, z1: 112.5, z2: 150 };
+var STAFF_WING = { x1: 26.2, x2: 35.2, z1: 125.6, z2: 136.8 };      // the gift shop's staff wing behind the plaza wall (staff.js): no trees or grass in it      // the entrance plaza: built by entrance.js, nothing else is scattered here
 
 var DIFFS = {
   easy:   { label: 'Easy',   speed: 0.85, sight: 0.75, hear: 0.7,  fov: 1.75, react: 1.1,  search: 4,  call: 0,  flank: false, lead: 0,
@@ -344,6 +345,15 @@ var woodTex = canvasTex(128, function (g, S) {
   g.fillStyle = 'rgba(20,12,6,.7)'; for (i = 0; i < 4; i++) { g.fillRect(0, i * 32, S, 1.5); }
 }, 1);
 var rustTex = canvasTex(128, function (g, S) { speckle('#6a4a38', ['#7a3a1e', '#4a3226', '#8a5a34', '#3a2a22'], 2500, 3)(g, S); blotch(g, S, ['#2a1a12', '#8a4a1e'], 10, 8, 30, 0.5); }, 1);
+/* a small blurred environment (dark sky, a cool key light, a warm fill, dark ground) for metal and glass to reflect */
+var envTex = (function () {
+  try {
+    var s = new THREE.Scene(), pm = new THREE.PMREMGenerator(renderer);
+    s.add(new THREE.Mesh(new THREE.SphereGeometry(8, 16, 8), new THREE.MeshBasicMaterial({ color: 0x05070a, side: THREE.BackSide })));
+    [[0, 6, -2, 5, 0xbfd0ff, 1.1], [5, 1, 3, 3, 0xffd9a8, 0.8], [-5, -1, -3, 3, 0x5c6f96, 0.6], [0, -6, 0, 4, 0x1c1814, 1]].forEach(function (p) { var m = new THREE.Mesh(new THREE.SphereGeometry(p[3] * 0.5, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(p[4]).multiplyScalar(p[5]) })); m.position.set(p[0], p[1], p[2]); s.add(m); });
+    var t = pm.fromScene(s, 0.03).texture; pm.dispose(); return t;
+  } catch (e) { return null; }
+})();
 var metalTex = canvasTex(128, function (g, S) {
   g.fillStyle = '#7b848a'; g.fillRect(0, 0, S, S);
   for (var i = 0; i < 260; i++) { g.strokeStyle = 'rgba(' + (Math.random() < 0.5 ? '255,255,255' : '0,0,0') + ',' + (0.04 + Math.random() * 0.08) + ')'; var y = Math.random() * S; g.beginPath(); g.moveTo(0, y); g.lineTo(S, y); g.stroke(); }
@@ -738,6 +748,7 @@ var Sound = {
     var buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = buf.getChannelData(0), last = 0;
     for (var i = 0; i < d.length; i++) { var w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = w * 0.5 + last * 3; }
     this.buf = buf;
+    if (typeof Sfx !== 'undefined') Sfx.loadAll();          // the recorded effects (audio/manifest.js), decoded in the background
   },
   setMuted: function (m) { prefs.muted = m; savePrefs(); this.setVolume(); },
   setVolume: function () { if (this.master) this.master.gain.setTargetAtTime(prefs.muted ? 0 : 0.875 * prefs.vol, this.ctx.currentTime, 0.05); },
@@ -859,6 +870,16 @@ var Sfx = {
     last.connect(o.bus || this.bus || Sound.master); s.start(t, o.offset || 0);
     return { src: s, gain: g, stop: function (fade) { try { if (fade) { g.gain.setTargetAtTime(0, ctx.currentTime, fade / 3); s.stop(ctx.currentTime + fade); } else s.stop(); } catch (e) {} } };
   },
+  /* A looping sound kept going while something asks for it: call every frame with the volume wanted (0 lets it fade and stop). */
+  zone: function (id, n, vol, rate) {
+    var L = this.loops[id];
+    if (!L && vol > 0.002 && Sound.ctx && !prefs.muted) L = this.loops[id] = this.play(n, { loop: true, vol: 0 });
+    if (!L) return false;
+    var t = Sound.ctx.currentTime; L.gain.gain.setTargetAtTime(Math.max(0, vol), t, 0.12); if (rate) L.src.playbackRate.setTargetAtTime(rate, t, 0.2);
+    if (vol <= 0.002) { L.idle = (L.idle || 0) + 1; if (L.idle > 90) { L.stop(0.05); delete this.loops[id]; } } else L.idle = 0;
+    return true;
+  },
+  stopLoops: function () { for (var k in this.loops) { this.loops[k].stop(0.15); delete this.loops[k]; } },
   // a sound at a place in the park: quieter with distance, panned by where it is relative to the way you face
   at: function (n, x, z, o) {
     o = o || {};

@@ -46,14 +46,6 @@ var Hands = (function () {
   var brass = std(0xb08d4a, 0.38, { metalness: 0.9 }), strapMat = std(0x3d2a1a, 0.6, { bumpMap: bump(3), bumpScale: 0.004 });
 
   // a small studio environment so the flashlight's metal has something to reflect (applied only to its materials)
-  var envTex = (function () {
-    try {
-      var s = new THREE.Scene(), pm = new THREE.PMREMGenerator(renderer);
-      s.add(new THREE.Mesh(new THREE.SphereGeometry(8, 16, 8), new THREE.MeshBasicMaterial({ color: 0x05070a, side: THREE.BackSide })));
-      [[0, 6, -2, 5, 0xbfd0ff, 1.1], [5, 1, 3, 3, 0xffd9a8, 0.8], [-5, -1, -3, 3, 0x5c6f96, 0.6], [0, -6, 0, 4, 0x1c1814, 1]].forEach(function (p) { var m = new THREE.Mesh(new THREE.SphereGeometry(p[3] * 0.5, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(p[4]).multiplyScalar(p[5]) })); m.position.set(p[0], p[1], p[2]); s.add(m); });
-      var t = pm.fromScene(s, 0.03).texture; pm.dispose(); return t;
-    } catch (e) { return null; }
-  })();
   function metal(color, rough, extra) { var o = { metalness: 0.92, envMap: envTex, envMapIntensity: 0.55 }, k; if (extra) for (k in extra) o[k] = extra[k]; return std(color, rough, o); }
 
   // ---------- lofting skinned shapes ----------
@@ -334,6 +326,8 @@ var Hands = (function () {
   POSE.pinch = [0.62, 0.42, 0.3, 0.3, 0.42,  0.72, 0.7, 0.35,  0.82, 0.78, 0.4,  1.2, 1.45, 0.8,  1.34, 1.5, 0.85,   0.03, 0, 0, 0];   // thumb against the first two fingers
   POSE.carry = [0.4, 0.3, 0.15, 0.55, 0.7,  1.0, 1.45, 0.8,  1.05, 1.5, 0.82,  1.1, 1.52, 0.84,  1.15, 1.52, 0.84,   0.02, 0, 0, -0.03];   // fingers round a carry handle, thumb over them
   POSE.wipe  = [0.1, 0.05, 0, 0.1, 0.12,   0.12, 0.16, 0.1,  0.14, 0.18, 0.1,  0.14, 0.18, 0.12,  0.18, 0.2, 0.12,   0.02, 0, 0, -0.03];
+  POSE.barOpen = [-0.6, -0.3, 0, 0.15, 0.15,   0.18, 0.22, 0.12,  0.16, 0.2, 0.12,  0.18, 0.22, 0.12,  0.22, 0.24, 0.14,   0.02, 0, 0, -0.04];   // fingers open, ready to close round something
+  POSE.wipeFlat = [-0.3, -0.3, 0, 0.1, 0.12,   -0.58, 0.05, 0.03,  -0.55, 0.05, 0.03,  -0.52, 0.06, 0.04,  -0.46, 0.08, 0.05,   0.02, 0, 0, -0.03];   // fingers flat on a surface, the palm lifted off it (bent back at the knuckles), thumb laid out to the side   // fingers flat on a surface, bent back a little at the knuckles
   POSE.grip[0] = 0.05; POSE.grip[1] = 0.22; POSE.grip[2] = 0.1; POSE.grip[3] = 0.3; POSE.grip[4] = 0.4;
   var GRIP_PRESS = POSE.grip.slice(); GRIP_PRESS[1] = 0.34; GRIP_PRESS[3] = 0.52; GRIP_PRESS[4] = 0.86;
   function mixPose(a, b, t, out) { out = out || []; for (var i = 0; i < 21; i++) out[i] = a[i] + (b[i] - a[i]) * t; return out; }
@@ -354,6 +348,7 @@ var Hands = (function () {
     return use;
   };
   H.busy = function () { return !!(use && !use.leaving) || clipT >= 0; };
+  H.current = function () { return use; };            // (the frame checks in .dev look at the action in progress)
   H.release = function () { if (use) use.alive = 0; };
 
   // ---------- flashlight click, burst and reload ----------
@@ -401,7 +396,7 @@ var Hands = (function () {
   var aimCur = [0, 0, 0, 0, 0, 0], sway = { x: 0, y: 0, vx: 0, vy: 0 }, lastYaw = null, lastPitch = 0, bobK = 0, runK = 0, block = 0, landT = 0, RQ = new Q(), RP = new V(), tailW = new V();
   var leanW = new V(), leanWant = new V(), lv = new V(), lq = new Q(), carryK = 0, carrySw = 0, carryV = 0, freeK = 0;
   var hQ = new Q(), bQ = new Q(), rootQ = new Q(), wristQ = new Q(), pitchQ = new Q(), XAX = new V(1, 0, 0), WRISTQ = new Q().setFromEuler(WRIST);
-  var hM = new THREE.Matrix4(), camInv = new THREE.Matrix4(), MIRX = new THREE.Matrix4().makeScale(-1, 1, 1), hP = new V(), hQ2 = new Q(), hS = new V();
+  var lastHold = null, hM = new THREE.Matrix4(), camInv = new THREE.Matrix4(), MIRX = new THREE.Matrix4().makeScale(-1, 1, 1), hP = new V(), hQ2 = new Q(), hS = new V();
   H.lean = leanW; H.tipCam = new V();
   // where the left hand's working point is right now, in the world (the cinematic wipes dust off exactly where the palm is)
   H.tipWorld = function (out) { return camera.localToWorld((out || new V()).copy(Lcur.tip || H.tipCam)); };
@@ -536,13 +531,20 @@ var Hands = (function () {
     /* Holding an object exactly: H.hold = { inv: inverse of the object's matrix in the left hand's frame, world(): where the
        object must be (a world matrix), want: 0..1, rate }.  The hand goes wherever puts the object there; k blends it in and out. */
     if (H.hold) {
-      var Ho = H.hold; Ho.k = damp(Ho.k || 0, Ho.want, Ho.rate || 5, dt); if (Math.abs(Ho.k - Ho.want) < 0.004) Ho.k = Ho.want;
+      var Ho = H.hold;
+      if (Ho.k === undefined && lastHold && lastHold.k > 0.4 && lastHold.ho !== Ho) Ho.base = { pos: lastHold.pos.clone(), q: lastHold.q.clone(), pose: lastHold.pose.slice() };   // one hold straight into the next
+      if (Ho.base && Ho.want === 0) Ho.base = null;
+      if (Ho.base) { tp = Ho.base.pos; tq = Ho.base.q; tPose = Ho.base.pose; }
+      if (Ho.speed) { var kd = Ho.want - (Ho.k || 0); Ho.k = (Ho.k || 0) + clamp(kd, -Ho.speed * dt, Ho.speed * dt); }          // a fixed-length move (grips: arrive open, then close)
+      else { Ho.k = damp(Ho.k || 0, Ho.want, Ho.rate || 5, dt); if (Math.abs(Ho.k - Ho.want) < 0.004) Ho.k = Ho.want; }
       if (Ho.k > 0.001) {
         hM.copy(Ho.world()).multiply(Ho.inv); camInv.copy(camera.matrixWorld).invert(); hM.premultiply(camInv).multiply(MIRX); hM.decompose(hP, hQ2, hS);
-        tp = tp.clone().lerp(hP, Ho.k); tq = tq.clone().slerp(hQ2, Ho.k); tPose = mixPose(tPose, Ho.pose || POSE.carry, Ho.k, []);
+        var kp = Ho.posK ? Ho.posK(Ho.k) : Ho.k;
+        tp = tp.clone().lerp(hP, kp); tq = tq.clone().slerp(hQ2, kp); tPose = mixPose(tPose, (Ho.poseAt && Ho.poseAt(Ho.k)) || Ho.pose || POSE.carry, kp, []);
       }
+      lastHold = { pos: tp.clone(), q: tq.clone(), pose: tPose.slice(), k: Ho.k, ho: Ho };
       if (Ho.k === 0 && Ho.want === 0 && Ho.done) { var dn = Ho.done; H.hold = null; dn(); } else if (Ho.k === 0 && Ho.want === 0) H.hold = null;
-    }
+    } else lastHold = null;
     Lcur.pos.copy(tp); Lcur.q.copy(tq); Lcur.pose = tPose;
     solveArm('L', tp, tq, tq, 0.95, rootQ, wristQ);
     L.root.position.copy(tp); L.root.quaternion.copy(rootQ); L.hand.quaternion.copy(wristQ); applyPose(L, tPose);
@@ -558,7 +560,36 @@ var Hands = (function () {
   };
   H.setLight = function (on) { lightOn = on; };
 
-  H.applyPose = applyPose; H.POSE = POSE;
+  H.applyPose = applyPose; H.POSE = POSE; H.mixPose = mixPose;
+  /* Gripping a bar with the left hand (a gate pale, a rail, a lever): the knuckle line runs along the bar, the index finger
+     uppermost, the back of the hand turned out, and every finger laid round the bar at its real radius (wrapFingers).
+     o.at() is a point on the bar's axis (world), o.axis() its direction pointing up the bar, o.from() where the arm comes from
+     (world; the camera will do).  Returns an H.hold: set H.hold to it; want 0 lets go. */
+  var BAR_P = new V(0.0, -0.035, -0.079), BAR_D = new V(1, 0, 0);
+  H.thumbArc = -0.8; H.thumbArc2 = 0.4;
+  H.barPose = function (r) {
+    var w = wrapFingers(BAR_P, BAR_D, r), p = POSE.grip.slice(); for (var k = 0; k < 12; k++) p[5 + k] = w[k];
+    p[0] = 0.32; p[1] = 0.3; p[2] = 0.35; p[3] = 0.42; p[4] = 0.5;                       // the thumb closes over the front of the bar
+    return p;
+  };
+  H.barGrip = function (o) {
+    var M = new THREE.Matrix4(), ex = new V(), ey = new V(), ez = new V(), bp = new V(), F = new V();
+    var closed = H.barPose(o.r || 0.013), open = POSE.barOpen, tmpPose = [];
+    return { kind: 'bar', inv: new THREE.Matrix4(), want: 1, speed: 1 / (o.dur || 0.6), reach: o.at, leanMax: o.leanMax || 0.12,
+      posK: function (k) { return easeIO(clamp(k / 0.72, 0, 1)); },                                       // the open hand travels to the bar...
+      poseAt: function (k) { var u = sstep((k - 0.72) / 0.28); mixPose(open, closed, u, tmpPose); tmpPose[1] += H.thumbArc * Math.sin(u * PI); tmpPose[0] += H.thumbArc2 * Math.sin(u * PI); return tmpPose; },   // ...then the fingers close round it (the thumb arcs over the bar)
+      world: function () {
+        var P = o.at(), A = o.axis(); F.copy(P).sub(o.from());
+        ex.copy(A).negate();
+        ez.copy(F).negate(); ez.addScaledVector(ex, -ez.dot(ex)).normalize();
+        if (o.twist) ez.applyAxisAngle(ex, o.twist);                                    // turn the hand round the bar (knuckles more up or more out)
+        ey.crossVectors(ex, ez);
+        M.makeBasis(ex, ey, ez); bp.copy(BAR_P).applyMatrix4(M);
+        var back = 0.075 * (1 - sstep(((this.k || 0) - 0.45) / 0.35));                                // short of the bar while the hand is open
+        M.setPosition(P.x - bp.x + ez.x * back, P.y - bp.y + ez.y * back, P.z - bp.z + ez.z * back);
+        return M;
+      } };
+  };
   H.setVisible = function (v) { H.visible = v; rig.visible = v; };
   H.update(0, {});
   return H;

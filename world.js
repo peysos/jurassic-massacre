@@ -802,7 +802,7 @@ function buildWorldLate() {
   var propCircles = circles.slice();
   function blocked(x, z2) {
     var q2;
-    if (onPath(x, z2, 2.5) || inBox(x, z2, 2) || inRect(x, z2, AQ, 4.5) || inRect(x, z2, ENTR)) return true;
+    if (onPath(x, z2, 2.5) || inBox(x, z2, 2) || inRect(x, z2, AQ, 4.5) || inRect(x, z2, ENTR) || inRect(x, z2, STAFF_WING, 2)) return true;
     if (nearSafe(x, z2, 4)) return true;
     for (q2 = 0; q2 < ZONES.length; q2++) if (dist(x, z2, ZONES[q2].key[0], ZONES[q2].key[1]) < 4.5) return true;
     for (q2 = 0; q2 < BATTERY_SPOTS.length; q2++) if (dist(x, z2, BATTERY_SPOTS[q2][0], BATTERY_SPOTS[q2][1]) < 2.5) return true;
@@ -852,7 +852,7 @@ function buildWorldLate() {
   var NBU = 260, bushes = new THREE.InstancedMesh(jitter(new THREE.IcosahedronGeometry(1, 2), 0.3), M.leaf, NBU);
   var NR = 160, rocks = new THREE.InstancedMesh(jitter(new THREE.DodecahedronGeometry(1, 1), 0.25), std(0x6c6c64, 1, { bumpMap: bump(2), bumpScale: 0.18 }), NR);
   function onProp(x, z2, m) { for (var q2 = 0; q2 < propCircles.length; q2++) { var c = propCircles[q2]; if (dist(x, z2, c.x, c.z) < c.r + m) return true; } return false; }     // signs, benches, boards, pillars: nothing is scattered onto them
-  function freeSpot(m, noSafe) { do { tx = (Math.random() * 2 - 1) * (WORLD - 2); tz = (Math.random() * 2 - 1) * (WORLD - 2); } while (onPath(tx, tz, m) || inBox(tx, tz, m) || inRect(tx, tz, AQ, m + 0.6) || inRect(tx, tz, ENTR) || nearSafe(tx, tz, 1.2) || onProp(tx, tz, m) || dist(tx, tz, AV.x, AV.z) < AV.r + 1 && Math.abs(dist(tx, tz, AV.x, AV.z) - AV.r) < m + 0.8); }
+  function freeSpot(m, noSafe) { do { tx = (Math.random() * 2 - 1) * (WORLD - 2); tz = (Math.random() * 2 - 1) * (WORLD - 2); } while (onPath(tx, tz, m) || inBox(tx, tz, m) || inRect(tx, tz, AQ, m + 0.6) || inRect(tx, tz, ENTR) || inRect(tx, tz, STAFF_WING) || nearSafe(tx, tz, 1.2) || onProp(tx, tz, m) || dist(tx, tz, AV.x, AV.z) < AV.r + 1 && Math.abs(dist(tx, tz, AV.x, AV.z) - AV.r) < m + 0.8); }
   for (i = 0; i < NBU; i++) {
     freeSpot(1.5, true); s = 0.5 + Math.random() * 0.8;
     dummy.position.set(tx, s * 0.4, tz); dummy.scale.set(s * 1.3, s * 0.8, s * 1.3); dummy.rotation.set(0, Math.random() * 6, 0); dummy.updateMatrix();

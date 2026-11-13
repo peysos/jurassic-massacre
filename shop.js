@@ -27,7 +27,9 @@
   }
 
   // ---------- shell ----------
-  wallBox(X1, X2, Z1, Z1 + 0.3, 0, H); wallBox(X1, X2, Z2 - 0.3, Z2, 0, H); wallBox(X2 - 0.3, X2, Z1 + 0.3, Z2 - 0.3, 0, H);
+  wallBox(X1, X2, Z1, Z1 + 0.3, 0, H); wallBox(X1, X2, Z2 - 0.3, Z2, 0, H);
+  // the back wall, round the staff door (staff.js hangs the door and builds what is behind it)
+  wallBox(X2 - 0.3, X2, Z1 + 0.3, 131.69, 0, H); wallBox(X2 - 0.3, X2, 132.71, Z2 - 0.3, 0, H); wallBox(X2 - 0.3, X2, 131.69, 132.71, 2.2, H, null, false);
   // the front: piers, a brick dado and sills under the two display windows, lintels over them and the doorway
   [[Z1 + 0.3, 122.4], [126.4, DZ - 0.65], [DZ + 0.65, 129.6], [133.6, Z2 - 0.3]].forEach(function (p) { wallBox(X1, X1 + 0.3, p[0], p[1], 0, H, null, false); });
   [[122.4, 126.4], [129.6, 133.6]].forEach(function (w) {
@@ -397,14 +399,22 @@
   [[0.546, 0.15], [0.546, -0.55]].forEach(function (d2) { box(0.012, 0.95, 0.66, genGreen, d2[0], 0.72, d2[1], E.genShake); [0.38, 1.05].forEach(function (y) { box(0.03, 0.08, 0.025, EM.rustSteel, d2[0] + 0.01, y, d2[1] - 0.34, E.genShake); }); box(0.04, 0.12, 0.03, EM.steel, d2[0] + 0.02, 0.72, d2[1] + 0.29, E.genShake); });
   [[-0.4, -0.95], [0.4, -0.95], [-0.4, 0.95], [0.4, 0.95]].forEach(function (e) { mesh(new THREE.TorusGeometry(0.04, 0.012, 6, 12), EM.rustSteel, e[0], 1.38, e[1], E.genShake).rotation.y = PI / 2; });          // lifting eyes
   cyl(0.06, 0.06, 1.5, EM.rustSteel, -0.2, 2.05, -0.8, GEN, 10); cyl(0.09, 0.09, 0.3, EM.rustSteel, -0.2, 1.5, -0.8, GEN, 10); cyl(0.1, 0.1, 0.03, EM.rustSteel, -0.2, 2.82, -0.8, GEN, 10);          // exhaust up through the roof
-  // the fuel filler: a raised neck with a hinged cap
-  var NX = 0.38, NY = 1.34, NZ = 0.85;
-  cyl(0.052, 0.06, 0.02, EM.rustSteel, NX, NY + 0.01, NZ, E.genShake, 16); cyl(0.042, 0.042, 0.08, EM.steel, NX, NY + 0.06, NZ, E.genShake, 16);
-  mesh(new THREE.CircleGeometry(0.036, 16), basic(0x050505), NX, NY + 0.101, NZ, E.genShake).rotation.x = -PI / 2;
-  var capG = new THREE.Group(); capG.position.set(NX - 0.05, NY + 0.105, NZ); E.genShake.add(capG); E.genCap = capG;            // hinge on the far (-x) rim
-  cyl(0.052, 0.052, 0.028, std(0xa8231c, 0.5), 0.05, 0.014, 0, capG, 16); box(0.02, 0.018, 0.03, EM.rustSteel, 0.0, 0.01, 0, capG);
-  mesh(new THREE.PlaneGeometry(0.28, 0.07), std(0xffffff, 0.6, { map: textTex(['DIESEL ONLY'], 256, 64, '#e2b93b', '#17140e', null, false) }), 0.2, NY + 0.035, 0.6, E.genShake).rotation.set(-PI / 2, 0, 0);
-  E.genNeck = new THREE.Vector3(-20.95 + NX, NY + 0.1, 127.4 + NZ);                                                             // the mouth of the filler, in the world
+  /* The fuel filler: a short neck out of the end of the canopy (the end nearest the door), beside the corner you work at,
+     angled up and out at 35 degrees on a bolted flange.  Its red cap hinges on the upper rim, so it flips up and back against
+     the canopy, clear of the neck; a tab on its lower edge is what you flick it open with. */
+  var NEL = 0.61, FN = new THREE.Group(); FN.position.set(0.3, 0.86, 1.151); FN.rotation.x = PI / 2 - NEL; E.genShake.add(FN);   // neck space: y runs out along the neck
+  box(0.15, 0.15, 0.012, EM.rustSteel, 0.3, 0.86, 1.156, E.genShake);
+  [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(function (c) { cyl(0.008, 0.008, 0.01, EM.steel, 0.3 + c[0] * 0.058, 0.86 + c[1] * 0.058, 1.164, E.genShake, 6).rotation.x = PI / 2; });
+  cyl(0.052, 0.058, 0.02, EM.rustSteel, 0, 0.012, 0, FN, 18); cyl(0.04, 0.04, 0.1, EM.steel, 0, 0.065, 0, FN, 18); cyl(0.045, 0.045, 0.012, EM.steel, 0, 0.116, 0, FN, 18);
+  mesh(new THREE.CircleGeometry(0.034, 18), basic(0x040404), 0, 0.1225, 0, FN).rotation.x = -PI / 2;
+  var capG = new THREE.Group(); capG.position.set(0, 0.123, -0.046); FN.add(capG); E.genCap = capG;               // hinge on the upper rim (-z in neck space)
+  cyl(0.05, 0.05, 0.024, std(0xa8231c, 0.5), 0, 0.012, 0.046, capG, 18); cyl(0.014, 0.014, 0.03, EM.rustSteel, 0, 0.008, -0.002, capG, 8).rotation.z = PI / 2;
+  box(0.022, 0.01, 0.026, EM.rustSteel, 0, 0.014, 0.1, capG);
+  mesh(new THREE.PlaneGeometry(0.2, 0.05), std(0xffffff, 0.6, { map: textTex(['DIESEL ONLY'], 256, 64, '#e2b93b', '#17140e', null, false) }), 0.3, 0.7, 1.153, E.genShake);
+  GEN.updateMatrixWorld(true);
+  E.genNeck = FN.localToWorld(new THREE.Vector3(0, 0.1225, 0));                                                                   // the mouth of the filler, in the world
+  E.genNeckDir = new THREE.Vector3(0, 1, 0).applyQuaternion(FN.getWorldQuaternion(new THREE.Quaternion()));                        // out along the neck
+  E.genCapTab = function (out) { return capG.localToWorld(out.set(0, 0.02, 0.11)); };
   // its panel: fuel gauge, hour meter, lamp, start lever
   var PN = new THREE.Group(); PN.position.set(0.56, 1.0, 0.45); E.genShake.add(PN);
   box(0.03, 0.5, 0.8, std(0x202326, 0.6, { metalness: 0.4 }), 0, 0, 0, PN);
@@ -491,10 +501,11 @@
   var canSide = std(0xffffff, 0.5, { metalness: 0.3, map: canvasTex(128, canPaint(false, false)) }); canSide.map.repeat.set(3, 3);
   var canMetal = std(0x5a1c14, 0.5, { metalness: 0.45 }), canDark = std(0x2a2a28, 0.6, { metalness: 0.5 });
   var dieselDecal = std(0xffffff, 0.6, { transparent: true, depthWrite: false, map: canvasTex(256, function (g, S, HH) { g.clearRect(0, 0, S, HH); g.fillStyle = 'rgba(236,228,206,.9)'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 54px Impact, "Arial Black", sans-serif'; g.fillText('DIESEL', S / 2, HH / 2 + 2); g.globalCompositeOperation = 'destination-out'; for (var q = 0; q < 40; q++) { g.beginPath(); g.arc(Math.random() * S, Math.random() * HH, 1 + Math.random() * 3, 0, 7); g.fill(); } }, 1, 1, true, 80) });
+  var spoutMat = std(0x161616, 0.75);
   E.buildCan = function (parent) {
     var c = new THREE.Group();
     var body = new THREE.Mesh(canGeo, [canFace, canSide]); body.castShadow = true; c.add(body);
-    mesh(new THREE.PlaneGeometry(0.2, 0.062), dieselDecal, 0, 0.36, CD2 / 2 + 0.0015, c);
+    mesh(new THREE.PlaneGeometry(0.2, 0.062), dieselDecal, 0, 0.36, CD2 / 2 + 0.0015, c); mesh(new THREE.PlaneGeometry(0.2, 0.062), dieselDecal, 0, 0.36, -CD2 / 2 - 0.0015, c).rotation.y = PI;
     // three handles across the top, each a bar on two little posts
     [-0.095, -0.03, 0.035].forEach(function (hx) {
       var bar = cyl(0.0085, 0.0085, CD2 * 0.62, canMetal, hx, CH2 + 0.034, 0, c, 8); bar.rotation.x = PI / 2;
@@ -503,9 +514,16 @@
     // the spout: a short neck leaning out of the front corner, the cap on its cam lever
     var sp = new THREE.Group(); sp.position.set(0.12, CH2 - 0.002, 0); sp.rotation.z = -0.5; c.add(sp);
     cyl(0.024, 0.026, 0.036, canMetal, 0, 0.018, 0, sp, 14);
-    var cap = new THREE.Group(); cap.position.set(-0.026, 0.036, 0); sp.add(cap); c.userData.cap = cap;                       // hinged on the inner side of the neck
-    cyl(0.029, 0.029, 0.024, canDark, 0.026, 0.012, 0, cap, 14); box(0.06, 0.008, 0.016, canMetal, 0.05, 0.022, 0, cap);
-    c.userData.spout = new THREE.Vector3(0.12 + Math.sin(0.5) * 0.04, CH2 - 0.002 + Math.cos(0.5) * 0.04, 0);                // the mouth of the neck, in the can's own space
+    // the pour spout screwed onto it: a collar, a flexible black hose with a slight bend, a steel tip
+    cyl(0.03, 0.03, 0.022, canDark, 0, 0.044, 0, sp, 14);
+    var hoseC = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.05, 0), new THREE.Vector3(0, 0.09, 0), new THREE.Vector3(0.006, 0.13, 0), new THREE.Vector3(0.02, 0.17, 0)]);
+    var spH = new THREE.Mesh(new THREE.TubeGeometry(hoseC, 16, 0.0125, 10, false), spoutMat); spH.castShadow = true; sp.add(spH);
+    for (var r2 = 0; r2 < 5; r2++) { var rp = hoseC.getPointAt(0.12 + r2 * 0.17), rr = new THREE.Mesh(new THREE.TorusGeometry(0.0128, 0.0018, 4, 12), spoutMat); rr.position.copy(rp); rr.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), hoseC.getTangentAt(0.12 + r2 * 0.17)); sp.add(rr); }   // the corrugations
+    var tipM = cyl(0.0095, 0.0085, 0.022, std(0x9aa0a4, 0.35, { metalness: 0.8 }), 0, 0, 0, sp, 10); tipM.position.copy(hoseC.getPointAt(1)).addScaledVector(hoseC.getTangentAt(1), 0.008); tipM.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), hoseC.getTangentAt(1));
+    c.userData.cap = null;
+    var tipL = hoseC.getPointAt(1).clone().addScaledVector(hoseC.getTangentAt(1), 0.019);
+    c.userData.spout = new THREE.Vector3(0.12 + tipL.x * Math.cos(0.5) + tipL.y * Math.sin(0.5), CH2 - 0.002 - tipL.x * Math.sin(0.5) + tipL.y * Math.cos(0.5), 0);   // the end of the spout, in the can's own space
+    c.userData.spoutDir = new THREE.Vector3().copy(hoseC.getTangentAt(1)).applyAxisAngle(new THREE.Vector3(0, 0, 1), -0.5);
     c.userData.grip = new THREE.Vector3(-0.03, CH2 + 0.034, 0);                                                                // the middle handle
     (parent || scene).add(c); return c;
   };
@@ -552,8 +570,13 @@
   var tg = box(1.2, 0.28, 0.035, bedSide, 0, BEDY - 0.13, -1.33, BG); tg.rotation.x = 0.25;
   [-0.4, 0.4].forEach(function (x) { mesh(new THREE.BoxGeometry(0.08, 0.05, 0.02), basic(0x2a0606), x, 0.6, -1.32, BG); });                      // tail lamps
   // a coil of hose and a broom in the bed (the can stands on the right)
-  mesh(new THREE.TorusGeometry(0.17, 0.025, 8, 20), std(0x2f5a3a, 0.6), -0.25, BEDY + 0.05, -0.95, BG).rotation.x = PI / 2;
-  mesh(new THREE.TorusGeometry(0.13, 0.025, 8, 18), std(0x2f5a3a, 0.6), -0.25, BEDY + 0.1, -0.95, BG).rotation.x = PI / 2;
+  (function () {            // a garden hose in loose flat coils, the end trailing over the bed side: rubber, dull green, dirty
+    var pts = [], k; for (k = 0; k <= 120; k++) { var a = k / 120 * PI * 2 * 3.4, r = 0.2 - k / 120 * 0.07 + Math.sin(a * 2.7) * 0.006; pts.push(new THREE.Vector3(Math.cos(a) * r, 0.018 + (k / 120) * 0.035 + Math.max(0, Math.sin(a)) * 0.012, Math.sin(a) * r)); }
+    pts.push(new THREE.Vector3(0.16, 0.06, 0.05), new THREE.Vector3(0.26, 0.12, 0.1), new THREE.Vector3(0.3, 0.02, 0.14));
+    var hose = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 260, 0.0105, 7, false), std(0x24402c, 0.82, { map: canvasTex(64, function (g, S) { g.fillStyle = '#5f6f60'; g.fillRect(0, 0, S, S); blotch(g, S, ['#3a3a2a', '#7a7a6a'], 10, 4, 16, 0.4); }) }));
+    hose.position.set(-0.25, BEDY, -0.95); hose.castShadow = true; BG.add(hose);
+    var cpl = cyl(0.016, 0.016, 0.05, std(0x8a7a3a, 0.4, { metalness: 0.7 }), 0, 0, 0, BG, 10); cpl.position.set(-0.25 + 0.3, BEDY + 0.02, -0.95 + 0.14); cpl.rotation.z = 1.2;   // brass coupling
+  })();
   var broom = cyl(0.012, 0.012, 1.3, M.wood, -0.05, BEDY + 0.12, -0.8, BG, 6); broom.rotation.set(PI / 2 - 0.1, 0, 0.15); box(0.3, 0.06, 0.07, std(0x3a2a18, 0.9), -0.12, BEDY + 0.12, -1.42, BG).rotation.y = 0.15;
   boxes.push({ x1: -13.4, x2: -10.6, z1: 120.35, z2: 121.65 });
   E.can = dyn(E.buildCan(BG)); E.can.position.set(0.3, BEDY + 0.025, -0.78); E.can.rotation.y = 0.12;
@@ -562,7 +585,7 @@
   E.canGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex('rgba(255,90,60,.5)', 'rgba(255,60,30,.12)'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 }));
   E.canGlow.position.set(E.canSpot.x, 1.0, E.canSpot.z); E.canGlow.scale.set(0.9, 0.9, 1); scene.add(dyn(E.canGlow));
   // the empty can, stood down beside the generator once it has been poured
-  E.emptyCan = dyn(E.buildCan(scene)); E.emptyCan.position.set(-20.1, 0.075, 127.45); E.emptyCan.rotation.y = 0.2; E.emptyCan.visible = false;
+  E.emptyCan = dyn(E.buildCan(scene)); E.emptyCan.position.set(-20.3, 0.035, 129.22); E.emptyCan.rotation.y = 1.35; E.emptyCan.visible = false;
 
   // ---------- printed things that change from game to game ----------
   var CIRCUITS = ['GIFT SHOP', 'TICKET LANES', 'PLAZA LAMPS', 'FOUNTAIN PUMP', 'CAROUSEL', 'FREEZERS'];
@@ -623,8 +646,8 @@
     E.emptyCan.visible = N.fuel === 2 && !E.emptyInHand;
     E.genNeedle.rotation.x = lerp(0.95, -0.95, clamp(N.fuel === 2 ? 1 : N.pour || 0, 0, 1));
     // the filler cap: flips open (away from you, on its far hinge) while the can is at the neck, shut again once it is full
-    var capWant = N.fuel === 1 && E.pouring ? 1 : 0; capA = instant ? capWant : damp(capA, capWant, 7, dt);
-    E.genCap.rotation.z = easeIO(capA) * 2.45;
+    var capWant = E.capOpen ? 1 : 0; capA = instant ? capWant : capA + clamp(capWant - capA, -dt * 4, dt * 4); E.capA = capA;
+    E.genCap.rotation.x = -easeIO(capA) * 2.2;
     leverA = instant ? (run ? 1 : 0) : damp(leverA, Math.max(run ? 1 : 0, N.crank || 0), 12, dt); E.genLever.rotation.z = -leverA * 1.2;
     runT = run ? runT + dt : 0;
     E.genShake.position.set(run ? Math.sin(t * 61) * 0.0025 : 0, run ? Math.sin(t * 47) * 0.002 : 0, 0);
@@ -632,7 +655,7 @@
     for (n = 0; n < 6; n++) { var on = N.brk[n]; E.brk[n].rotation.x = on ? -0.55 : 0.55; E.brkLamps[n].color.setHex(run && on ? 0x35ff8a : on ? 0x3a2a05 : 0x1a0505); }
     // the diesel stream, from the spout to the neck, while the can is tipped
     var sp = E.pourSpout && E.pourSpout(sv);
-    if (sp && E.pouring && N.fuel === 1) {
+    if (false && sp) {
       nv.copy(E.genNeck); nv.y += 0.02; var len = sv.distanceTo(nv);
       E.stream.visible = len > 0.01 && len < 0.4; E.stream.position.copy(sv).add(nv).multiplyScalar(0.5); E.stream.scale.set(1 + Math.sin(t * 31) * 0.15, Math.max(0.01, len), 1 + Math.sin(t * 27) * 0.15);
       E.stream.quaternion.setFromUnitVectors(THREE.Object3D.DefaultUp, nv.sub(sv).normalize());

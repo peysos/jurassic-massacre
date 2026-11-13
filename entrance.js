@@ -78,7 +78,7 @@ var Entrance = (function () {
   light('gate', 0xffb060, 4.15, 3.2, GZ - 1.4, 16);        // status glow at the gate (amber beacon, red/green reader)
   light('plaza', 0xffc98a, -5.4, 4.6, 133, 26);
   light('shop', 0xfff0d2, 18, 2.9, 128, 17);
-  light('term', 0x8dffb8, 22.2, 1.5, 128.2, 6, 1.6);
+  light('term', 0xbcd0ff, 22.2, 1.5, 128.2, 6, 1.6);
   light('shed', 0xffd9a0, -19, 2.5, 127, 11);
 
   // ---------- the wall around the gate ----------
@@ -236,60 +236,100 @@ var Entrance = (function () {
   E.release = { x: -4.15, z: GZ - 0.3 };
 
   // ---------- staff card reader with a keypad, on the road face of the east pillar ----------
-  var RD = new THREE.Group(); RD.position.set(4.15, 1.42, WORLD + 0.652); scene.add(RD); E.readerPos = RD.position;
-  cyl(0.016, 0.016, 1.2, EM.steel, 0, -0.82, 0.02, RD, 6);                                               // conduit down the pillar
-  box(0.3, 0.46, 0.06, EM.steel, 0, 0, 0.03, RD);                                                        // body
-  var hood = box(0.34, 0.03, 0.14, EM.steel, 0, 0.245, 0.07, RD); hood.rotation.x = 0.16;                // rain hood
-  box(0.012, 0.44, 0.1, EM.steel, -0.157, 0, 0.05, RD); box(0.012, 0.44, 0.1, EM.steel, 0.157, 0, 0.05, RD);
-  mesh(new THREE.PlaneGeometry(0.276, 0.436), std(0xffffff, 0.5, { metalness: 0.5, map: canvasTex(256, function (g, S, H) {
-    g.fillStyle = '#5d6468'; g.fillRect(0, 0, S, H);
-    for (var q = 0; q < 300; q++) { g.strokeStyle = 'rgba(' + (Math.random() < 0.5 ? '255,255,255' : '0,0,0') + ',' + (0.03 + Math.random() * 0.07) + ')'; var y = Math.random() * H; g.beginPath(); g.moveTo(0, y); g.lineTo(S, y); g.stroke(); }
-    g.fillStyle = '#16181a'; g.fillRect(18, 44, 174, 74);                                                // display bezel
-    g.fillStyle = '#d7dadc'; g.font = 'bold 15px Arial, sans-serif'; g.textAlign = 'left'; g.fillText('STAFF ACCESS', 20, 30);
-    g.fillStyle = '#16181a'; g.fillRect(206, 18, 32, H - 36);                                             // card channel
-    g.fillStyle = '#d7dadc'; g.font = 'bold 11px Arial, sans-serif'; g.save(); g.translate(200, H - 60); g.rotate(-PI / 2); g.fillText('SWIPE CARD  ▶', 0, 0); g.restore();
-    g.fillStyle = '#8b9296'; g.font = '10px Arial, sans-serif'; g.fillText('FAMILY ZOO · GATE 1', 20, H - 14);
-    streaks(g, S, H, 14, 'rgba(60,40,22,.8)', H * 0.7); grime(g, S, H, 0.9);
-  }, 1, 1, true, 404) }), 0, 0, 0.0612, RD);
-  var lcd = livePanel(0.176, 0.07, 256, 104, 0, 0, 0, 0, RD); lcd.mesh.position.set(-0.026, 0.132, 0.0625); lcd.mesh.material = basic(0xffffff, { map: lcd.tex, fog: false });
+  /* A vandal-resistant access unit: a charcoal steel housing with a rain hood, an LCD behind a black bezel, two status lamps
+     and a low stainless keypad; beside it a separate swipe head, a block with a narrow slot down its middle that the card's
+     edge runs through (the card stands out from the wall, square to it).  Years of dust lie on every face, printed on a film
+     laid on the face itself (the keys stand up through it), so a hand wipes the face, not a pane in front of it. */
+  var RD = new THREE.Group(); RD.position.set(4.15, 1.42, WORLD + 0.652); scene.add(RD); E.readerPos = RD.position; E.reader = RD;
+  var hsg = std(0x4a4e52, 0.6, { metalness: 0.35, map: metalTex }), hsgDark = std(0x202224, 0.65, { metalness: 0.3 }), stain = std(0x8d9295, 0.38, { metalness: 0.7, map: metalTex });
+  var RW = 0.23, RH = 0.39, RF = 0.056;                                                                  // housing width, height; its front face (z)
+  cyl(0.014, 0.014, 1.2, EM.steel, -0.06, -0.8, 0.02, RD, 8);                                            // conduit down the pillar, into the housing's foot
+  box(RW + 0.024, RH + 0.024, 0.008, hsgDark, 0, 0, 0.004, RD);                                         // back flange
+  box(RW, RH, RF - 0.012, hsg, 0, 0, 0.008 + (RF - 0.012) / 2, RD);                                      // the housing
+  box(RW - 0.01, RH - 0.01, 0.004, hsg, 0, 0, RF - 0.002, RD);                                           // its front, a step in from the edges
+  var hood = box(RW + 0.034, 0.01, 0.1, hsg, 0, RH / 2 + 0.018, 0.05, RD); hood.rotation.x = 0.2;           // rain hood, sloping to the front
+  [-1, 1].forEach(function (sd) { var ch = box(0.006, 0.034, 0.088, hsg, sd * (RW / 2 + 0.014), RH / 2 + 0.004, 0.046, RD); ch.rotation.x = 0.2; });
+  [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(function (c) { cyl(0.0045, 0.0045, 0.004, stain, c[0] * (RW / 2 - 0.012), c[1] * (RH / 2 - 0.012), RF + 0.002, RD, 8).rotation.x = PI / 2; });   // tamper screws
+  mesh(new THREE.PlaneGeometry(RW - 0.012, RH - 0.012), std(0xffffff, 0.55, { metalness: 0.45, map: canvasTex(256, function (g, S, H) {
+    g.fillStyle = '#44484c'; g.fillRect(0, 0, S, H);
+    for (var q = 0; q < 260; q++) { g.strokeStyle = 'rgba(' + (Math.random() < 0.5 ? '255,255,255' : '0,0,0') + ',' + (0.02 + Math.random() * 0.05) + ')'; var y = Math.random() * H; g.beginPath(); g.moveTo(0, y); g.lineTo(S, y); g.stroke(); }
+    var sy = H / (RH - 0.012), sx = S / (RW - 0.012);
+    function Y(y) { return H / 2 - y * sy; } function X(x) { return S / 2 + x * sx; }
+    g.fillStyle = '#d9dcde'; g.font = 'bold 17px Arial, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText('STAFF ACCESS', X(-0.098), Y(0.165));
+    g.fillStyle = '#0c0d0e'; g.fillRect(X(-0.088), Y(0.142), 0.176 * sx, 0.084 * sy);                    // display bezel
+    g.fillStyle = '#e2b93b'; g.fillRect(X(-0.098), Y(-0.172), 0.196 * sx, 2);                              // the park's gold rule
+    g.fillStyle = '#9aa0a4'; g.font = '11px Arial, sans-serif'; g.fillText('FAMILY ZOO  ·  GATE 1', X(-0.098), Y(-0.183));
+    streaks(g, S, H, 12, 'rgba(60,40,22,.7)', H * 0.6); grime(g, S, H, 0.8);
+  }, 1, 1, true, Math.round(256 * (RH - 0.012) / (RW - 0.012))) }), 0, 0, RF + 0.0002, RD);
+  var lcd = livePanel(0.16, 0.068, 256, 108, 0, 0, 0, 0, RD); lcd.mesh.position.set(0, 0.1, RF + 0.0006); lcd.mesh.material = basic(0xffffff, { map: lcd.tex, fog: false });
   E.lcd = function (l1, l2, col) {
-    var g = lcd.g; g.fillStyle = '#060a07'; g.fillRect(0, 0, 256, 104);
-    if (l1) { g.fillStyle = col || '#39d86a'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 30px Consolas, "Courier New", monospace'; g.fillText(l1, 128, l2 ? 34 : 52, 244); if (l2) g.fillText(l2, 128, 72, 244); }
+    var g = lcd.g; g.fillStyle = '#060a07'; g.fillRect(0, 0, 256, 108);
+    if (l1) { g.fillStyle = col || '#39d86a'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 30px Consolas, "Courier New", monospace'; g.fillText(l1, 128, l2 ? 36 : 54, 244); if (l2) g.fillText(l2, 128, 74, 244); }
     lcd.tex.needsUpdate = true;
   };
   E.lcd('');
   E.ledR = glow(0x1a0404); E.ledG = glow(0x041a08);
-  mesh(new THREE.CircleGeometry(0.008, 10), E.ledR, 0.03, 0.19, 0.0626, RD); mesh(new THREE.CircleGeometry(0.008, 10), E.ledG, 0.055, 0.19, 0.0626, RD);
-  var keyGeo = new THREE.BoxGeometry(0.04, 0.034, 0.012), keys = '123456789*0#';
+  [[E.ledR, 0.058], [E.ledG, 0.083]].forEach(function (l) { cyl(0.0075, 0.0075, 0.003, hsgDark, l[1], 0.165, RF + 0.0015, RD, 12).rotation.x = PI / 2; mesh(new THREE.CircleGeometry(0.0055, 12), l[0], l[1], 0.165, RF + 0.0032, RD); });
+  // the keypad: low stainless keys, 4 mm proud of the face
+  var keyGeo = new THREE.BoxGeometry(0.044, 0.032, 0.005), keys = '123456789*0#';
+  E.readerKeys = [];
   for (i = 0; i < 12; i++) {
-    var kx = -0.086 + (i % 3) * 0.058, ky = 0.045 - Math.floor(i / 3) * 0.052;
-    mesh(keyGeo, EM.plastic, kx, ky, 0.066, RD);
-    mesh(new THREE.PlaneGeometry(0.036, 0.03), std(0xffffff, 0.6, { map: (function (ch) { return canvasTex(64, function (g, S, H) { g.fillStyle = '#2b2e30'; g.fillRect(0, 0, S, H); g.fillStyle = '#c9cdcf'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 34px Arial, sans-serif'; g.fillText(ch, S / 2, H / 2 + 2); g.fillStyle = 'rgba(20,16,10,.35)'; g.fillRect(0, 0, S, H); }, 1, 1, true, 52); })(keys[i]) }), kx, ky, 0.0722, RD);
+    var kx = -0.06 + (i % 3) * 0.06, ky = 0.012 - Math.floor(i / 3) * 0.045;
+    mesh(keyGeo, stain, kx, ky, RF + 0.0025, RD); E.readerKeys.push([kx, ky]);
+    mesh(new THREE.PlaneGeometry(0.04, 0.028), std(0xffffff, 0.35, { metalness: 0.6, map: (function (ch) { return canvasTex(64, function (g, S, H) { g.fillStyle = '#7e8387'; g.fillRect(0, 0, S, H); g.fillStyle = '#1c1e20'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 30px Arial, sans-serif'; g.fillText(ch, S / 2, H / 2 + 2); g.fillStyle = 'rgba(70,60,40,.28)'; g.fillRect(0, 0, S, H); }, 1, 1, true, 45); })(keys[i]) }), kx, ky, RF + 0.0051, RD);
   }
-  // the card channel: a slot down the right-hand side with raised guides
-  box(0.006, 0.4, 0.016, EM.steel, 0.086, 0, 0.068, RD); box(0.006, 0.4, 0.016, EM.steel, 0.12, 0, 0.068, RD); box(0.028, 0.4, 0.004, EM.rubber, 0.103, 0, 0.0625, RD);
-  E.slot = new THREE.Vector3(4.15 + 0.102, 1.42, WORLD + 0.652 + 0.085);                                // centre line of the channel (world)
-  // years of dust over the face; the intro wipes it off
-  var dustC = document.createElement('canvas'); dustC.width = 256; dustC.height = 400;
+  // the swipe head, to the right of the housing: two jaws with a 4 mm slot between them, open at the top and the bottom
+  var SX = RW / 2 + 0.038, SJ = 0.024, SG = 0.002, SD = 0.05, SL = 0.3;                                  // its centre, jaw width, half the gap, depth, length
+  box(SJ * 2 + SG * 2 + 0.012, SL + 0.012, 0.006, hsgDark, SX, 0, 0.003, RD);
+  [-1, 1].forEach(function (sd) {
+    box(SJ, SL, SD - 0.006, hsg, SX + sd * (SG + SJ / 2), 0, 0.006 + (SD - 0.006) / 2, RD);
+    [1, -1].forEach(function (e) { var fl = box(SJ, 0.012, SD - 0.01, hsg, SX + sd * (SG + SJ / 2 + 0.0015), e * (SL / 2 + 0.004), 0.008 + (SD - 0.01) / 2, RD); fl.rotation.z = sd * e * 0.35; });   // flared mouths
+  });
+  box(SG * 2, SL, 0.016, hsgDark, SX, 0, 0.014, RD);                                                     // the floor of the slot, with the read head in it
+  box(SG * 2 - 0.0005, 0.03, 0.01, stain, SX, 0.02, 0.026, RD);
+  mesh(new THREE.PlaneGeometry(SJ - 0.002, 0.07), std(0xffffff, 0.6, { map: textTex(['SWIPE', '▼'], 64, 192, '#2b2d2f', '#d9dcde', null, false) }), SX - SG - SJ / 2, 0.08, SD + 0.0005, RD);
+  E.slot = new THREE.Vector3(4.15 + SX, 1.42, WORLD + 0.652 + SD);                                      // the mouth of the slot, half way down (world)
+  E.readerFace = { x: 4.15, y: 1.42, z: WORLD + 0.652 + RF, w: RW - 0.012, h: RH - 0.012, sx: 4.15 + SX, sw: SJ * 2 + SG * 2, sh: SL, sz: WORLD + 0.652 + SD };
+  /* Obstacles for checking hands against the unit (reader space boxes: x1, x2, y1, y2, z1, z2). */
+  E.readerSolids = [[-RW / 2, RW / 2, -RH / 2, RH / 2, 0, RF], [SX - SG - SJ, SX - SG, -SL / 2, SL / 2, 0, SD], [SX + SG, SX + SG + SJ, -SL / 2, SL / 2, 0, SD]]
+    .concat([[-RW / 2 - 0.017, RW / 2 + 0.017, RH / 2 + 0.004, RH / 2 + 0.03, 0, 0.1]])
+    .concat(E.readerKeys.map(function (k) { return [k[0] - 0.022, k[0] + 0.022, k[1] - 0.016, k[1] + 0.016, 0, RF + 0.005]; }));
+  // years of dust over the face: a film on the housing's front, and on the fronts of the swipe jaws (not over the slot)
+  var dustC = document.createElement('canvas'); dustC.width = 256; dustC.height = 432;
   var dustG = dustC.getContext('2d'), dustTex = new THREE.CanvasTexture(dustC); dustTex.encoding = THREE.sRGBEncoding;
-  var dustMesh = mesh(new THREE.PlaneGeometry(0.3, 0.46), new THREE.MeshStandardMaterial({ map: dustTex, transparent: true, roughness: 1, depthWrite: false }), 0, 0, 0.0935, RD);
-  dustMesh.userData.noCast = true; dustMesh.renderOrder = 2;
+  var dustMat = new THREE.MeshStandardMaterial({ map: dustTex, transparent: true, roughness: 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  var dustMesh = mesh(new THREE.PlaneGeometry(RW - 0.012, RH - 0.012), dustMat, 0, 0, RF + 0.0012, RD); dustMesh.userData.noCast = true; dustMesh.renderOrder = 2;
+  var sdC = document.createElement('canvas'); sdC.width = 64; sdC.height = 256;
+  var sdG = sdC.getContext('2d'), sdTex = new THREE.CanvasTexture(sdC); sdTex.encoding = THREE.sRGBEncoding;
+  [-1, 1].forEach(function (sd) {
+    var t = sdTex.clone(); t.needsUpdate = true; t.repeat.set(0.5, 1); t.offset.set(sd < 0 ? 0 : 0.5, 0); (E.sdTexes = E.sdTexes || []).push(t);
+    var m = mesh(new THREE.PlaneGeometry(SJ, SL), new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), SX + sd * (SG + SJ / 2), 0, SD + 0.0009, RD);
+    m.userData.noCast = true; m.renderOrder = 2;
+  });
+  function dustLayer(g, W2, H2, amount, web) {
+    g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W2, H2);
+    if (amount <= 0) return;
+    g.globalAlpha = 0.8 * amount; g.fillStyle = '#6c6555'; g.fillRect(0, 0, W2, H2);
+    var sc = ['#857c68', '#5a5446', '#968d78', '#4a4539']; for (var q0 = 0; q0 < W2 * H2 / 20; q0++) { g.globalAlpha = (0.2 + Math.random() * 0.4) * amount; g.fillStyle = sc[q0 & 3]; g.beginPath(); g.arc(Math.random() * W2, Math.random() * H2, 0.6 + Math.random() * 1.8, 0, 7); g.fill(); }
+    g.globalAlpha = 0.16 * amount; for (var q = 0; q < 10; q++) { g.fillStyle = q % 2 ? '#6a6252' : '#a8a08a'; g.beginPath(); g.ellipse(Math.random() * W2, Math.random() * H2, 6 + Math.random() * 30, 4 + Math.random() * 18, Math.random() * 3, 0, 7); g.fill(); }
+    g.globalAlpha = 0.6 * amount; g.fillStyle = 'rgba(70,58,40,.6)'; for (q = 0; q < 10; q++) g.fillRect(Math.random() * W2, 0, 1.2, H2 * (0.3 + Math.random() * 0.6));     // rain runs
+    if (web) { g.globalAlpha = 0.5 * amount; g.strokeStyle = '#cfc9b8'; g.lineWidth = 0.7; for (q = 0; q < 9; q++) { g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(60 + q * 8, 20 + q * 6, 40 + q * 22, 90 + (q % 3) * 26); g.stroke(); } }
+    g.globalAlpha = 1;
+  }
   E.dustFill = function (amount) {                  // 1 = untouched for years, 0 = clean
-    var g = dustG; g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, 256, 400);
-    if (amount > 0) {
-      g.globalAlpha = 0.95 * amount; g.fillStyle = '#8f8672'; g.fillRect(0, 0, 256, 400);
-      g.globalAlpha = 0.5 * amount; speckle('rgba(0,0,0,0)', ['#a39a84', '#6f6858', '#b5ad98', '#5a5448'], 5000, 2.2)(g, 256, 400);
-      g.globalAlpha = 0.5 * amount; g.strokeStyle = '#cfc9b8'; g.lineWidth = 0.7;                        // cobweb in the top corner
-      for (var q = 0; q < 9; q++) { g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(60 + q * 8, 20 + q * 6, 40 + q * 22, 90 + (q % 3) * 26); g.stroke(); }
-      g.globalAlpha = 1;
-    }
-    dustTex.needsUpdate = true;
+    dustLayer(dustG, 256, 432, amount, true); dustLayer(sdG, 64, 256, amount, false);
+    dustTex.needsUpdate = true; E.sdTexes.forEach(function (t) { t.needsUpdate = true; });
   };
-  E.dustWipe = function (u, v, r, strength) {       // rub a patch clean; u,v in 0..1 across the face (u right, v up)
-    var g = dustG, x = u * 256, y = (1 - v) * 400, R = r * 256, gr = g.createRadialGradient(x, y, R * 0.25, x, y, R);
+  function rub(g, W2, H2, x, y, R, strength) {
+    var gr = g.createRadialGradient(x, y, R * 0.25, x, y, R);
     gr.addColorStop(0, 'rgba(0,0,0,' + (strength || 0.8) + ')'); gr.addColorStop(1, 'rgba(0,0,0,0)');
     g.globalCompositeOperation = 'destination-out'; g.fillStyle = gr; g.fillRect(x - R, y - R, R * 2, R * 2); g.globalCompositeOperation = 'source-over';
-    dustTex.needsUpdate = true;
+  }
+  E.dustWipe = function (u, v, r, strength) {       // rub a patch of the housing's face clean; u, v in 0..1 across it (u right, v up), r in face widths
+    rub(dustG, 256, 432, u * 256, (1 - v) * 432, r * 256, strength); dustTex.needsUpdate = true;
+  };
+  E.slotWipe = function (v, r, strength) {          // the jaw edges either side of the slot, at height v (0 bottom .. 1 top)
+    rub(sdG, 64, 256, 32, (1 - v) * 256, r * 256, strength); E.sdTexes.forEach(function (t) { t.needsUpdate = true; });
   };
   E.dustFill(0);
 
@@ -433,17 +473,19 @@ var Entrance = (function () {
   var renderMat = std(0xffffff, 0.94, { map: canvasTex(512, renderPaint), bumpMap: bump(3), bumpScale: 0.02 }), copeMat = std(0xffffff, 0.9, { map: EM.stone.map.clone(), bumpMap: bump(2), bumpScale: 0.03 });
   copeMat.map.repeat.set(1, 1); copeMat.map.needsUpdate = true;
   var plinthMat = std(0xffffff, 0.95, { map: canvasTex(256, function (g, S) { speckle('#57534b', ['#4a463f', '#625e55', '#3d3a34'], 6000, 1.6)(g, S); blotch(g, S, ['#2a3220', '#1e211a'], 18, 10, 50, 0.5); }) });
-  function sideWall(x1, x2, inner) {
-    wbox(x1, x2, 0, 3.4, PZ1, PZ2, renderMat, 3, null, true);
+  function sideWall(x1, x2, inner, gap) {          // gap: [z1, z2] of an opening through it (the staff wing's link, behind the shop)
+    var runs = gap ? [[PZ1, gap[0]], [gap[1], PZ2]] : [[PZ1, PZ2]];
+    runs.forEach(function (r) { wbox(x1, x2, 0, 3.4, r[0], r[1], renderMat, 3, null, true); wbox(x1 - 0.05, x2 + 0.05, 0, 0.32, r[0], r[1], plinthMat, 1.2); });
+    if (gap) wbox(x1, x2, 2.6, 3.4, gap[0], gap[1], renderMat, 3);
     wbox(x1 - 0.07, x2 + 0.07, 3.4, 3.52, PZ1, PZ2, copeMat, 1.5);
-    wbox(x1 - 0.05, x2 + 0.05, 0, 0.32, PZ1, PZ2, plinthMat, 1.2);
     for (var z = PZ1 + 1.8; z < PZ2 - 1; z += 4.6) {
+      if (gap && z > gap[0] - 0.4 && z < gap[1] + 0.4) continue;
       var f = inner > x1 ? x2 : x1, d = inner > x1 ? 1 : -1;
       wbox(Math.min(f, f + d * 0.14), Math.max(f, f + d * 0.14), 0, 3.62, z - 0.26, z + 0.26, renderMat, 3);
       wbox(Math.min(f, f + d * 0.2) - 0.02, Math.max(f, f + d * 0.2) + 0.02, 3.62, 3.74, z - 0.32, z + 0.32, copeMat, 1.5);
     }
   }
-  sideWall(-26.0, PX1, 1); sideWall(PX2, 27.0, -1);
+  sideWall(-26.0, PX1, 1); sideWall(PX2, 27.0, -1, [131.45, 132.95]);
   // overgrown hedging in a bed along each wall (not where the shed yard and the shop alley are)
   (function () {
     var clumps = [], col3 = new THREE.Color(), beds = [[PX1 + 0.65, 131.2, 148.6], [PX1 + 0.65, 117.0, 122.8], [PX2 - 0.65, 136.0, 148.6], [PX2 - 0.65, 117.0, 120.2]];
@@ -654,7 +696,7 @@ var Entrance = (function () {
      wide between steel cabinets, with the turnstile's arm reaching right across it and guide rails out in front and behind,
      so there is no getting round one.  The lanes stay locked until the entry system is switched on from the staff computer.
      The booths are real kiosks a person works in: a door at the back, a counter under the ticket window, a stool and a till. */
-  var TZ = TURN_Z, LANES = [-3.54, -2.06, 2.06, 3.54], HOUSE = [-4.275, -2.8, -1.325, 1.325, 2.8, 4.275];
+  var TZ = TURN_Z, LANES = [-3.27, -2.33, 2.33, 3.27], HOUSE = [-3.74, -2.8, -1.86, 1.86, 2.8, 3.74];
   E.lanes = LANES;
   box(16.6, 0.2, 5.8, std(0x2c2e2f, 0.7, { map: roofTex, metalness: 0.4 }), 0, 3.3, TZ);                 // canopy deck
   box(16.9, 0.5, 0.1, EM.green, 0, 3.22, TZ + 2.95); box(16.9, 0.5, 0.1, EM.green, 0, 3.22, TZ - 2.95); box(0.1, 0.5, 5.9, EM.green, -8.4, 3.22, TZ); box(0.1, 0.5, 5.9, EM.green, 8.4, 3.22, TZ);
@@ -709,43 +751,83 @@ var Entrance = (function () {
     boxes.push({ x1: bx - W2 - 0.05, x2: bx + W2 + 0.05, z1: TZ - D2 - 0.05, z2: TZ + D2 + 0.05, solid: true });
   }
   [-5.6, 0, 5.6].forEach(booth);
-  // turnstile cabinets: brushed steel, sloped lids, a lamp panel on the entry face
-  var ledX = canvasTex(64, function (g, S) { g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, S, S); g.strokeStyle = '#ff2a1a'; g.lineWidth = 9; g.beginPath(); g.moveTo(16, 16); g.lineTo(48, 48); g.moveTo(48, 16); g.lineTo(16, 48); g.stroke(); });
-  var ledGo = canvasTex(64, function (g, S) { g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, S, S); g.strokeStyle = '#35ff8a'; g.lineWidth = 9; g.beginPath(); g.moveTo(32, 50); g.lineTo(32, 16); g.moveTo(16, 30); g.lineTo(32, 14); g.lineTo(48, 30); g.stroke(); });
-  var cabSteel = std(0xb4babd, 0.36, { metalness: 0.75, map: metalTex }), CW = 0.45, CL = 1.2, CH = 1.0;
+  /* ---------- the turnstiles: waist-high tripod units, two lanes either side of the middle booth ----------
+     Each cabinet is brushed stainless with rounded ends on an anchored base; its lid is a black glass panel sloping to the
+     entry end, with the ticket reader (a scanner window and a slot in a chrome bezel) and a lamp that shows a red cross or a
+     green arrow.  The rotor head stands out of the cabinet's side into the lane on a 45-degree axis, so one of its three
+     capped arms always lies level across the lane at hip height.  Fixed glass panels close the gaps to the booths. */
+  var ledX = canvasTex(64, function (g, S) { g.fillStyle = '#060606'; g.fillRect(0, 0, S, S); g.strokeStyle = '#ff2a1a'; g.lineWidth = 8; g.lineCap = 'round'; g.beginPath(); g.moveTo(18, 18); g.lineTo(46, 46); g.moveTo(46, 18); g.lineTo(18, 46); g.stroke(); });
+  var ledGo = canvasTex(64, function (g, S) { g.fillStyle = '#060606'; g.fillRect(0, 0, S, S); g.strokeStyle = '#35ff8a'; g.lineWidth = 8; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(32, 50); g.lineTo(32, 16); g.moveTo(17, 30); g.lineTo(32, 15); g.lineTo(47, 30); g.stroke(); });
+  var brushed = canvasTex(256, function (g, S) { g.fillStyle = '#b9bec1'; g.fillRect(0, 0, S, S); for (var q = 0; q < 900; q++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,.09)' : 'rgba(40,44,48,.08)'; g.fillRect(Math.random() * S, 0, 1, S); } blotch(g, S, ['#8e9294', '#6d7173'], 8, 6, 40, 0.18); grime(g, S, S, 0.5); }, 1, 1);
+  var cabSteel = std(0xffffff, 0.3, { metalness: 0.8, map: brushed, envMap: envTex, envMapIntensity: 0.35 }), CW = 0.32, CL = 1.16, CH = 0.98;
+  var blackGlass = std(0x07090a, 0.12, { metalness: 0.3, envMap: envTex, envMapIntensity: 0.6 }), chrome = std(0xd8dcdf, 0.18, { metalness: 0.95, envMap: envTex, envMapIntensity: 0.8 });
+  var bodyGeo = (function () {                       // the cabinet in plan, rounded at the four corners, extruded up
+    var r = 0.06, w = CW / 2, l = CL / 2, sh = new THREE.Shape(); sh.moveTo(-w + r, -l); sh.lineTo(w - r, -l); sh.quadraticCurveTo(w, -l, w, -l + r); sh.lineTo(w, l - r); sh.quadraticCurveTo(w, l, w - r, l); sh.lineTo(-w + r, l); sh.quadraticCurveTo(-w, l, -w, l - r); sh.lineTo(-w, -l + r); sh.quadraticCurveTo(-w, -l, -w + r, -l);
+    var gm = new THREE.ExtrudeGeometry(sh, { depth: CH - 0.12, bevelEnabled: false, curveSegments: 6 }); gm.rotateX(-PI / 2); gm.translate(0, 0.07, 0);
+    var uv = gm.attributes.uv, pos = gm.attributes.position; for (var q = 0; q < uv.count; q++) uv.setXY(q, (pos.getX(q) + pos.getZ(q)) * 1.2, pos.getY(q) * 1.2);   // brushing runs up the sides
+    return gm;
+  })();
   E.laneLeds = [];
   HOUSE.forEach(function (hx) {
-    box(CW, CH - 0.06, CL, cabSteel, hx, (CH - 0.06) / 2, TZ);
-    var lid = box(CW + 0.02, 0.05, CL + 0.02, cabSteel, hx, CH - 0.02, TZ); lid.rotation.x = 0.0;
-    box(CW + 0.04, 0.06, CL + 0.04, EM.rubber, hx, 0.03, TZ);
-    [-1, 1].forEach(function (e) { box(CW - 0.06, 0.12, 0.012, EM.plastic, hx, CH - 0.25, TZ + e * (CL / 2 + 0.004)); });   // the ticket slots
+    var G = new THREE.Group(); G.position.set(hx, 0, TZ); scene.add(G);
+    var body = new THREE.Mesh(bodyGeo, cabSteel); body.castShadow = body.receiveShadow = true; G.add(body);
+    box(CW + 0.05, 0.07, CL + 0.05, EM.rubber, 0, 0.035, 0, G);                                                         // base plate
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) { cyl(0.013, 0.013, 0.02, chrome, c[0] * (CW / 2 + 0.008), 0.08, c[1] * (CL / 2 + 0.008), G, 8); });   // anchor bolts
+    // the lid: a chrome rim and a black glass top falling 4 degrees to the entry end
+    var lid = new THREE.Group(); lid.position.set(0, CH - 0.05, 0); lid.rotation.x = 0.07; G.add(lid);
+    box(CW + 0.012, 0.035, CL + 0.012, chrome, 0, 0.0, 0, lid); box(CW - 0.03, 0.006, CL - 0.03, blackGlass, 0, 0.019, 0, lid);
+    mesh(new THREE.PlaneGeometry(CW - 0.12, 0.08), basic(0x140404, { fog: false }), 0, 0.0225, CL / 2 - 0.16, lid).rotation.x = -PI / 2;                    // the scanner window
+    box(CW - 0.14, 0.008, 0.03, chrome, 0, 0.024, CL / 2 - 0.3, lid); box(CW - 0.17, 0.009, 0.006, basic(0x020202), 0, 0.027, CL / 2 - 0.3, lid);            // the ticket slot
+    // the service door on each side, a lock in it; the maker's plate
+    [-1, 1].forEach(function (sd) {
+      var x = sd * (CW / 2 + 0.0008), seam = basic(0x2a2c2e);                                                          // the door's seams: [y, z, width, height]
+      [[0.62, -0.3, 0.0035, 0.5], [0.62, 0.3, 0.0035, 0.5], [0.37, 0, 0.6, 0.0035], [0.87, 0, 0.6, 0.0035]].forEach(function (l) {
+        var ln = mesh(new THREE.PlaneGeometry(l[2], l[3]), seam, x, l[0], l[1], G); ln.rotation.y = sd * PI / 2; ln.userData.noCast = true;
+      });
+      cyl(0.011, 0.011, 0.006, chrome, x + sd * 0.003, 0.68, 0.22, G, 10).rotation.z = PI / 2;
+    });
+    mesh(new THREE.PlaneGeometry(0.16, 0.035), std(0xffffff, 0.4, { metalness: 0.6, map: textTex(['FZ ACCESS · TRI-LANE 400'], 256, 56, '#c9cdcf', '#26292b', null, false) }), 0, 0.88, CL / 2 + 0.0008, G);
     boxes.push({ x1: hx - CW / 2, x2: hx + CW / 2, z1: TZ - CL / 2, z2: TZ + CL / 2 });
   });
   E.tripods = LANES.map(function (lx, n) {
-    var hx = lx + 0.512 + 0.0, led = basic(0x555555, { map: ledX, fog: false }); E.laneLeds.push(led);
-    mesh(new THREE.PlaneGeometry(0.15, 0.15), led, hx + CW / 2 - 0.12, 0.8, TZ + CL / 2 + 0.006);
-    // the rotor: its hub points down into the lane at 45 degrees; three arms on a 45-degree cone, so the top one lies level across the lane and the other two point down
-    var tilt = new THREE.Group(); tilt.position.set(hx - 0.02, 0.9, TZ); tilt.rotation.z = PI * 0.75; scene.add(tilt);
-    cyl(0.1, 0.12, 0.2, cabSteel, 0, -0.06, 0, tilt, 16);
+    var cx = lx + 0.47, face = cx - CW / 2, led = basic(0x555555, { map: ledX, fog: false }); E.laneLeds.push(led);
+    // the lamp on the entry end of the rotor's cabinet, set in a black bezel
+    box(0.11, 0.11, 0.008, blackGlass, cx, 0.82, TZ + CL / 2 + 0.004); mesh(new THREE.PlaneGeometry(0.085, 0.085), led, cx, 0.82, TZ + CL / 2 + 0.0085);
+    box(0.11, 0.11, 0.008, blackGlass, cx, 0.82, TZ - CL / 2 - 0.004); mesh(new THREE.PlaneGeometry(0.085, 0.085), led, cx, 0.82, TZ - CL / 2 - 0.0085).rotation.y = PI;
+    // the rotor head: a housing out of the cabinet side on a 45-degree axis, a chrome bell over the hub, three capped arms
+    var tilt = new THREE.Group(); tilt.position.set(face - 0.05, 0.86, TZ); tilt.rotation.z = PI * 0.75; scene.add(tilt);
+    cyl(0.09, 0.1, 0.13, cabSteel, 0, -0.07, 0, tilt, 20); cyl(0.104, 0.104, 0.015, chrome, 0, -0.005, 0, tilt, 20);
     var spin = dyn(new THREE.Group()); tilt.add(spin);
-    cyl(0.075, 0.075, 0.1, EM.steel, 0, 0.08, 0, spin, 16);
-    var AL = 0.86;
+    cyl(0.07, 0.085, 0.06, chrome, 0, 0.03, 0, spin, 20); mesh(new THREE.SphereGeometry(0.07, 18, 10, 0, PI * 2, 0, PI / 2), chrome, 0, 0.06, 0, spin);
+    var AL = 0.5;
     for (var q = 0; q < 3; q++) {
       var arm = new THREE.Group(); arm.rotation.y = q * PI * 2 / 3; spin.add(arm);
-      var a = cyl(0.022, 0.022, AL, EM.steel, AL / 2 * Math.SQRT1_2 + 0.04, AL / 2 * Math.SQRT1_2 + 0.1, 0, arm, 10); a.rotation.z = -PI / 4;
-      mesh(new THREE.SphereGeometry(0.026, 10, 8), EM.rubber, AL * Math.SQRT1_2 + 0.04, AL * Math.SQRT1_2 + 0.1, 0, arm);
+      var ac = new THREE.Group(); ac.position.set(0.05, 0.035, 0); ac.rotation.z = -PI / 4; arm.add(ac);               // each arm leaves the hub on the 45-degree cone
+      cyl(0.019, 0.019, AL, chrome, 0, AL / 2, 0, ac, 12); cyl(0.024, 0.024, 0.035, chrome, 0, 0.02, 0, ac, 12);
+      mesh(new THREE.SphereGeometry(0.022, 12, 8), EM.rubber, 0, AL + 0.005, 0, ac);
     }
-    var bx = { x1: lx - 0.52, x2: lx + 0.52, z1: TZ - 0.07, z2: TZ + 0.07 }; boxes.push(bx);
+    var bx = { x1: lx - 0.31, x2: lx + 0.31, z1: TZ - 0.07, z2: TZ + 0.07 }; boxes.push(bx);
     return { x: lx, spin: spin, box: bx, ang: 0, target: 0, side: 0 };
   });
   W.laneBoxes = E.tripods.map(function (t) { return t.box; });
-  // guide rails out in front of and behind the lanes, on the cabinets' lines
+  // guide rails out in front of and behind the lanes, on the cabinets' lines: a brushed rail at hip height on posts
   HOUSE.forEach(function (hx) {
     [-1, 1].forEach(function (e) {
-      var z0 = TZ + e * CL / 2, z1 = TZ + e * (CL / 2 + 1.3);
-      cyl(0.024, 0.024, 1.3, cabSteel, hx, 0.95, (z0 + z1) / 2, null, 8).rotation.x = PI / 2; cyl(0.02, 0.02, 1.3, cabSteel, hx, 0.5, (z0 + z1) / 2, null, 8).rotation.x = PI / 2;
-      cyl(0.035, 0.035, 0.97, cabSteel, hx, 0.485, z1, null, 10); mesh(new THREE.SphereGeometry(0.035, 10, 6, 0, PI * 2, 0, PI / 2), cabSteel, hx, 0.97, z1);
+      var z0 = TZ + e * CL / 2, z1 = TZ + e * (CL / 2 + 1.1);
+      cyl(0.024, 0.024, 1.1, cabSteel, hx, 0.92, (z0 + z1) / 2, null, 10).rotation.x = PI / 2; cyl(0.016, 0.016, 1.1, cabSteel, hx, 0.45, (z0 + z1) / 2, null, 8).rotation.x = PI / 2;
+      cyl(0.03, 0.03, 0.92, cabSteel, hx, 0.46, z1, null, 12); mesh(new THREE.SphereGeometry(0.03, 12, 6, 0, PI * 2, 0, PI / 2), chrome, hx, 0.92, z1);
+      cyl(0.05, 0.05, 0.012, chrome, hx, 0.006, z1, null, 12);
       boxes.push({ x1: hx - 0.04, x2: hx + 0.04, z1: Math.min(z0, z1), z2: Math.max(z0, z1) });
+    });
+  });
+  // fixed glass panels between the outer cabinets and the booths (nobody squeezes past)
+  [[1.15, 1.7], [3.9, 4.45]].forEach(function (g2) {
+    [-1, 1].forEach(function (s2) {
+      var xa = s2 * g2[0], xb = s2 * g2[1], xm = (xa + xb) / 2, w = Math.abs(xb - xa);
+      box(w, 0.05, 0.05, cabSteel, xm, 1.02, TZ); box(w, 0.05, 0.05, cabSteel, xm, 0.1, TZ);
+      [xa, xb].forEach(function (x) { cyl(0.025, 0.025, 1.05, cabSteel, x - s2 * 0.0, 0.53, TZ, null, 10); });
+      var gp = mesh(new THREE.PlaneGeometry(w - 0.04, 0.86), EM.glassDirty, xm, 0.56, TZ); gp.material.side = THREE.DoubleSide; gp.userData.noCast = true;
+      boxes.push({ x1: Math.min(xa, xb), x2: Math.max(xa, xb), z1: TZ - 0.06, z2: TZ + 0.06, solid: true });
     });
   });
   // railings closing the gaps beside the outer booths, and the fence on either side
@@ -772,13 +854,13 @@ var Entrance = (function () {
   W.drawEntranceMap = function (g) {
     g.fillStyle = '#4a4840'; g.fillRect(-25.5, 113.2, 52, 36.2);
     g.fillStyle = '#55534c'; [-5.6, 0, 5.6].forEach(function (x) { g.fillRect(x - 1.1, TZ - 1.2, 2.2, 2.4); });
-    g.fillRect(-22, 124, 6, 6); g.fillRect(11, 121, 14, 14); g.fillStyle = '#2a2c28'; g.beginPath(); g.arc(0, 132, 2.7, 0, 7); g.fill();
+    g.fillRect(-22, 124, 6, 6); g.fillRect(11, 121, 14, 14); g.fillRect(25, 131.4, 2.1, 1.6); g.fillRect(26.9, 126.85, 6.7, 8.7); g.fillStyle = '#2a2c28'; g.beginPath(); g.arc(0, 132, 2.7, 0, 7); g.fill();
   };
 
   // someone walking through an open lane pushes the tripod round a third of a turn
   E.pushLane = function (x, zOld, zNew) {
     if ((zOld - TZ) * (zNew - TZ) > 0) return;
-    for (var n = 0; n < E.tripods.length; n++) { var t = E.tripods[n]; if (Math.abs(x - t.x) < 0.66 && t.box.off) { t.target += (zNew < zOld ? 1 : -1) * PI * 2 / 3; Sfx.play('turnstile', { vol: 0.7, fallback: function () { Sound.clunk(); Sound.click(); } }); } }
+    for (var n = 0; n < E.tripods.length; n++) { var t = E.tripods[n]; if (Math.abs(x - t.x) < 0.33 && t.box.off) { t.target += (zNew < zOld ? 1 : -1) * PI * 2 / 3; Sfx.play('turnstile', { vol: 0.7, fallback: function () { Sound.clunk(); Sound.click(); } }); } }
   };
   /* ---------- the plaza moving on its own: wind in the banners, dead leaves skittering over the paving, moths at the lamps ---------- */
   var leafN = 46, leafI = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.11, 0.07), std(0xffffff, 0.95, { side: THREE.DoubleSide, map: canvasTex(64, function (g, S) { g.clearRect(0, 0, S, S); g.fillStyle = '#6d5226'; g.beginPath(); g.ellipse(32, 32, 28, 15, 0, 0, 7); g.fill(); g.strokeStyle = '#3f3018'; g.lineWidth = 2; g.beginPath(); g.moveTo(6, 32); g.lineTo(58, 32); g.stroke(); }), alphaTest: 0.4 }), leafN);
