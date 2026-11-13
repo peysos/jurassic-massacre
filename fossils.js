@@ -102,7 +102,7 @@ var Fossils = (function () {
   F.refresh = function () {
     var n = F.count();
     items.forEach(function (it) { it.g.visible = !got(it.f.id); });
-    each('.fossilCount', function (el) { el.textContent = n + ' / ' + LIST.length + ' found'; });
+    each('.fossilCount', function (el) { el.textContent = n + ' / ' + LIST.length; });
     if (!logEl) return;
     $('flCount').textContent = n + ' / ' + LIST.length;
     $('flGrid').innerHTML = LIST.map(function (f) {

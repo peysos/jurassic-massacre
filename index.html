@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Jurassic Massacre</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23140606'/%3E%3Cpath d='M14 12c20-3 38 8 40 30 1 8-2 14-6 18 1-14-5-26-16-31-6-3-11-2-15 1-5-5-6-12-3-18z' fill='%23e6dcc0' stroke='%23000' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M14 12c-3 6-2 13 3 18 4-3 9-4 15-1-4-8-10-14-18-17z' fill='%237a5a3a' stroke='%23000' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M46 56c2-2 3 3 1 5z' fill='%23b30000'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600&family=Oswald:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   :root { --red: #c8102e; --red-dim: #6d0a1a; --bone: #e9e2d0; --mute: #8b8577; --gold: #e2b93b; --safe: #45f09a;
     --ui: "Bahnschrift", "DIN Alternate", "Segoe UI", "Trebuchet MS", sans-serif; --display: Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif; }
@@ -18,43 +20,88 @@
   .screen { position: fixed; inset: 0; display: none; z-index: 20; opacity: 0; transition: opacity .45s; }
   .screen.show { display: flex; opacity: 1; animation: fadeIn .5s both; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  #menu { align-items: stretch; background: linear-gradient(90deg, rgba(0,0,0,.93) 0%, rgba(0,0,0,.72) 38%, rgba(0,0,0,.08) 70%, rgba(0,0,0,.35) 100%); }
-  #menu::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 3px); }
-  .menu-col { width: min(520px, 92vw); max-height: 100vh; overflow-y: auto; scrollbar-width: none; padding: clamp(14px, 4vh, 60px) clamp(24px, 5vw, 72px) 44px; display: flex; flex-direction: column; justify-content: safe center; position: relative; z-index: 1; }
-  .menu-col::-webkit-scrollbar { display: none; }
-  .eyebrow { font-size: 12px; letter-spacing: 6px; color: var(--mute); text-transform: uppercase; margin-bottom: 10px; }
-  .eyebrow::before { content: ""; display: inline-block; width: 34px; height: 2px; background: var(--red); vertical-align: middle; margin-right: 12px; }
-  .tagline { margin: clamp(8px, 2.2vh, 22px) 0 clamp(10px, 2.6vh, 26px) !important; }
-  .nav button { padding-top: clamp(5px, 1.3vh, 11px) !important; padding-bottom: clamp(5px, 1.3vh, 11px) !important; }
-  #diffNote { margin-bottom: clamp(8px, 2vh, 20px) !important; }
-  h1.title { font-family: var(--display); font-weight: 400; font-size: clamp(44px, min(9.5vw, 15vh), 118px); line-height: .86; margin: 0; letter-spacing: 2px; color: var(--red);
-    text-shadow: 0 0 34px rgba(200,16,46,.55), 0 3px 0 #2a0008; animation: flicker 7s infinite; }
-  h1.title span { display: block; font-size: .43em; letter-spacing: .5em; color: var(--bone); text-shadow: none; margin-top: 10px; }
-  @keyframes flicker { 0%, 91%, 94%, 97%, 100% { opacity: 1; } 92% { opacity: .55; } 95.5% { opacity: .75; } }
-  .tagline { color: #a39d8e; line-height: 1.55; margin: 22px 0 26px; font-size: 15px; max-width: 420px; }
-  .nav { display: flex; flex-direction: column; gap: 4px; }
-  .nav button, .btns button { all: unset; cursor: pointer; position: relative; padding: 11px 18px 11px 22px; font: 600 19px var(--ui); letter-spacing: 3px; text-transform: uppercase;
-    color: #cfc8b6; transition: color .15s, padding .18s, background .18s; border-left: 2px solid rgba(233,226,208,.14); }
-  .nav button:hover:not(:disabled), .btns button:hover:not(:disabled), .nav button:focus-visible { color: #fff; padding-left: 34px; border-left-color: var(--red);
-    background: linear-gradient(90deg, rgba(200,16,46,.28), transparent 85%); }
-  .nav button:disabled, .btns button:disabled { opacity: .3; cursor: default; }
-  .nav button.primary { color: #fff; font-size: 23px; }
-  .nav button small { display: block; font: 400 11px var(--ui); letter-spacing: 1.5px; color: var(--mute); margin-top: 2px; text-transform: none; }
-  .label { font-size: 11px; letter-spacing: 4px; color: var(--mute); text-transform: uppercase; margin: 0 0 8px; }
-  #diff { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
-  #diff button { all: unset; cursor: pointer; text-align: center; padding: 9px 4px; font: 600 14px var(--ui); letter-spacing: 3px; text-transform: uppercase;
-    color: var(--mute); border: 1px solid rgba(233,226,208,.16); transition: .15s; }
-  #diff button:hover { color: #fff; border-color: rgba(233,226,208,.5); }
-  #diff button.sel { color: #fff; border-color: var(--red); background: linear-gradient(180deg, rgba(200,16,46,.45), rgba(200,16,46,.12)); box-shadow: 0 0 18px rgba(200,16,46,.35); }
-  #diffNote { font-size: 13px; line-height: 1.45; color: #a39d8e; min-height: 38px; margin-bottom: 20px; }
-  .foot { position: absolute; left: clamp(24px, 5vw, 72px); bottom: 12px; font-size: 11px; letter-spacing: 2px; color: #5f5a50; z-index: 1; }
+  :root { --col: clamp(340px, 31vw, 520px); --pad: clamp(28px, 4.6vw, 84px); --line: rgba(233,226,208,.12); --head: "Oswald", "Bahnschrift", "DIN Condensed", "Arial Narrow", sans-serif; --body: "Barlow", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --logo: "Anton", Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif; }
+  /* the main menu and the pause menu share one layout: a dark column on the left over the live scene */
+  .side { align-items: stretch; background: linear-gradient(90deg, rgba(2,2,3,.94) 0%, rgba(2,2,3,.82) calc(var(--col) * .72), rgba(2,2,3,.28) calc(var(--col) + 8vw), rgba(0,0,0,0) 72%, rgba(0,0,0,.4) 100%); }
+  .side::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,255,255,.016) 0 1px, transparent 1px 3px); }
+  .menu-col { width: var(--col); height: 100vh; padding: clamp(28px, 7vh, 96px) 0 clamp(64px, 9vh, 110px) var(--pad); display: flex; flex-direction: column; position: relative; z-index: 1; }
+  .logo { margin: 0 0 clamp(26px, 6vh, 64px); width: calc(var(--col) - var(--pad) - 24px); line-height: 1; user-select: none; }
+  .logo b { display: block; font: 400 calc((var(--col) - var(--pad) - 24px) * .262) / .9 var(--logo); letter-spacing: .012em; color: #b8102a; white-space: nowrap;
+    text-shadow: 0 0 28px rgba(184,16,42,.38), 0 2px 0 #1c0006; animation: flicker 9s infinite; }
+  .logo span { display: flex; justify-content: space-between; margin-top: .55em; font: 500 calc((var(--col) - var(--pad) - 24px) * .066) / 1 var(--head); color: #ddd5c0; padding: 0 .1em; }
+  .logo i { display: block; height: 1px; margin-top: 1.05em; background: linear-gradient(90deg, rgba(184,16,42,.9), rgba(184,16,42,.15) 70%, transparent); }
+  @keyframes flicker { 0%, 92%, 94.5%, 97%, 100% { opacity: 1; } 93% { opacity: .62; } 95.5% { opacity: .82; } }
+  .nav { display: flex; flex-direction: column; gap: 2px; margin-top: auto; margin-bottom: clamp(8px, 4vh, 48px); }
+  .logo span em { font-style: normal; }
+  .nav button, .btns button { all: unset; box-sizing: border-box; cursor: pointer; position: relative; display: flex; align-items: center; justify-content: space-between; width: min(340px, 100%);
+    padding: clamp(7px, 1.25vh, 12px) 14px clamp(7px, 1.25vh, 12px) 20px; font: 400 clamp(17px, 2.1vh, 21px) var(--head); letter-spacing: .2em; text-transform: uppercase; color: #a9a291;
+    transition: color .16s, background .2s, padding .2s; }
+  .nav button::before, .btns button::before { content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 2px; background: #b8102a; transform: scaleY(0); transition: transform .2s; }
+  .nav button:hover:not(:disabled), .btns button:hover:not(:disabled), .nav button:focus-visible, .btns button:focus-visible, .nav button.on { color: #f3eee2; padding-left: 26px; background: linear-gradient(90deg, rgba(184,16,42,.2), rgba(184,16,42,0) 80%); }
+  .nav button:hover:not(:disabled)::before, .btns button:hover:not(:disabled)::before, .nav button:focus-visible::before, .btns button:focus-visible::before, .nav button.on::before { transform: scaleY(1); }
+  .nav button:disabled, .btns button:disabled { opacity: .28; cursor: default; }
+  .nav button em { font: 400 .62em var(--body); letter-spacing: .14em; color: #6e685c; font-style: normal; }
+  .nav .sep { height: 1px; width: min(340px, 100%); margin: 10px 0; background: var(--line); }
+  .foot { position: absolute; left: var(--pad); bottom: clamp(18px, 3vh, 30px); font: 500 10.5px var(--body); letter-spacing: .22em; text-transform: uppercase; color: #4e4a42; z-index: 1; }
   #secret { color: var(--gold); margin-left: 14px; display: none; }
-  #howto { position: absolute; right: clamp(16px, 4vw, 60px); bottom: clamp(16px, 6vh, 60px); width: min(430px, 90vw); padding: 20px 24px; z-index: 2; display: none;
-    background: rgba(8,8,10,.86); border: 1px solid rgba(233,226,208,.16); border-top: 2px solid var(--red); backdrop-filter: blur(6px); }
-  #howto.show { display: block; animation: fadeIn .25s both; }
-  #howto h3 { margin: 0 0 12px; font: 600 13px var(--ui); letter-spacing: 4px; color: var(--mute); }
-  #howto div { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; font-size: 13.5px; color: #b9b3a2; align-items: center; }
-  #howto b { text-align: right; white-space: nowrap; font-weight: 400; }
+  /* panels open to the right of the column: New Game, Controls, Settings */
+  .panel { position: fixed; left: calc(var(--col) + 2.5vw); top: 50%; transform: translateY(-50%); width: min(600px, calc(100vw - var(--col) - 6vw)); max-height: 88vh; z-index: 32; display: none; flex-direction: column;
+    background: linear-gradient(180deg, rgba(14,13,12,.95), rgba(7,7,8,.95)); border: 1px solid var(--line); box-shadow: 0 40px 90px rgba(0,0,0,.65); backdrop-filter: blur(8px); font-family: var(--body); color: #cfc8b6; }
+  .panel.show { display: flex; animation: panelIn .28s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes panelIn { from { opacity: 0; transform: translate(-14px, -50%); } to { opacity: 1; transform: translate(0, -50%); } }
+  .panel::before { content: ""; position: absolute; left: -1px; right: -1px; top: -1px; height: 2px; background: linear-gradient(90deg, #b8102a, rgba(184,16,42,.25)); }
+  .p-head { display: flex; align-items: baseline; justify-content: space-between; padding: 22px 28px 16px; border-bottom: 1px solid var(--line); }
+  .p-head h3 { margin: 0; font: 400 25px var(--head); letter-spacing: .22em; color: #f1ecdf; text-transform: uppercase; }
+  .p-head small { font: 500 11px var(--body); letter-spacing: .2em; color: #6e685c; text-transform: uppercase; }
+  .p-body { padding: 20px 28px; overflow-y: auto; scrollbar-width: thin; }
+  .p-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 28px 18px; border-top: 1px solid var(--line); }
+  .p-foot .hintk { font: 500 11px var(--body); letter-spacing: .16em; color: #6e685c; text-transform: uppercase; }
+  .pbtn { all: unset; cursor: pointer; padding: 10px 26px; font: 400 15px var(--head); letter-spacing: .24em; text-transform: uppercase; color: #cfc8b6; border: 1px solid rgba(233,226,208,.22); transition: .16s; }
+  .pbtn:hover, .pbtn:focus-visible { color: #fff; border-color: rgba(233,226,208,.6); }
+  .pbtn.go { color: #fff; border-color: #b8102a; background: linear-gradient(180deg, rgba(184,16,42,.6), rgba(120,8,26,.6)); }
+  .pbtn.go:hover, .pbtn.go:focus-visible { background: linear-gradient(180deg, rgba(214,24,52,.75), rgba(150,10,32,.75)); box-shadow: 0 0 24px rgba(184,16,42,.35); }
+  /* difficulty choice */
+  .opt { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 22px 1fr; gap: 2px 14px; width: 100%; padding: 14px 16px; margin-bottom: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.015); transition: .16s; }
+  .opt:hover { border-color: rgba(233,226,208,.3); }
+  .opt i { grid-row: span 2; width: 12px; height: 12px; margin: 5px 0 0 3px; border: 1px solid rgba(233,226,208,.45); transform: rotate(45deg); }
+  .opt b { font: 400 18px var(--head); letter-spacing: .2em; text-transform: uppercase; color: #e6e0d2; }
+  .opt span { font-size: 13.5px; line-height: 1.45; color: #8f897a; }
+  .opt.sel { border-color: rgba(184,16,42,.85); background: linear-gradient(90deg, rgba(184,16,42,.16), rgba(184,16,42,.02)); }
+  .opt.sel i { background: #b8102a; border-color: #ff5a6e; box-shadow: 0 0 10px rgba(255,40,70,.6); }
+  /* controls list */
+  .keys { display: grid; grid-template-columns: minmax(140px, auto) 1fr; gap: 0; }
+  .keys > * { padding: 9px 0; border-bottom: 1px solid rgba(233,226,208,.06); font-size: 14px; color: #b9b3a2; display: flex; align-items: center; }
+  .keys b { font-weight: 400; gap: 4px; }
+  .keys .grp { grid-column: 1 / -1; padding: 16px 0 6px; border: 0; font: 500 11px var(--body); letter-spacing: .26em; color: #b8102a; text-transform: uppercase; }
+  .keys .grp:first-child { padding-top: 0; }
+  /* settings */
+  .tabs { display: flex; gap: 0; padding: 0 28px; border-bottom: 1px solid var(--line); }
+  .tabs button { all: unset; cursor: pointer; padding: 13px 16px 12px; font: 400 14px var(--head); letter-spacing: .22em; text-transform: uppercase; color: #77715f; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button:hover { color: #d8d1c0; } .tabs button.sel { color: #f3eee2; border-bottom-color: #b8102a; }
+  .tab { display: none; } .tab.show { display: block; }
+  .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; padding: 13px 0; border-bottom: 1px solid rgba(233,226,208,.06); }
+  .row label, .row > span { font: 500 14px var(--body); letter-spacing: .06em; color: #d3ccba; }
+  .row small { display: block; font-size: 12px; letter-spacing: .02em; color: #6e685c; margin-top: 2px; font-weight: 400; }
+  .seg { display: inline-grid; grid-auto-flow: column; border: 1px solid rgba(233,226,208,.2); }
+  .seg button { all: unset; cursor: pointer; min-width: 70px; text-align: center; padding: 8px 12px; font: 400 13px var(--head); letter-spacing: .2em; text-transform: uppercase; color: #8f897a; border-left: 1px solid rgba(233,226,208,.12); }
+  .seg button:first-child { border-left: 0; } .seg button:hover { color: #fff; }
+  .seg button.sel { color: #fff; background: linear-gradient(180deg, rgba(184,16,42,.7), rgba(130,8,28,.7)); }
+  .rng { display: flex; align-items: center; gap: 12px; } .rng output { min-width: 42px; text-align: right; font: 400 14px var(--head); letter-spacing: .1em; color: #e6e0d2; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 190px; height: 18px; background: transparent; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 2px; background: linear-gradient(90deg, #b8102a var(--p, 50%), rgba(233,226,208,.18) var(--p, 50%)); }
+  input[type=range]::-moz-range-track { height: 2px; background: rgba(233,226,208,.18); } input[type=range]::-moz-range-progress { height: 2px; background: #b8102a; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -5px; background: #f1ecdf; transform: rotate(45deg); box-shadow: 0 0 0 3px rgba(184,16,42,.35); }
+  input[type=range]::-moz-range-thumb { width: 11px; height: 11px; border: 0; border-radius: 0; background: #f1ecdf; transform: rotate(45deg); }
+  .tgl { all: unset; cursor: pointer; position: relative; width: 44px; height: 22px; border: 1px solid rgba(233,226,208,.3); }
+  .tgl::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; background: #77715f; transition: .18s; }
+  .tgl.on { border-color: #b8102a; background: rgba(184,16,42,.25); } .tgl.on::after { left: 25px; background: #f3eee2; }
+  .spec { display: grid; grid-template-columns: 1fr auto; margin-top: 14px; padding: 12px 16px; background: rgba(255,255,255,.02); border: 1px solid rgba(233,226,208,.07); }
+  .spec span { font-size: 12.5px; color: #77715f; padding: 4px 0; letter-spacing: .04em; } .spec b { font: 400 12.5px var(--head); letter-spacing: .14em; color: #c9c2b0; padding: 4px 0; text-align: right; text-transform: uppercase; }
+  .logo.pz b { font-size: calc((var(--col) - var(--pad) - 24px) * .2); color: #e9e2d0; text-shadow: none; animation: none; letter-spacing: .06em; }
+  .logo.pz span { display: block; font: 500 12px var(--body); letter-spacing: .3em; text-transform: uppercase; color: #77715f; margin-top: 1.2em; }
+  #fps { position: fixed; right: 12px; top: 10px; z-index: 60; font: 500 11px var(--body); letter-spacing: .14em; color: rgba(233,226,208,.7); text-shadow: 0 1px 2px #000; display: none; pointer-events: none; }
+  body.showfps #fps { display: block; }
 
   .center { align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 24px; background: radial-gradient(ellipse at center, rgba(12,0,2,.7) 0%, rgba(0,0,0,.94) 75%); }
   .center h2 { font: 400 clamp(40px, 8vw, 96px) var(--display); letter-spacing: 6px; margin: 0 0 6px; color: var(--bone); }
@@ -250,55 +297,99 @@
   <canvas id="map" width="560" height="560"></canvas>
 </div>
 
-<div id="menu" class="screen show">
+<div id="menu" class="screen side show">
   <div class="menu-col">
-    <div class="eyebrow">Survival horror</div>
-    <h1 class="title">JURASSIC<span>MASSACRE</span></h1>
-    <p class="tagline">Family Zoo closed twelve years ago. The animals never left. The gate has locked behind you: recover the five sections of the master key and get back out.</p>
-    <div class="label">Difficulty</div>
-    <div id="diff"><button data-d="easy">Easy</button><button data-d="normal">Normal</button><button data-d="hard">Hard</button></div>
-    <div id="diffNote"></div>
-    <div class="nav">
-      <button id="btnNew" class="primary">New Game</button>
-      <button id="btnContinue">Continue<small>from your last save terminal</small></button>
-      <button id="btnHow">How to play</button>
-      <button class="btnGuide">Field guide<small>the animals, and how they hunt</small></button>
-      <button class="btnFossils">Fossil log<small class="fossilCount"></small></button>
+    <h1 class="logo"><b>JURASSIC</b><span><em>M</em><em>A</em><em>S</em><em>S</em><em>A</em><em>C</em><em>R</em><em>E</em></span><i></i></h1>
+    <nav class="nav">
+      <button id="btnContinue">Continue</button>
+      <button id="btnNew">New Game</button>
+      <div class="sep"></div>
+      <button class="btnGuide">Field Guide</button>
+      <button class="btnFossils">Fossil Log<em class="fossilCount"></em></button>
+      <div class="sep"></div>
+      <button class="btnHow">Controls</button>
+      <button class="btnSettings">Settings</button>
       <button id="btnIntro">Replay intro</button>
-      <button class="btnFS">Fullscreen</button>
-      <button class="btnSound">Sound: On</button>
-    </div>
+    </nav>
   </div>
-  <div id="howto">
-    <h3>CONTROLS</h3>
-    <div>
-      <b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></b><span>Move. Mouse to look.</span>
-      <b><kbd>Shift</kbd></b><span>Sprint. Loud — they hear it.</span>
-      <b><kbd>Ctrl</kbd></b><span>Crouch (tap). Quiet, hard to see, stamina recovers fast.</span>
-      <b><kbd>Space</kbd></b><span>Jump.</span>
-      <b><kbd>F</kbd></b><span>Flashlight. They can see the beam.</span>
-      <b><kbd>LMB</kbd> / <kbd>Q</kbd></b><span>Flash burst. Stuns what is in the beam. Costs 25%.</span>
-      <b><kbd>R</kbd></b><span>Load a spare battery.</span>
-      <b><kbd>E</kbd></b><span>Interact. Hold it on levers, cranks, pumps and locks.</span>
-      <b><kbd>Tab</kbd> / <kbd>M</kbd></b><span>Minimap (hold) / park map.</span>
-      <b><kbd>P</kbd> / <kbd>Esc</kbd></b><span>Fullscreen / pause.</span>
-    </div>
-  </div>
-  <div class="foot">JURASSIC MASSACRE · BUILD 8 · INTRO MUSIC: “LIGHTLESS DAWN” BY KEVIN MACLEOD (CC BY 4.0)<span id="secret">★ SECRET FOUND 1 / 1</span></div>
+  <div class="foot">Build 9 · Intro music: “Lightless Dawn” by Kevin MacLeod (CC BY 4.0)<span id="secret">★ Secret found 1 / 1</span></div>
 </div>
 
-<div id="pause" class="screen center">
-  <h2>PAUSED</h2>
-  <p>Ranger posts are safe rooms: nothing bigger than you fits through the door. Their terminals come online when you solve the puzzle nearby.<br><span id="pauseDiff"></span></p>
-  <div class="btns">
-    <button id="btnResume">Resume</button>
-    <button class="btnGuide">Field Guide</button>
-    <button class="btnFossils">Fossil Log</button>
-    <button class="btnFS">Fullscreen</button>
-    <button class="btnSound">Sound: On</button>
-    <button id="btnQuit">Quit to Menu</button>
+<div id="pause" class="screen side">
+  <div class="menu-col">
+    <div class="logo pz"><b>PAUSED</b><span id="pauseDiff"></span><i></i></div>
+    <nav class="nav btns-col">
+      <button id="btnResume">Resume</button>
+      <div class="sep"></div>
+      <button class="btnGuide">Field Guide</button>
+      <button class="btnFossils">Fossil Log<em class="fossilCount"></em></button>
+      <button class="btnHow">Controls</button>
+      <button class="btnSettings">Settings</button>
+      <div class="sep"></div>
+      <button id="btnQuit">Quit to Menu</button>
+    </nav>
   </div>
 </div>
+
+<!-- panels that open beside either menu -->
+<section id="pNew" class="panel">
+  <div class="p-head"><h3>New Game</h3><small>Choose a difficulty</small></div>
+  <div class="p-body" id="diff">
+    <button class="opt" data-d="easy"><i></i><b>Easy</b><span>They are slow to notice you and hunt alone. Extra batteries, and a guide line for the escape.</span></button>
+    <button class="opt" data-d="normal"><i></i><b>Normal</b><span>They follow noises, search where they last saw you, and call the pack to flank.</span></button>
+    <button class="opt" data-d="hard"><i></i><b>Hard</b><span>They always have a rough idea where you are and hunt as a pack. Fewer batteries, longer locks.</span></button>
+  </div>
+  <div class="p-foot"><span class="hintk">Esc · Back</span><button class="pbtn go" id="btnStart">Begin</button></div>
+</section>
+
+<section id="howto" class="panel">
+  <div class="p-head"><h3>Controls</h3><small>Keyboard &amp; mouse</small></div>
+  <div class="p-body"><div class="keys">
+    <div class="grp">Movement</div>
+    <b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></b><span>Move · mouse to look</span>
+    <b><kbd>Shift</kbd></b><span>Sprint (loud)</span>
+    <b><kbd>Ctrl</kbd></b><span>Crouch (quiet, harder to see)</span>
+    <b><kbd>Space</kbd></b><span>Jump</span>
+    <div class="grp">Flashlight</div>
+    <b><kbd>F</kbd></b><span>Flashlight on / off</span>
+    <b><kbd>LMB</kbd><kbd>Q</kbd></b><span>Flash burst: stuns what is in the beam (25% charge)</span>
+    <b><kbd>R</kbd></b><span>Load a spare battery</span>
+    <div class="grp">Interface</div>
+    <b><kbd>E</kbd></b><span>Interact (hold on levers, cranks and locks)</span>
+    <b><kbd>Tab</kbd><kbd>M</kbd></b><span>Minimap (hold) · park map</span>
+    <b><kbd>P</kbd><kbd>Esc</kbd></b><span>Fullscreen · pause</span>
+  </div></div>
+  <div class="p-foot"><span class="hintk">Esc · Back</span><button class="pbtn pclose">Close</button></div>
+</section>
+
+<section id="settings" class="panel">
+  <div class="p-head"><h3>Settings</h3><small>Saved automatically</small></div>
+  <div class="tabs"><button data-t="gfx" class="sel">Graphics</button><button data-t="audio">Audio</button><button data-t="ctrl">Controls</button><button data-t="disp">Display</button></div>
+  <div class="p-body">
+    <div class="tab show" data-t="gfx">
+      <div class="row"><span>Quality preset<small>Lower presets run smoother on laptops</small></span>
+        <div class="seg" id="gfxSeg"><button data-g="low">Low</button><button data-g="medium">Medium</button><button data-g="high">High</button><button data-g="ultra">Ultra</button></div></div>
+      <div class="spec" id="gfxSpec"></div>
+    </div>
+    <div class="tab" data-t="audio">
+      <div class="row"><span>Master volume</span><div class="rng"><input type="range" id="sVol" min="0" max="100" step="1"><output></output></div></div>
+      <div class="row"><span>Music volume</span><div class="rng"><input type="range" id="sMusic" min="0" max="100" step="1"><output></output></div></div>
+      <div class="row"><span>Mute all sound</span><button class="tgl" id="sMute"></button></div>
+    </div>
+    <div class="tab" data-t="ctrl">
+      <div class="row"><span>Mouse sensitivity</span><div class="rng"><input type="range" id="sSens" min="25" max="300" step="5"><output></output></div></div>
+      <div class="row"><span>Invert vertical look</span><button class="tgl" id="sInvert"></button></div>
+    </div>
+    <div class="tab" data-t="disp">
+      <div class="row"><span>Field of view</span><div class="rng"><input type="range" id="sFov" min="60" max="95" step="1"><output></output></div></div>
+      <div class="row"><span>Camera bob<small>Head movement while walking and running</small></span><div class="rng"><input type="range" id="sBob" min="0" max="100" step="5"><output></output></div></div>
+      <div class="row"><span>Fullscreen</span><button class="tgl" id="sFull"></button></div>
+      <div class="row"><span>Show frame rate</span><button class="tgl" id="sFps"></button></div>
+    </div>
+  </div>
+  <div class="p-foot"><span class="hintk">Esc · Back</span><button class="pbtn pclose">Done</button></div>
+</section>
+<div id="fps"></div>
 
 <div id="dead" class="screen center">
   <h2 id="deadTitle">YOU WERE DEVOURED</h2>
@@ -340,17 +431,18 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="core.js?v=9"></script>
-<script src="creatures.js?v=9"></script>
-<script src="world.js?v=9"></script>
-<script src="entrance.js?v=9"></script>
-<script src="shop.js?v=9"></script>
-<script src="extras.js?v=9"></script>
-<script src="hands.js?v=9"></script>
-<script src="zoonet.js?v=9"></script>
-<script src="cutscene.js?v=9"></script>
-<script src="scares.js?v=9"></script>
-<script src="fossils.js?v=9"></script>
-<script src="game.js?v=9"></script>
+<script src="core.js?v=10"></script>
+<script src="creatures.js?v=10"></script>
+<script src="world.js?v=10"></script>
+<script src="entrance.js?v=10"></script>
+<script src="shop.js?v=10"></script>
+<script src="extras.js?v=10"></script>
+<script src="hands.js?v=10"></script>
+<script src="zoonet.js?v=10"></script>
+<script src="cutscene.js?v=10"></script>
+<script src="scares.js?v=10"></script>
+<script src="fossils.js?v=10"></script>
+<script src="settings.js?v=10"></script>
+<script src="game.js?v=10"></script>
 </body>
 </html>

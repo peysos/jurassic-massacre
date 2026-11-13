@@ -1,7 +1,7 @@
 /* Jurassic Massacre — game: puzzles, the lockdown escape, saving, input, HUD and the main loop. */
 'use strict';
 
-var player = { x: START.x, z: START.z, y: 0, vy: 0, yaw: PI, pitch: 0, battery: 100, stamina: 100, light: false, crouch: false, eye: 1.7, bob: 0, stepT: 0,
+var player = { x: START.x, z: START.z, y: 0, vy: 0, yaw: PI, pitch: 0, battery: 100, stamina: 100, light: false, crouch: false, eye: 1.7, phase: 0, runK: 0,
   vx: 0, vz: 0, roll: 0, cy: PI, cp: 0, grounded: true, water: false };
 var playTime = 0, keysDown = {}, mapOpen = false, panel = null, fuseSel = [];
 var msgT = 0, beatT = 0, danger = 0, flashA = 0, burst = 0, stunCD = 0, exhausted = false, routeT = 0, tickT = 0, noiseT = 0, escBigT = 0, duckT = 4;
@@ -87,12 +87,7 @@ function refreshClues() {
 function setDifficulty(name) {
   if (!DIFFS[name]) name = 'normal';
   diffName = name; DIFF = DIFFS[name]; prefs.diff = name; savePrefs();
-  each('#diff button', function (b) { b.classList.toggle('sel', b.getAttribute('data-d') === name); });
-  $('diffNote').textContent = {
-    easy: 'Slow to notice you, quick to give up, and they hunt alone. A red line guides the final escape, and the plesiosaur is penned once you have its key.',
-    normal: 'They investigate noises, search where they last saw you, call the pack and flank. No guide line.',
-    hard: 'They always know roughly where you are, lead their attacks, cut you off and hunt as a pack. Longer locks, fewer batteries.'
-  }[name];
+  each('#diff .opt', function (b) { b.classList.toggle('sel', b.getAttribute('data-d') === name); });
 }
 
 // ---------- the world follows the puzzle state ----------
@@ -139,9 +134,9 @@ function placeItems() {
 }
 function resetPlayer() {
   player.pitch = 0; player.stamina = 100; player.light = false; player.crouch = false; player.eye = 1.7;
-  exhausted = false; burst = 0; stunCD = 0; flashA = 0; closePanel(); uiOpen = false; Scares.reset(); Hands.setVisible(true); if (P) setCarry(P.ent.fuel === 1 ? 'can' : null);
+  exhausted = false; burst = 0; stunCD = 0; flashA = 0; closePanel(); uiOpen = false; Scares.reset(); Hands.setVisible(true); Hands.hold = null; approach = null; Entrance.pouring = false; Entrance.emptyInHand = false; if (P) setCarry(P.ent.fuel === 1 ? 'can' : null);
   player.vx = player.vz = 0; player.vy = 0; player.y = 0; player.roll = 0; player.cy = player.yaw; player.cp = 0; player.water = false; player.grounded = true;
-  camera.fov = 72; camera.updateProjectionMatrix(); invText = objText = promptText = escText = ''; holdProg = { winch: 0 };
+  camera.fov = prefs.fov; camera.updateProjectionMatrix(); invText = objText = promptText = escText = ''; holdProg = { winch: 0 };
   $('escape').classList.remove('big'); escBigT = 0;
 }
 function newGame(playIntro) {
@@ -190,8 +185,8 @@ function setState(s) {
   document.body.classList.toggle('cine', s === 'cine');
   if (s !== 'playing') { keysDown = {}; if (s !== 'cine' && document.pointerLockElement) document.exitPointerLock(); }
   if (s !== 'playing' && s !== 'cine') { Sound.genSet(0); Sound.klaxonSet(0); if (ZooNet.open) { uiOpen = false; ZooNet.close(); } }
-  if (s === 'paused') $('pauseDiff').textContent = 'Difficulty: ' + DIFF.label;
-  if (s === 'menu') $('howto').classList.remove('show');
+  if (s === 'paused') $('pauseDiff').textContent = DIFF.label + ' difficulty';
+  if (window.Settings && Settings.open) Settings.close();
 }
 function lockPointer() { try { var p = canvas.requestPointerLock(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
 function beginPlay() {
@@ -200,7 +195,7 @@ function beginPlay() {
   setState('playing'); lockPointer(); updateHud(true);
 }
 function refreshMenu() {
-  var h = hasSave(); $('btnContinue').disabled = !h; $('btnLoad').disabled = !h;
+  var h = hasSave(); $('btnContinue').style.display = h ? '' : 'none'; $('btnLoad').disabled = !h;
   each('.btnSound', function (b) { b.textContent = 'Sound: ' + (prefs.muted ? 'Off' : 'On'); });
   $('secret').style.display = prefs.duck ? 'inline' : 'none';
   $('btnIntro').style.display = 'none';                                // New Game always plays the intro now
@@ -369,14 +364,26 @@ function winchTurn(i) {
 var handPt = new THREE.Vector3();
 function at(obj, x, y, z) { return function () { return handPt.set(x, y, z).applyMatrix4(obj.matrixWorld); }; }     // a point that rides on a moving object, for the left hand to hold
 function setCarry(what) {
-  if (!carriedCan) { carriedCan = Entrance.buildCan(Hands.L.hand); carriedCan.position.set(-0.002, -0.404, -0.082); carriedCan.rotation.y = PI / 2; carriedCan.scale.x = -1; }
+  if (!carriedCan) {          // the can hangs from the hand by its middle handle (the handle runs across the fingers)
+    carriedCan = Entrance.buildCan(Hands.L.hand); carriedCan.rotation.y = PI / 2; carriedCan.scale.x = -1;
+    var gp = carriedCan.userData.grip; carriedCan.position.set(-0.002 - gp.z, -0.036 - gp.y, -0.088 + gp.x);
+  }
   carriedCan.visible = what === 'can'; Hands.carried = what === 'can' ? carriedCan : null;
 }
+function canInv() { carriedCan.updateMatrix(); return new THREE.Matrix4().copy(carriedCan.matrix).invert(); }
+/* Stepping up to something to work on it: for a moment the body walks itself to `x, z` and the eyes go to the point. */
+var approach = null;
+function stepTo(x, z, look, secs) { approach = { x: x, z: z, look: look, t: secs || 0.4 }; }
 function flipBreaker(i) {
   var N = P.ent; N.brk[i] = !N.brk[i]; Sound.clunk();
-  Hands.use('brk' + i + ':' + playTime, { point: at(Entrance.brk[i], 0, 0.04, 0.06), pose: 'point', rot: [0.15, 0.1, 0.5], dur: 0.42, press: 0.02 });
+  Hands.use('brk' + i + ':' + playTime, { point: at(Entrance.brk[i], 0, 0.075, 0.05), pose: 'pinch', tip: 'pinch', rot: [0.2, 0.15, 1.2], dur: 0.5, press: 0.015 });
   if (N.run && entLoad() > N.max) genStall('The board is asking for ' + entLoad() + ' kW. The generator bogs down and dies.');
   entPower();
+}
+var aimRay = new THREE.Raycaster(), aimNDC = new THREE.Vector2(0, 0);
+function aimBreaker() {          // which breaker the middle of the view is on (within arm's reach)
+  aimRay.setFromCamera(aimNDC, camera); aimRay.far = 1.9;
+  var h = aimRay.intersectObjects(Entrance.brkHit, false); return h.length ? h[0].object.userData.brk : -1;
 }
 function genStall(msg) { var N = P.ent; N.run = false; N.stall = 3; N.crank = 0; entPower(); Sound.spark(); Sound.buzz(); flashA = 0.25; showMsg(msg, 6); if (ZooNet.open) ZooNet.close(); }
 function genPull(dt) {
@@ -389,11 +396,47 @@ function genPull(dt) {
   N.run = true; entPower(); Sound.grind(); Sound.thud(0.5);
   showMsg(P.pow0 ? 'The generator catches and settles into a steady rumble. Across the plaza the gift shop lights stutter on.' : 'The generator is running, but the GIFT SHOP breaker is switched off.', 6);
 }
+/* Pouring.  The can is tipped over the filler so its spout sits just above the neck (the body of the can beside it, its
+   stamped face toward you), the cap flips away, and the diesel runs while E is held.  Let go and the can comes back up. */
+var pourHold = 0, pourQ = new THREE.Quaternion(), pourM = new THREE.Matrix4(), pourV = new THREE.Vector3(), pourS = new THREE.Vector3(1, 1, 1), POUR_AT = { x: -19.78, z: 127.5 };
+(function () {            // the can's pose over the neck: its spout side toward the neck, its stamped face toward you, tipped 100 degrees
+  var N = Entrance.genNeck, f = new THREE.Vector3(N.x - POUR_AT.x, 0, N.z - POUR_AT.z).normalize(), up = new THREE.Vector3(0, 1, 0), L = new THREE.Vector3().crossVectors(up, f);
+  var B = new THREE.Matrix4().makeBasis(L.clone().negate(), up, f.clone().negate());
+  pourQ.setFromRotationMatrix(B).premultiply(new THREE.Quaternion().setFromAxisAngle(f.clone().negate(), -1.75));
+})();
+function pourWorld() {
+  var N = P.ent, wob = Math.sin(playTime * 9) * 0.004 * (N.pour > 0 ? 1 : 0);
+  pourV.copy(carriedCan.userData.spout).applyQuaternion(pourQ);
+  pourM.compose(new THREE.Vector3(Entrance.genNeck.x, Entrance.genNeck.y + 0.04 + wob, Entrance.genNeck.z).sub(pourV), pourQ, pourS); return pourM;
+}
+Entrance.pourSpout = function (out) { if (!carriedCan || !carriedCan.visible) return null; carriedCan.updateWorldMatrix(true, false); return out.copy(carriedCan.userData.spout).applyMatrix4(carriedCan.matrixWorld); };
 function genPour(dt) {
-  var N = P.ent; N.pour = Math.min(1, N.pour + dt / 3.2);
+  var N = P.ent, H2 = Hands.hold;
+  stepTo(POUR_AT.x, POUR_AT.z, Entrance.genNeck, 0.25);
+  if (!H2 || H2.kind !== 'pour') { var gw = new THREE.Vector3(); Hands.hold = H2 = { kind: 'pour', inv: canInv(), world: pourWorld, want: 1, rate: 3.2, pose: Hands.POSE.carry, leanMax: 0.22, reach: function () { return gw.copy(carriedCan.userData.grip).applyMatrix4(pourWorld()); } }; }
+  H2.want = 1; pourHold = 0.18;
+  Entrance.pouring = H2.k > 0.8;
+  if (H2.k < 0.92) return;
+  N.pour = Math.min(1, N.pour + dt / 3.2);
   tickT -= dt; if (tickT <= 0) { tickT = 0.3; Sound.noise(0.28, 900, 0.16); Sound.tone(180, 240, 0.2, 0.05, 'sine'); }
-  Hands.use('pour', { point: at(Entrance.genCap, 0.3, 0.42, 0.0), pose: 'fist', tip: 'fist', rot: [0.2, 0.95, 0.15], spin: -1.05 * Math.min(1, N.pour * 6) });
-  if (N.pour >= 1) { N.fuel = 2; setCarry(null); Sound.clunk(); showMsg('The can runs dry. The gauge needle climbs off empty.', 4); }
+  if (N.pour >= 1) {          // empty: stand it on the floor beside the set and let go of it
+    N.fuel = 2; Sound.clunk(); showMsg('The can runs dry. The gauge needle climbs off empty.', 4); Entrance.pouring = false; Entrance.emptyInHand = true;
+    // from the tipped pose to standing on the floor: brought upright first, then lowered, over most of a second
+    var fromM = pourWorld().clone(), toM = new THREE.Matrix4(), fP = new THREE.Vector3(), fQ = new THREE.Quaternion(), tP = new THREE.Vector3(), tQ = new THREE.Quaternion(), sc = new THREE.Vector3(), outM = new THREE.Matrix4(), t0 = playTime;
+    Entrance.emptyCan.updateMatrixWorld(true); toM.copy(Entrance.emptyCan.matrixWorld); fromM.decompose(fP, fQ, sc); toM.decompose(tP, tQ, sc);
+    Hands.hold = { kind: 'down', inv: canInv(), want: 1, rate: 3.4, pose: Hands.POSE.carry, k: H2.k, reach: function () { return Entrance.emptyCan.position; },
+      world: function () {
+        var u = clamp((playTime - t0) / 1.1, 0, 1), ur = easeIO(clamp(u / 0.55, 0, 1)), ud = easeIO(u);
+        sc.set(1, 1, 1); var p = fP.clone().lerp(tP, ud); p.y += Math.sin(ud * PI) * 0.08 + (1 - ud) * 0;
+        Hands.hold.u = u; return outM.compose(p, fQ.clone().slerp(tQ, ur), sc);
+      } };
+  }
+}
+function canStep(dt) {           // the can's comings and goings: picked up off the buggy, tipped back after a pour, stood down when empty
+  var H2 = Hands.hold; if (!H2) return;
+  if (H2.kind === 'pour') { pourHold -= dt; if (pourHold <= 0) { H2.want = 0; Entrance.pouring = false; } }
+  if (H2.kind === 'pick' && H2.want === 1 && H2.k > 0.97) { P.ent.fuel = 1; setCarry('can'); Sound.pickup(); showMsg('Diesel. Heavy, and nearly full.', 3); H2.want = 0; H2.rate = 2.6; }
+  if (H2.kind === 'down' && H2.want === 1 && H2.k > 0.97 && H2.u >= 1) { setCarry(null); Entrance.emptyInHand = false; Sound.clunk(); H2.want = 0; H2.rate = 4; }
 }
 function openComputer() { uiOpen = true; keysDown = {}; if (document.pointerLockElement) document.exitPointerLock(); ZooNet.openUp(); }
 ZooNet.onClose = function () { uiOpen = false; if (state === 'playing') lockPointer(); };
@@ -403,20 +446,30 @@ function findInteract() {
   var px = player.x, pz = player.z, i, t, n = countKeys(), esc = P.esc, N = P.ent, En = Entrance;
   var ex = Extras.interact(px, pz); if (ex) return ex;
   if (!N.door && dist(px, pz, -15.5, 127) < 1.6) return { text: '[E] Open the shed door', fn: function () {
-    Hands.use('door', { point: at(En.shedDoor, 0.06, 1.25, 0.85), pose: 'wipe', tip: 'flat', rot: [1.3, 0.25, 0.2], dur: 1.0, press: 0.05, onTouch: function () { N.door = true; Sound.grind(); Sound.noise(0.9, 700, 0.18); } });
+    function open() { N.door = true; Sound.grind(); Sound.noise(0.9, 700, 0.18); }
+    stepTo(-15.15, 127.0, new THREE.Vector3(-16.0, 1.2, 127.1), 0.35);
+    if (Hands.carried) Hands.useR('door', { point: at(En.shedDoor, 0.04, 1.15, 0.7), rot: [0.15, -0.2, -0.4], tip: 'fist', dur: 1.1, reach: 0.45, press: 0.08, onTouch: open });   // the can in one hand: shoulder it open with the torch hand
+    else Hands.use('door', { point: at(En.shedDoor, 0.06, 1.25, 0.85), pose: 'wipe', tip: 'flat', rot: [1.3, 0.25, 0.2], dur: 1.0, press: 0.05, onTouch: open });
   } };
-  if (N.fuel === 0 && dist(px, pz, En.canSpot.x, En.canSpot.z) < 2.1) return { text: '[E] Take the fuel can', fn: function () {
-    Hands.use('can', { point: at(En.can, 0, 0.36, 0), pose: 'hook', tip: 'hook', rot: [0.5, 0.3, 0.2], dur: 0.5, onTouch: function () { N.fuel = 1; setCarry('can'); Sound.pickup(); showMsg('Diesel. Heavy, and nearly full.', 3); } });
+  if (N.fuel === 0 && !Hands.hold && dist(px, pz, En.canSpot.x, En.canSpot.z) < 2.1) return { text: '[E] Take the fuel can', fn: function () {
+    setCarry(null);
+    var gw = new THREE.Vector3(); function grip() { return gw.copy(carriedCan.userData.grip).applyMatrix4(En.can.matrixWorld); }
+    stepTo(En.canSpot.x - 0.05, 122.2, grip(), 0.5);
+    Hands.hold = { kind: 'pick', inv: canInv(), world: function () { En.can.updateMatrixWorld(true); return En.can.matrixWorld; }, want: 1, rate: 3.6, pose: Hands.POSE.carry, reach: grip };
   } };
   if (px < -16.3 && px > -22 && pz > 124 && pz < 130) {                    // inside the shed
     if (dist(px, pz, En.genSpot.x, En.genSpot.z) < 1.35) {
       if (N.run) return { text: 'The generator is running' };
       if (N.fuel === 0) return { text: '[E] Read the note taped to the generator', fn: function () { N.note = true; showMsg('“Tank is DRY. Spare can is on the buggy by the service gate. — M.”   The fuel gauge sits on E.', 7); } };
-      if (N.fuel === 1) return { text: '[Hold E] Pour the diesel into the tank', prog: N.pour, hold: genPour };
+      if (N.fuel === 1) return Hands.hold && Hands.hold.kind === 'pick' ? { text: '' } : { text: '[Hold E] Pour the diesel into the tank', prog: N.pour, hold: genPour };
       if (N.stall > 0) return { text: 'Stalled. ' + entLoad() + ' kW on a ' + N.max + ' kW set — shed some load at the board.' };
       return { text: '[Hold E] Pull the start lever', prog: N.crank, hold: genPull };
     }
-    if (dist(px, pz, En.boardSpot.x, En.boardSpot.z) < 1.25) return panel ? { text: '' } : { text: '[E] Open the distribution board', fn: function () { openPanel('board'); } };
+    if (dist(px, pz, En.boardSpot.x, En.boardSpot.z) < 1.5) {            // throw the breakers by hand: aim at one, press E
+      var bi = aimBreaker();
+      if (bi >= 0) { var cn = En.CIRCUITS[N.order[bi]]; return { text: '[E] ' + (N.brk[bi] ? 'Switch OFF' : 'Switch ON') + '  ' + cn + '  (' + N.kw[N.order[bi]] + ' kW)   ·   board load ' + entLoad() + ' / ' + N.max + ' kW', fn: (function (k) { return function () { flipBreaker(k); }; })(bi) }; }
+      return { text: 'Distribution board: aim at a breaker to throw it.   Load ' + entLoad() + ' / ' + N.max + ' kW' };
+    }
   }
   if (px > 22.05 && dist(px, pz, En.pc.x, En.pc.z) < 1.2) return P.pow0 ? { text: '[E] Use the staff computer', fn: openComputer } : { text: 'The computer is dead. There is no power in the building.' };
   for (i = 0; i < TERMS.length; i++) {
@@ -527,8 +580,9 @@ document.addEventListener('keyup', function (e) { keysDown[e.code] = false; });
 document.addEventListener('mousemove', function (e) {
   if (state !== 'playing' || document.pointerLockElement !== canvas) return;
   if (Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
-  player.yaw -= e.movementX * 0.0022;
-  player.pitch = clamp(player.pitch - e.movementY * 0.0022, -1.45, 1.45);
+  var k = 0.0022 * prefs.sens;
+  player.yaw -= e.movementX * k;
+  player.pitch = clamp(player.pitch - e.movementY * k * (prefs.invert ? -1 : 1), -1.45, 1.45);
 });
 canvas.addEventListener('mousedown', function (e) {
   if (state !== 'playing' || e.button !== 0 || uiOpen) return;
@@ -538,16 +592,16 @@ document.addEventListener('pointerlockchange', function () { if (document.pointe
 window.addEventListener('blur', function () { keysDown = {}; });
 window.addEventListener('beforeunload', function (e) { if (state === 'playing') { e.preventDefault(); e.returnValue = ''; } });
 
-$('btnNew').onclick = function () { newGame(true); }; $('btnRestart').onclick = function () { newGame(false); };
+$('btnNew').onclick = function () { Settings.show('pNew'); }; $('btnRestart').onclick = function () { newGame(false); };
+$('btnStart').onclick = function () { Settings.close(); newGame(true); };
 $('btnContinue').onclick = function () { if (!loadGame()) refreshMenu(); };
 $('btnLoad').onclick = function () { if (!loadGame()) refreshMenu(); };
 $('btnResume').onclick = function () { Sound.init(); setState('playing'); lockPointer(); };
 $('btnQuit').onclick = $('btnDeadMenu').onclick = $('btnWonMenu').onclick = function () { refreshMenu(); setState('menu'); };
-$('btnHow').onclick = function () { $('howto').classList.toggle('show'); };
 $('btnIntro').onclick = function () { newGame(true); };
 each('.btnFS', function (b) { b.onclick = toggleFullscreen; });
 each('.btnSound', function (b) { b.onclick = function () { Sound.setMuted(!prefs.muted); refreshMenu(); }; });
-each('#diff button', function (b) { b.onclick = function () { setDifficulty(b.getAttribute('data-d')); }; });
+each('#diff .opt', function (b) { b.onclick = function () { setDifficulty(b.getAttribute('data-d')); }; b.ondblclick = function () { setDifficulty(b.getAttribute('data-d')); Settings.close(); newGame(true); }; });
 each('.btnFossils', function (b) { b.onclick = function () { Fossils.openLog(); }; });
 each('.btnGuide', function (b) { b.onclick = function () { Extras.openGuide(); }; });
 
@@ -670,6 +724,15 @@ function update(dt) {
     f = r = 0; player.x = damp(player.x, Entrance.pc.x, 7, dt); player.z = damp(player.z, Entrance.pc.z, 7, dt);
     player.yaw += angDiff(PI / 2, player.yaw) * Math.min(1, dt * 7); player.pitch = damp(player.pitch, -0.22, 7, dt); player.crouch = false;
   }
+  if (approach) {                                  // stepping up to something to work on it (see stepTo)
+    approach.t -= dt; f = r = 0;
+    var ak2 = 1 - Math.exp(-dt * 5); player.x += (approach.x - player.x) * ak2; player.z += (approach.z - player.z) * ak2;
+    if (approach.look) {
+      var lx = approach.look.x - player.x, lz = approach.look.z - player.z, ly = approach.look.y - (player.y + player.eye);
+      player.yaw += angDiff(Math.atan2(-lx, -lz), player.yaw) * (1 - Math.exp(-dt * 6)); player.pitch = damp(player.pitch, clamp(Math.atan2(ly, Math.hypot(lx, lz)), -1.2, 1.0), 6, dt);
+    }
+    if (approach.t <= 0) approach = null;
+  }
   ZooNet.tick(dt);
   if (P.ent.stall > 0) P.ent.stall -= dt;
   Sound.genSet(P.ent.run ? clamp(1 - dist(player.x, player.z, -19, 127) / 36, 0.04, 1) * 0.45 : 0);
@@ -705,11 +768,15 @@ function update(dt) {
   var wasWater = player.water;
   player.water = inRect(player.x, player.z, POOL) && player.y < POOL.water - 0.5;
   if (player.water && !wasWater) { Sound.splash(); showMsg('You are in the water. Swim for a ramp in the corner!', 3); }
-  if (player.grounded) { player.bob += dt * speedNow * 1.7; player.stepT -= dt * speedNow; }
-  if (player.stepT <= 0 && speedNow > 0.8) { player.stepT = 2.6; if (player.water) Sound.noise(0.25, 1200, 0.15); else Sound.step(sprint ? 0.22 : crouch ? 0.04 : 0.12, sprint ? 900 : 600); }
+  /* The stride: player.phase advances PI per step (stride length grows with speed); a footfall sounds as each step lands. */
+  var stride = sprint && speedNow > 5 ? 2.35 : crouch ? 0.85 : 1.45;
+  if (player.grounded && !player.water && speedNow > 0.05) {
+    var ph0 = player.phase; player.phase += dt * speedNow / stride * PI;
+    if (Math.floor(player.phase / PI) !== Math.floor(ph0 / PI) && speedNow > 0.8) Sound.step(sprint ? 0.22 : crouch ? 0.04 : 0.12, sprint ? 900 : 600);
+  } else if (player.water && speedNow > 0.8) { player.phase += dt * speedNow / 1.6 * PI; if (Math.floor(player.phase / (PI * 2)) !== Math.floor((player.phase - dt * speedNow / 1.6 * PI) / (PI * 2))) Sound.noise(0.25, 1200, 0.15); }
   moving = speedNow > 0.6;
   player.eye += ((crouch ? 0.95 : 1.7) - player.eye) * (1 - Math.exp(-dt * 9));
-  var fovT = sprint && moving ? 79 : crouch ? 70 : 72;
+  var fovT = sprint && moving ? prefs.fov + 7 : crouch ? prefs.fov - 2 : prefs.fov;
   if (Math.abs(camera.fov - fovT) > 0.05) { camera.fov += (fovT - camera.fov) * (1 - Math.exp(-dt * 6)); camera.updateProjectionMatrix(); }
 
   // flashlight + battery
@@ -727,16 +794,20 @@ function update(dt) {
   beamNear = damp(beamNear, clamp((7.5 - bHit) / 6.8, 0, 1), 4, dt);
   flashlight.intensity = (player.light && !relo ? 2.3 * flick * (1 - 0.6 * beamNear) : 0) + burst * 14; flashlight.angle = 0.6 + burst * 0.3;
   Hands.fill.intensity = relo ? 0.5 : player.light ? 0.42 * flick : 0.1; Hands.setLight(player.light);      // enough to see your own hands by
-  W.dust.visible = player.light; if (player.light) W.dust.rotation.z += dt * 0.04;
 
   // camera
-  var bobAmt = Math.min(1, speedNow / 4.4) * (crouch ? 0.03 : 0.05), sh = shake * 0.06;
-  camera.position.set(player.x + (Math.random() - 0.5) * sh, player.y + player.eye + Math.sin(player.bob) * bobAmt + (player.water ? Math.sin(playTime * 2.2) * 0.06 : 0) + (Math.random() - 0.5) * sh, player.z);
-  camera.rotation.y = player.cy; camera.rotation.x = player.cp;
+  /* Head motion from the stride: the head is lowest as each foot lands and rides over the stance leg (side to side once per
+     two steps); running adds a heavier bounce, a forward lean and a nod on each footfall.  Settings > Display > Camera bob scales it. */
+  var gk = player.grounded && !player.water ? 1 : 0, wk = clamp(speedNow / 4.4, 0, 1) * prefs.bob * gk, rk = (sprint ? clamp((speedNow - 4.6) / 3.4, 0, 1) : 0) * prefs.bob * gk, ck = crouch ? 0.6 : 1;
+  player.runK = damp(player.runK || 0, rk, 5, dt);
+  var dip = (1 + Math.cos(2 * player.phase)) / 2, s1 = Math.sin(player.phase), sh = shake * 0.06;
+  var bobY = -dip * (0.032 * wk + 0.034 * player.runK) * ck, bobX = s1 * (0.017 * wk + 0.016 * player.runK) * ck;
+  camera.position.set(player.x + bobX * Math.cos(player.cy) + (Math.random() - 0.5) * sh, player.y + player.eye + bobY - player.runK * 0.05 + (player.water ? Math.sin(playTime * 2.2) * 0.06 : 0) + (Math.random() - 0.5) * sh, player.z - bobX * Math.sin(player.cy));
+  camera.rotation.y = player.cy + s1 * 0.004 * player.runK; camera.rotation.x = player.cp - dip * (0.0035 * wk + 0.012 * player.runK) - player.runK * 0.018;
   var side = player.vx * Math.cos(player.cy) - player.vz * Math.sin(player.cy);
   player.roll += (-side * 0.0022 - player.roll) * (1 - Math.exp(-dt * 8));
-  camera.rotation.z = player.roll + Math.sin(player.bob * 0.5) * 0.003 * Math.min(1, speedNow / 4.4);
-  Hands.update(dt, { speed: speedNow, yaw: player.cy, pitch: player.cp, bob: player.bob, sprint: sprint && moving, crouch: crouch, grounded: player.grounded, landed: landed, x: player.x, z: player.z });
+  camera.rotation.z = player.roll + s1 * (0.0045 * wk + 0.008 * player.runK);
+  Hands.update(dt, { speed: speedNow, yaw: player.cy, pitch: player.cp, phase: player.phase, sprint: sprint && moving, crouch: crouch, grounded: player.grounded && !player.water, landed: landed, x: player.x, z: player.z });
 
   // key pieces
   for (i = 0; i < keyMeshes.length; i++) {
@@ -772,6 +843,7 @@ function update(dt) {
   // interaction prompt and held actions
   var it = findInteract();
   if (it && it.hold && keysDown.KeyE) it.hold(dt); else holdProg.winch = Math.max(0, (holdProg.winch || 0) - dt * 0.5);
+  canStep(dt);
   if (panel && (!it || it.text !== '')) closePanel();
   var ptxt = it ? keycaps(it.text) + (it.prog !== undefined ? '<span class="prog"><i style="width:' + Math.round(clamp(it.prog, 0, 1) * 100) + '%"></i></span>' : '') : '';
   if (ptxt !== promptText) { promptText = ptxt; $('prompt').innerHTML = ptxt; }
@@ -852,30 +924,25 @@ function update(dt) {
 }
 
 // ---------- main loop ----------
-var lastT = performance.now(), menuT = 0, slowAcc = 0, slowN = 0, warm = 0, clock = 0;
-function tuneQuality(raw) {      // if the machine cannot keep up, trade sharpness and effects for a steady frame rate
-  if (raw > 0.25 || document.hidden) return;
-  if (warm < 3) { warm += raw; return; }
-  slowAcc += raw; slowN++;
-  if (slowN < 90) return;
-  var avg = slowAcc / slowN; slowAcc = 0; slowN = 0;
-  if (avg < 1 / 42) return;
-  if (pixelRatio > 0.81) setPixelRatio(Math.max(0.8, pixelRatio - 0.2));
-  else if (bloomPass && bloomPass.enabled) bloomPass.enabled = false;
-  else if (flashlight.castShadow) flashlight.castShadow = false;
-  else if (pixelRatio > 0.61) setPixelRatio(0.6);
+var lastT = performance.now(), menuT = 0, clock = 0, fpsN = 0, fpsT = 0, fpsWorst = 0;
+function fpsTick(raw) {          // the optional frame-rate readout (Settings > Display)
+  if (!prefs.fps) return;
+  fpsN++; fpsT += raw; fpsWorst = Math.max(fpsWorst, raw);
+  if (fpsT >= 0.5) { $('fps').textContent = Math.round(fpsN / fpsT) + ' FPS  ·  ' + Math.round(fpsWorst * 1000) + ' ms'; fpsN = 0; fpsT = 0; fpsWorst = 0; }
 }
 function frame(now) {
   requestAnimationFrame(frame);
   var raw = (now - lastT) / 1000, dt = Math.min(0.05, raw); lastT = now; clock += dt;
-  if (state === 'playing') { if (!window.__jmFreeze) { tuneQuality(raw); update(dt); } }      // __jmFreeze: tests step the game by hand
+  if (state === 'playing') { if (!window.__jmFreeze) update(dt); }      // __jmFreeze: tests step the game by hand
   else if (state === 'cine' && cine) { if (!window.__jmFreeze && cine.update(dt)) { var c = cine; cine = null; if (c.end) c.end(); } }
   else if (state === 'menu') {      // a slow pan across the gate
     menuT += dt;
     camera.position.set(1.2 + Math.sin(menuT * 0.11) * 1.6, 1.8, WORLD + 13.5); camera.rotation.set(0.24 + Math.sin(menuT * 0.07) * 0.03, 0.1 + Math.sin(menuT * 0.13) * 0.12, 0);      // on the road, looking up at the sign
     flashlight.angle = 0.6; flashlight.intensity = 2.0 + (Math.random() < 0.03 ? -1.4 : 0); Hands.update(dt, { menu: true });
   }
-  Music.tick(raw);
+  if (state === 'menu' || state === 'cine') Entrance.ambient(dt);
+  Music.tick(raw); fpsTick(raw);
+  W.skyFit(); LightPool.update(dt);
   renderFrame(clock, state === 'playing' ? clamp(danger, 0, 1) : state === 'cine' && cine ? cine.pulse || 0 : 0);
 }
 
@@ -887,6 +954,8 @@ P = newPuzzles();
 buildWorldLate();
 Fossils.build();
 placeItems(); resetDinos(); refreshMenu();
+LightPool.collect([]); applyGfx(prefs.gfx, true); Settings.init();
+camera.position.set(1.2, 1.8, WORLD + 13.5); camera.rotation.set(0.24, 0.1, 0); LightPool.snap(); warmShaders(true);
 window.__jm = { player: player, dinos: dinos, ples: ples, ptero: ptero, anim: anim, update: update, music: Music, W: W, NAV: NAV,
   P: function () { return P; }, keys: function () { return keysGot; }, getState: function () { return state; },
   batches: function () { return W.batches; }, batPos: function () { return batPos; }, diff: function () { return diffName; }, info: function () { return renderer.info.render; }, post: function () { return !!composer; } };

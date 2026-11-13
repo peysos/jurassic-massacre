@@ -87,8 +87,9 @@ function damp(cur, target, rate, dt) { return cur + (target - cur) * (1 - Math.e
 
 // ---------- renderer / scene ----------
 var canvas = $('game');
-var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'high-performance' });
-var pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+// no default-framebuffer antialiasing: the scene is drawn into the post-processing target, which does its own (see GFX below)
+var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !(THREE.EffectComposer && THREE.RenderPass && THREE.ShaderPass && THREE.UnrealBloomPass), powerPreference: 'high-performance', stencil: false });
+var pixelRatio = Math.min(window.devicePixelRatio || 1, 1.25);
 renderer.setPixelRatio(pixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -114,7 +115,7 @@ var flashlight = new THREE.SpotLight(0xfff0d0, 0, 62, 0.5, 0.65, 1.25);
 flashlight.position.set(0.28, -0.22, 0.1);
 flashlight.castShadow = true;
 flashlight.shadow.mapSize.set(1024, 1024);
-flashlight.shadow.camera.near = 0.4; flashlight.shadow.camera.far = 62;
+flashlight.shadow.camera.near = 0.4; flashlight.shadow.camera.far = 45;
 flashlight.shadow.bias = -0.0012; flashlight.shadow.radius = 2;
 camera.add(flashlight);
 flashlight.target.position.set(0.02, -0.06, -1);
@@ -123,10 +124,10 @@ camera.add(flashlight.target);
 // ---------- post-processing: bloom + filmic grade (falls back to plain rendering if the add-ons did not load) ----------
 var composer = null, bloomPass = null, gradePass = null;
 var GradeShader = {
-  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, exposure: { value: 1.0 }, pulse: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, time: { value: 0 }, exposure: { value: 1.0 }, pulse: { value: 0 }, grain: { value: 0.022 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: [
-    'uniform sampler2D tDiffuse; uniform float time; uniform float exposure; uniform float pulse; varying vec2 vUv;',
+    'uniform sampler2D tDiffuse; uniform float time; uniform float exposure; uniform float pulse; uniform float grain; varying vec2 vUv;',
     'vec3 aces(vec3 x){ return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }',
     'float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + time * 7.13) * 43758.5453); }',
     'void main(){',
@@ -137,29 +138,37 @@ var GradeShader = {
     '  c = mix(vec3(l), c, 1.1);                                   // a touch more saturation',
     '  c = mix(c * vec3(0.90, 1.0, 1.10), c * vec3(1.06, 1.0, 0.94), smoothstep(0.15, 0.75, l));   // cool shadows, warm highlights',
     '  c *= 1.0 - smoothstep(0.10, 0.62, r2) * 0.78;               // vignette',
-    '  c += (hash(vUv * vec2(1733.0, 977.0)) - 0.5) * 0.022;       // film grain',
+    '  c += (hash(vUv * vec2(1733.0, 977.0)) - 0.5) * grain;       // film grain',
     '  gl_FragColor = vec4(pow(max(c, 0.0), vec3(1.0 / 2.2)), 1.0);',
     '}'].join('\n')
 };
-(function setupPost() {
+/* The composer is rebuilt whenever the graphics preset changes multisampling (see GFX).  Bloom runs at half resolution. */
+var composerMSAA = null;
+function buildComposer(msaa) {
   if (!THREE.EffectComposer || !THREE.RenderPass || !THREE.ShaderPass || !THREE.UnrealBloomPass) return;
+  if (composer && composerMSAA === !!msaa) return;
   try {
+    if (composer) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); if (bloomPass && bloomPass.dispose) bloomPass.dispose(); }
     var sz = renderer.getDrawingBufferSize(new THREE.Vector2()), gl2 = renderer.capabilities.isWebGL2;
     var hdr = !!(gl2 ? renderer.extensions.get('EXT_color_buffer_float') : renderer.extensions.get('EXT_color_buffer_half_float'));
     var opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, type: hdr ? THREE.HalfFloatType : THREE.UnsignedByteType };
-    var rt = gl2 && THREE.WebGLMultisampleRenderTarget ? new THREE.WebGLMultisampleRenderTarget(sz.x, sz.y, opts) : new THREE.WebGLRenderTarget(sz.x, sz.y, opts);
+    var rt = msaa && gl2 && THREE.WebGLMultisampleRenderTarget ? new THREE.WebGLMultisampleRenderTarget(sz.x, sz.y, opts) : new THREE.WebGLRenderTarget(sz.x, sz.y, opts);
+    if (rt.samples !== undefined) rt.samples = 4;
+    var bloomOn = bloomPass ? bloomPass.enabled : true;
     composer = new THREE.EffectComposer(renderer, rt);
     composer.addPass(new THREE.RenderPass(scene, camera));
-    bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(sz.x / 2, sz.y / 2), 0.62, 0.55, 0.8);
+    bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(sz.x / 2, sz.y / 2), 0.62, 0.55, 0.8); bloomPass.enabled = bloomOn;
     composer.addPass(bloomPass);
-    gradePass = new THREE.ShaderPass(GradeShader);
+    if (!gradePass) gradePass = new THREE.ShaderPass(GradeShader);
     composer.addPass(gradePass);
+    composer.setPixelRatio(pixelRatio); composer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.NoToneMapping; renderer.outputEncoding = THREE.LinearEncoding;
-    document.body.classList.add('post');
+    document.body.classList.add('post'); composerMSAA = !!msaa;
   } catch (e) {
-    composer = null; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.outputEncoding = THREE.sRGBEncoding;
+    composer = null; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.outputEncoding = THREE.sRGBEncoding; document.body.classList.remove('post');
   }
-})();
+}
+buildComposer(true);
 function renderFrame(t, pulse) {
   if (composer) { gradePass.uniforms.time.value = t % 100; gradePass.uniforms.pulse.value = pulse || 0; composer.render(); }
   else renderer.render(scene, camera);
@@ -170,6 +179,18 @@ window.addEventListener('resize', function () {
   renderer.setSize(window.innerWidth, window.innerHeight);
   if (composer) composer.setSize(window.innerWidth, window.innerHeight);
 });
+
+/* ---------- graphics presets ----------
+   Everything a preset changes: render resolution, multisampling, bloom, the flashlight's shadow, how many real-time lamps
+   light the scene at once (see LightPool), how far the camera draws (the fog has swallowed everything past it anyway), and
+   how much of the scattered undergrowth is drawn.  Changing preset recompiles the shaders once, behind the menu. */
+var GFX = {
+  low:    { label: 'Low',    pr: 0.75, msaa: false, bloom: false, shadow: 0,    lights: 3,  far: 110, grain: 0.016, veg: 0.45 },
+  medium: { label: 'Medium', pr: 1.0,  msaa: false, bloom: true,  shadow: 512,  lights: 5,  far: 150, grain: 0.02,  veg: 0.7 },
+  high:   { label: 'High',   pr: 1.25, msaa: true,  bloom: true,  shadow: 1024, lights: 7,  far: 220, grain: 0.022, veg: 1 },
+  ultra:  { label: 'Ultra',  pr: 2.0,  msaa: true,  bloom: true,  shadow: 2048, lights: 10, far: 320, grain: 0.022, veg: 1 }
+};
+var gfxName = 'high';
 
 // ---------- collision world ----------
 var boxes = [];    // {x1,x2,z1,z2,off,solid}   solid = blocks line of sight (walls, buildings)
@@ -482,6 +503,30 @@ function tubeGeo(rings, seg, sub, side) {
   }
   return g;
 }
+/* World-space texture coordinates: every face is projected onto the world plane it faces, at `tile` metres per repeat of
+   the texture, so neighbouring pieces of one wall (piers, sills, lintels) carry one continuous texture with no seams or
+   stretching.  Use with a material whose map has repeat (1, 1).  Call once the mesh (and its parents) are placed. */
+var _wuvV = new THREE.Vector3(), _wuvN = new THREE.Vector3(), _wuvM = new THREE.Matrix3();
+function worldUV(m, tile, tileV, ox, oy) {
+  m.updateMatrixWorld(true); tileV = tileV || tile;
+  var g = m.geometry, P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
+  _wuvM.getNormalMatrix(m.matrixWorld);
+  for (var i = 0; i < P.count; i++) {
+    _wuvV.fromBufferAttribute(P, i).applyMatrix4(m.matrixWorld); _wuvN.fromBufferAttribute(N, i).applyMatrix3(_wuvM).normalize();
+    var ax = Math.abs(_wuvN.x), ay = Math.abs(_wuvN.y), az = Math.abs(_wuvN.z), u, w;
+    if (ay > 0.7 * Math.max(ax, az) && ay > 0.6) { u = _wuvV.x; w = -_wuvV.z; }
+    else if (ax >= az) { u = _wuvN.x > 0 ? -_wuvV.z : _wuvV.z; w = _wuvV.y; }
+    else { u = _wuvN.z > 0 ? _wuvV.x : -_wuvV.x; w = _wuvV.y; }
+    U.setXY(i, u / tile + (ox || 0), w / tileV + (oy || 0));
+  }
+  U.needsUpdate = true; return m;
+}
+// a box with world-space UVs (see worldUV); `collide` adds it to the collision world like addBox
+function wbox(x1, x2, y1, y2, z1, z2, mat, tile, parent, collide) {
+  var m = box(x2 - x1, y2 - y1, z2 - z1, mat, (x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2, parent); worldUV(m, tile || 2);
+  if (collide) boxes.push({ x1: Math.min(x1, x2), x2: Math.max(x1, x2), z1: Math.min(z1, z2), z2: Math.max(z1, z2), solid: y2 - y1 >= 2.5 });
+  return m;
+}
 function tube(rings, mat, parent, seg, sub, side) { var m = mesh(tubeGeo(rings, seg, sub, side), mat, 0, 0, 0, parent); m.castShadow = true; m.receiveShadow = true; return m; }
 
 function textTex(lines, w, h, bg, fg, border, stains) {
@@ -578,9 +623,110 @@ var dynamic = [];             // things that still move after the scenery is fro
 function dyn(o) { dynamic.push(o); return o; }
 
 // ---------- sound (synthesized effects) ----------
-var prefs = { muted: false, diff: 'normal', duck: false, intro: false, tips: {}, fossils: {} };
-try { var _pr = JSON.parse(localStorage.getItem(PREF_KEY)); if (_pr) { prefs.muted = !!_pr.muted; prefs.duck = !!_pr.duck; prefs.intro = !!_pr.intro; prefs.tips = _pr.tips || {}; prefs.fossils = _pr.fossils || {}; if (DIFFS[_pr.diff]) prefs.diff = _pr.diff; } } catch (e) {}
+var prefs = { muted: false, diff: 'normal', duck: false, intro: false, tips: {}, fossils: {},
+  gfx: '', sens: 1, invert: false, fov: 72, vol: 0.8, music: 0.8, fps: false, bob: 1 };
+try {
+  var _pr = JSON.parse(localStorage.getItem(PREF_KEY));
+  if (_pr) {
+    prefs.muted = !!_pr.muted; prefs.duck = !!_pr.duck; prefs.intro = !!_pr.intro; prefs.tips = _pr.tips || {}; prefs.fossils = _pr.fossils || {}; if (DIFFS[_pr.diff]) prefs.diff = _pr.diff;
+    if (GFX[_pr.gfx]) prefs.gfx = _pr.gfx;
+    ['sens', 'fov', 'vol', 'music', 'bob'].forEach(function (k) { if (typeof _pr[k] === 'number' && isFinite(_pr[k])) prefs[k] = _pr[k]; });
+    prefs.invert = !!_pr.invert; prefs.fps = !!_pr.fps;
+  }
+} catch (e) {}
+prefs.sens = clamp(prefs.sens, 0.25, 3); prefs.fov = clamp(prefs.fov, 60, 95); prefs.vol = clamp(prefs.vol, 0, 1); prefs.music = clamp(prefs.music, 0, 1); prefs.bob = clamp(prefs.bob, 0, 1);
 function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch (e) {} }
+if (!prefs.gfx) {        // first run: a sensible default from what the machine reports
+  prefs.gfx = (navigator.hardwareConcurrency || 4) <= 4 ? 'medium' : 'high';
+}
+
+/* ---------- the light pool ----------
+   The park has a few dozen lamps, terminals and work lights, but a fragment shader pays for every light in the scene on
+   every pixel.  So the real lights are taken out of the scene and kept as descriptions (game code goes on setting their
+   intensity, colour and position as before), and a fixed number of real PointLights is handed each frame to the ones that
+   matter most from where the camera stands.  The count only changes with the graphics preset, so shaders never recompile
+   mid-game. */
+var LightPool = {
+  src: [], slots: [], ready: false, frustum: new THREE.Frustum(), pm: new THREE.Matrix4(), sph: new THREE.Sphere(), v: new THREE.Vector3(),
+  collect: function (keep) {
+    var me = this, found = [];
+    scene.traverse(function (o) { if (o.isPointLight && o.parent === scene && keep.indexOf(o) < 0) found.push(o); });
+    found.forEach(function (l) { scene.remove(l); l.userData.pool = { slot: -1 }; me.src.push(l); });
+    this.ready = true;
+  },
+  setSize: function (n) {
+    while (this.slots.length < n) { var l = new THREE.PointLight(0xffffff, 0, 10, 1.4); l.userData.src = null; l.userData.fade = 0; scene.add(l); this.slots.push(l); }
+    while (this.slots.length > n) { var s = this.slots.pop(); if (s.userData.src) s.userData.src.userData.pool.slot = -1; scene.remove(s); }
+  },
+  update: function (dt) {
+    if (!this.ready) return;
+    var me = this, cam = camera.position, i, l, best = [];
+    camera.updateMatrixWorld(); this.pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); this.frustum.setFromProjectionMatrix(this.pm);
+    for (i = 0; i < this.src.length; i++) {
+      l = this.src[i]; var I = l.intensity * (l.visible === false ? 0 : 1); l.userData.pool.score = 0;
+      if (I < 0.01) continue;
+      var reach = l.distance || 40, d = cam.distanceTo(l.position);
+      if (d > reach + camera.far * 0.5) continue;
+      this.sph.center.copy(l.position); this.sph.radius = reach;
+      var seen = d < reach + 1 || this.frustum.intersectsSphere(this.sph);
+      if (!seen) continue;
+      l.userData.pool.score = I * Math.sqrt(reach) / (d + 3) * (d < reach ? 2 : 1);
+      best.push(l);
+    }
+    best.sort(function (a, b) { return b.userData.pool.score - a.userData.pool.score; });
+    var want = best.slice(0, this.slots.length);
+    // free slots whose light dropped out (fade out first), then hand free slots to newcomers
+    for (i = 0; i < this.slots.length; i++) {
+      var s = this.slots[i], src = s.userData.src;
+      if (src && want.indexOf(src) < 0) { s.userData.fade = Math.max(0, s.userData.fade - dt * 4); if (s.userData.fade <= 0) { src.userData.pool.slot = -1; s.userData.src = null; } }
+      else if (src) s.userData.fade = Math.min(1, s.userData.fade + dt * 4);
+    }
+    want.forEach(function (src) {
+      if (src.userData.pool.slot >= 0) return;
+      for (var k = 0; k < me.slots.length; k++) if (!me.slots[k].userData.src) { me.slots[k].userData.src = src; me.slots[k].userData.fade = 0; src.userData.pool.slot = k; break; }
+    });
+    for (i = 0; i < this.slots.length; i++) {
+      var sl = this.slots[i], so = sl.userData.src;
+      if (!so) { sl.intensity = 0; continue; }
+      sl.position.copy(so.position); sl.color.copy(so.color); sl.distance = so.distance; sl.decay = so.decay; sl.intensity = so.intensity * sl.userData.fade;
+    }
+  },
+  snap: function () { for (var i = 0; i < this.slots.length; i++) if (this.slots[i].userData.src) this.slots[i].userData.fade = 1; this.update(0); }
+};
+
+/* Compile every shader the scene will need now, rather than the first time each thing comes into view (that first-sight
+   compile is the stutter you feel turning a corner).  Hidden things are shown for the moment it takes. */
+function warmShaders(full) {
+  /* full: also draw one frame of the whole park with nothing culled (behind the loading screen), which uploads every texture
+     and builds the shadow-pass shaders too.  The first sight of anything then costs nothing. */
+  var hidden = [], culled = [], i;
+  scene.traverse(function (o) { if (!o.visible) { hidden.push(o); o.visible = true; } if (full && o.frustumCulled) { culled.push(o); o.frustumCulled = false; } });
+  try {
+    renderer.compile(scene, camera);
+    if (full) { var fi = flashlight.intensity, cs = flashlight.castShadow; flashlight.intensity = 2; renderFrame(0, 0); flashlight.intensity = fi; }
+  } catch (e) {}
+  for (i = 0; i < hidden.length; i++) hidden[i].visible = false;
+  for (i = 0; i < culled.length; i++) culled[i].frustumCulled = true;
+}
+
+function applyGfx(name, quiet) {
+  if (!GFX[name]) name = 'high';
+  var G = GFX[name], dpr = window.devicePixelRatio || 1; gfxName = name; prefs.gfx = name;
+  buildComposer(G.msaa);
+  setPixelRatio(Math.min(dpr, G.pr));
+  if (bloomPass) bloomPass.enabled = G.bloom;
+  if (gradePass) gradePass.uniforms.grain.value = G.grain;
+  var sh = G.shadow > 0;
+  if (flashlight.shadow.mapSize.x !== (G.shadow || 512)) { flashlight.shadow.mapSize.set(G.shadow || 512, G.shadow || 512); if (flashlight.shadow.map) { flashlight.shadow.map.dispose(); flashlight.shadow.map = null; } }
+  flashlight.castShadow = sh; renderer.shadowMap.enabled = sh;
+  renderer.shadowMap.type = G.shadow >= 1024 ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap; renderer.shadowMap.needsUpdate = true;
+  LightPool.setSize(G.lights);
+  camera.far = G.far; camera.updateProjectionMatrix();
+  if (window.W && W.vegScale) W.vegScale(G.veg);
+  scene.traverse(function (o) { if (o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) { m.needsUpdate = true; }); } });
+  if (LightPool.ready) { LightPool.snap(); if (!quiet) warmShaders(true); }
+  savePrefs();
+}
 
 var Sound = {
   ctx: null,
@@ -588,12 +734,13 @@ var Sound = {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     var C = window.AudioContext || window.webkitAudioContext; if (!C) return;
     var ctx = this.ctx = new C();
-    this.master = ctx.createGain(); this.master.gain.value = prefs.muted ? 0 : 0.7; this.master.connect(ctx.destination);
+    this.master = ctx.createGain(); this.master.gain.value = prefs.muted ? 0 : 0.875 * prefs.vol; this.master.connect(ctx.destination);
     var buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = buf.getChannelData(0), last = 0;
     for (var i = 0; i < d.length; i++) { var w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = w * 0.5 + last * 3; }
     this.buf = buf;
   },
-  setMuted: function (m) { prefs.muted = m; savePrefs(); if (this.master) this.master.gain.value = m ? 0 : 0.7; },
+  setMuted: function (m) { prefs.muted = m; savePrefs(); this.setVolume(); },
+  setVolume: function () { if (this.master) this.master.gain.setTargetAtTime(prefs.muted ? 0 : 0.875 * prefs.vol, this.ctx.currentTime, 0.05); },
   noise: function (dur, freq, vol, delay) {
     if (!this.ctx) return; var ctx = this.ctx, t = ctx.currentTime + (delay || 0);
     var s = ctx.createBufferSource(); s.buffer = this.buf; s.loop = true;
@@ -746,7 +893,7 @@ var Music = {
     var w = this.want(), n, a, target;
     for (n in this.tracks) {
       a = this.tracks[n];
-      target = n === w && !prefs.muted ? this.vol[n] * (state === 'paused' ? 0.45 : 1) : 0;
+      target = n === w && !prefs.muted ? this.vol[n] * (prefs.music / 0.8) * (prefs.vol / 0.8) * (state === 'paused' ? 0.45 : 1) : 0; target = Math.min(target, 1);
       a.volume = clamp(a.volume + clamp(target - a.volume, -dt * 0.6, dt * 0.9), 0, 1);
       if (target > 0 && a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
       else if (target === 0 && a.volume <= 0.001 && !a.paused) { a.pause(); if (n === 'chase' || n === 'intro') a.currentTime = 0; }

@@ -246,17 +246,23 @@ function buildRexSkeleton(px, pz) {
 var NAV = { n: 150, cell: 2, grids: [null, null], radius: [0.9, 2.5], sig: '', gen: 0, fails: 0,
   gCost: new Float32Array(22500), from: new Int32Array(22500), seen: new Uint32Array(22500), shut: new Uint32Array(22500) };
 function navCell(x, z) { return clamp(Math.floor((z + WORLD) / 2), 0, 149) * 150 + clamp(Math.floor((x + WORLD) / 2), 0, 149); }
-function navSignature() { var s = (P && P.esc ? 'E' : 'N'); for (var i = 0; i < boxes.length; i++) if (boxes[i].off) s += i + ','; return s; }
-function buildNav() {
-  var esc = !!(P && P.esc);
-  for (var k = 0; k < 2; k++) {
-    var r = NAV.radius[k], grid = new Uint8Array(22500), ix, iz, i;
+/* The walkable grid.  Everything that never moves (walls, buildings, trunks, the safe rooms' surroundings) is worked out
+   once into a base grid; things that open and shut (gates, doors, turnstiles: any box with its own `off` flag) are stamped
+   on top whenever one of them changes.  Re-checking every cell against every box each time a door moved used to stall
+   the game for a large fraction of a second. */
+function navSignature() { var s = (P && P.esc ? 'E' : 'N'); for (var i = 0; i < NAV.dyn.length; i++) if (NAV.dyn[i].off) s += i + ','; return s; }
+NAV.base = [null, null]; NAV.baseEsc = null; NAV.nBoxes = -1; NAV.dyn = []; NAV.dynState = null;
+function navBase(esc) {
+  var i, k, dyn = [], isDyn = new Uint8Array(boxes.length);
+  for (i = 0; i < boxes.length; i++) if (Object.prototype.hasOwnProperty.call(boxes[i], 'off')) { dyn.push(boxes[i]); isDyn[i] = 1; }
+  for (k = 0; k < 2; k++) {
+    var r = NAV.radius[k], grid = new Uint8Array(22500), ix, iz;
     for (iz = 0; iz < 150; iz++) for (ix = 0; ix < 150; ix++) {
       var x = ix * 2 - WORLD + 1, z = iz * 2 - WORLD + 1, bad = Math.abs(x) > WORLD - 2 - r || Math.abs(z) > WORLD - 2 - r || inRect(x, z, AQ, r + 0.5);
-      for (i = 0; !bad && i < boxes.length; i++) { var b = boxes[i]; if (!b.off && x > b.x1 - r && x < b.x2 + r && z > b.z1 - r && z < b.z2 + r) bad = true; }
       if (!bad && !esc && nearSafe(x, z, 2.2 + r)) bad = true;
       grid[iz * 150 + ix] = bad ? 1 : 0;
     }
+    for (i = 0; i < boxes.length; i++) if (!isDyn[i]) navStampBox(grid, boxes[i], r);
     /* Round obstacles are stamped in afterwards.  A raptor slips between tree trunks, so only the big ones count for it;
        the rex is four metres wide and cannot, so every trunk counts and it keeps to the paths and clearings. */
     for (i = 0; i < circles.length; i++) {
@@ -264,6 +270,23 @@ function buildNav() {
       var rr = c.r + r, x0 = Math.max(0, Math.floor((c.x - rr + WORLD) / 2)), x1 = Math.min(149, Math.floor((c.x + rr + WORLD) / 2)), z0 = Math.max(0, Math.floor((c.z - rr + WORLD) / 2)), z1 = Math.min(149, Math.floor((c.z + rr + WORLD) / 2));
       for (iz = z0; iz <= z1; iz++) for (ix = x0; ix <= x1; ix++) if (dist(ix * 2 - WORLD + 1, iz * 2 - WORLD + 1, c.x, c.z) < rr) grid[iz * 150 + ix] = 1;
     }
+    NAV.base[k] = grid;
+  }
+  NAV.dyn = dyn; NAV.dynState = new Uint8Array(dyn.length).fill(2); NAV.baseEsc = esc; NAV.nBoxes = boxes.length;
+}
+function navStampBox(grid, b, r) {         // every cell whose centre lies within r of the box
+  var ix0 = Math.max(0, Math.floor((b.x1 - r + WORLD - 1) / 2)), ix1 = Math.min(149, Math.ceil((b.x2 + r + WORLD - 1) / 2)), iz0 = Math.max(0, Math.floor((b.z1 - r + WORLD - 1) / 2)), iz1 = Math.min(149, Math.ceil((b.z2 + r + WORLD - 1) / 2));
+  for (var iz = iz0; iz <= iz1; iz++) { var z = iz * 2 - WORLD + 1; if (z <= b.z1 - r || z >= b.z2 + r) continue; for (var ix = ix0; ix <= ix1; ix++) { var x = ix * 2 - WORLD + 1; if (x > b.x1 - r && x < b.x2 + r) grid[iz * 150 + ix] = 1; } }
+}
+function buildNav() {
+  var esc = !!(P && P.esc), i, k, changed = false;
+  if (esc !== NAV.baseEsc || boxes.length !== NAV.nBoxes || !NAV.base[0]) navBase(esc);
+  for (i = 0; i < NAV.dyn.length; i++) { var st = NAV.dyn[i].off ? 1 : 0; if (st !== NAV.dynState[i]) { NAV.dynState[i] = st; changed = true; } }
+  if (!changed && NAV.grids[0]) return;
+  for (k = 0; k < 2; k++) {
+    var grid = NAV.grids[k] && NAV.grids[k] !== NAV.base[k] ? NAV.grids[k] : new Uint8Array(22500);
+    grid.set(NAV.base[k]);
+    for (i = 0; i < NAV.dyn.length; i++) if (!NAV.dyn[i].off) navStampBox(grid, NAV.dyn[i], NAV.radius[k]);
     NAV.grids[k] = grid;
   }
   NAV.sig = navSignature();
@@ -456,7 +479,7 @@ function makeNoise(x, z, radius) {
 // ---------- dinosaurs: brains ----------
 function updateDinos(dt, c) {
   var esc = !!(P && P.esc), px = player.x, pz = player.z, i, d;
-  if (navSignature() !== NAV.sig) buildNav();
+  buildNav();                                   // cheap unless a gate, door or turnstile has just changed
   // during the lockdown the whole park is told where you are every so often (constantly on hard)
   if (esc) { pingT -= dt; if (pingT <= 0) { pingT = DIFF.ping || 0.5; pingX = px; pingZ = pz; } }
   // pack roles: nearest chaser runs you down, the next one flanks, a third cuts you off

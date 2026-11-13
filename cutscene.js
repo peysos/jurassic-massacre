@@ -8,32 +8,72 @@
 var Cutscene = (function () {
   var C = { playing: false }, E = Entrance, GZ = WORLD - 0.6;
   var T = 0, done = null, skipHold = 0, skipKey = false, skipping = -1, fade = 1, subEl, skipEl, fadeEl, ringEl;
-  var cam = { x: 0, y: 1.66, z: 0, yaw: 0, pitch: 0 }, bob = 0, lastX = 0, lastZ = 0, speed = 0, stepPh = 0, shakeT = 0, fired = {}, puffs = [];
+  var cam = { x: 0, y: 1.66, z: 0, yaw: 0, pitch: 0 }, lastX = 0, lastZ = 0, speed = 0, stepPh = 0, shakeT = 0, fired = {}, puffs = [];
   var RX = 4.15, RY = 1.42, RZ = WORLD + 0.72;                       // the face of the card reader
 
-  // ---------- the camera's path: [time, x, y, z, yaw, pitch, ease]  (ease 0 = steady, 1 = slow in and out) ----------
-  var PATH = [
-    [0, 0.5, 1.66, WORLD + 39, 0.02, -0.06, 0], [3.2, 0.3, 1.66, WORLD + 31.5, -0.05, -0.02, 0], [5.4, 0.1, 1.66, WORLD + 26.2, 0.08, 0.03, 0], [8.2, 0.0, 1.66, WORLD + 19.6, 0.0, 0.16, 0],
-    [10.6, 0.0, 1.66, WORLD + 14.2, 0.0, 0.31, 2], [13.6, 0.0, 1.66, WORLD + 13.6, -0.02, 0.33, 1],          // stare up at the sign
-    [15.2, 0.9, 1.65, WORLD + 9.5, -0.3, 0.02, 1], [17.4, 4.0, 1.6, WORLD + 1.4, -0.05, -0.2, 1],          // down, across to the reader
-    [29.2, 4.0, 1.6, WORLD + 1.4, -0.05, -0.2, 1],                                                          // the business with the card
-    [31.0, 1.5, 1.64, WORLD + 4.4, 0.2, -0.02, 1], [38.2, 1.2, 1.64, WORLD + 4.9, 0.14, 0.0, 1],              // step back and watch it open
-    [40.0, 0.4, 1.66, WORLD + 1.0, 0.03, -0.02, 3], [43.6, 0.0, 1.66, WORLD - 8.3, 0.0, -0.03, 2],            // through the gate
-    [45.0, 0.0, 1.66, WORLD - 8.5, 0.72, -0.03, 1], [46.9, 0.0, 1.66, WORLD - 8.5, -0.78, 0.0, 1],            // left ... right
-    [47.5, 0.0, 1.66, WORLD - 8.5, -0.7, 0.0, 1], [48.3, 0.0, 1.66, WORLD - 8.4, -PI, 0.0, 1],                // something moves behind you
-    [50.4, -0.3, 1.66, WORLD - 5.2, -PI + 0.04, 0.0, 1], [52.3, -0.62, 1.63, WORLD - 1.34, -PI + 0.05, -0.1, 1],   // run back to it
-    [55.6, -0.62, 1.63, WORLD - 1.34, -PI + 0.05, -0.1, 1], [57.6, -0.3, 1.66, WORLD - 3.4, -PI - 0.2, 0.02, 1],
-    [59.6, 0.0, 1.66, START.z, -PI * 2, -0.03, 1]                                                              // turn to face the park
-  ];
-  var END = PATH[PATH.length - 1][0] + 0.6;
-  var SUBS = [[10.9, 13.7, 'Family Zoo. Twelve years, and it still makes my skin crawl.'], [21.9, 23.6, 'Come on. Not tonight.'], [27.7, 29.4, 'There you go.'],
-    [33.4, 36.2, 'Time to investigate.'], [52.9, 55.4, 'No. No, no, no — it’s locked.'], [57.2, 59.8, 'Fine. The long way round, then.']];
-  function ease(k, e) { return e === 1 ? easeIO(k) : e === 2 ? easeOut(k) : e === 3 ? k * k : k; }
-  function sample(t) {
-    var i = 0; while (i < PATH.length - 2 && PATH[i + 1][0] <= t) i++;
-    var a = PATH[i], b = PATH[i + 1], k = ease(clamp((t - a[0]) / (b[0] - a[0]), 0, 1), b[6]);
-    cam.x = lerp(a[1], b[1], k); cam.y = lerp(a[2], b[2], k); cam.z = lerp(a[3], b[3], k); cam.yaw = lerp(a[4], b[4], k); cam.pitch = lerp(a[5], b[5], k);
+  /* ---------- the walk ----------
+     The body moves along smooth paths at a person's pace (about 1.3 m/s walking, 5 m/s in the sprint back to the gate),
+     speeding up and slowing down over most of a second rather than sliding; where the head points is keyed separately, so
+     looking about never drags the feet with it.  Segment: [t0, t1, points (x, z from the gate line), accel s, decel s]. */
+  function Z(z) { return WORLD + z; }
+  var SEGS = [
+    [0.0, 9.6, [[0.55, 21.5], [0.35, 15.0], [0.2, 9.2]], 0, 1.1],                                        // up the road (already walking)
+    [13.8, 21.0, [[0.2, 9.2], [1.6, 6.3], [3.65, 2.9], [4.5, 1.32]], 0.8, 1.0],                           // across to the card reader
+    [33.0, 36.6, [[4.5, 1.32], [3.7, 2.4], [2.8, 3.3]], 0.6, 0.9],                                      // step back to watch it open
+    [41.8, 54.8, [[2.8, 3.3], [1.1, 1.6], [0.3, -0.5], [0.0, -5.0], [0.2, -10.0], [0.3, -12.0]], 0.9, 0.7],   // in through the gate, looking about
+    [55.3, 57.9, [[0.3, -12.0], [-0.1, -6.0], [-0.5, -1.55]], 0.5, 0.45],                                 // the sprint back
+    [61.0, 63.2, [[-0.5, -1.55], [-0.4, -2.4], [-0.3, -3.2]], 0.5, 0.7],                                  // backing off from it
+    [63.6, 67.6, [[-0.3, -3.2], [-0.15, -6.0], [0.0, START.z - WORLD]], 0.8, 1.0]                         // and into the plaza
+  ].map(function (sg) {
+    var pts = sg[2].map(function (p) { return new THREE.Vector3(p[0], 0, Z(p[1])); });
+    var cv = pts.length > 2 ? new THREE.CatmullRomCurve3(pts, false, 'centripetal') : new THREE.LineCurve3(pts[0], pts[1]);
+    return { t0: sg[0], t1: sg[1], curve: cv, len: cv.getLength(), a: sg[3], b: sg[4], end: pts[pts.length - 1] };
+  });
+  // distance fraction covered at time fraction u, for a trapezoid speed profile (accelerate over a, cruise, decelerate over b; fractions of the segment)
+  function travel(u, a, b) {
+    u = clamp(u, 0, 1); var v = 1 / (1 - a / 2 - b / 2);
+    if (a > 0 && u < a) return v * u * u / (2 * a);
+    if (b > 0 && u > 1 - b) return 1 - v * (1 - u) * (1 - u) / (2 * b);
+    return v * (a / 2 + (u - a));
   }
+  var segV = new THREE.Vector3();
+  function bodyAt(t) {
+    var last = SEGS[0].curve.getPointAt(0, segV).clone();
+    for (var i = 0; i < SEGS.length; i++) {
+      var S2 = SEGS[i];
+      if (t < S2.t0) return last;
+      if (t <= S2.t1) { var T2 = S2.t1 - S2.t0; return S2.curve.getPointAt(clamp(travel((t - S2.t0) / T2, S2.a / T2, S2.b / T2), 0, 1), segV).clone(); }
+      last = S2.end.clone();
+    }
+    return last;
+  }
+  /* Where the head points: [t, yaw, pitch].  Between keys it turns with an ease in and out (a head turn), and holds after. */
+  var GY = 0.70;                                                                                         // toward the gate, from where you watch it open
+  var LOOK = [
+    [0, 0.02, -0.05], [3.5, -0.03, 0.0], [7.0, 0.02, 0.1], [9.6, 0.0, 0.22], [11.0, -0.03, 0.4], [13.2, 0.02, 0.38],      // the sign
+    [14.8, 'at', 4.15, 1.2, 0.7], [20.2, 'at', 4.15, 1.42, 0.7], [21.2, 'at', 4.12, 1.36, 0.72],                           // to the reader, eyes on it
+    [33.1, 'at', 4.12, 1.36, 0.72], [34.4, GY, -0.04], [36.6, GY - 0.05, 0.02], [41.6, GY - 0.02, 0.0],                              // watch it open
+    [43.4, 0.35, -0.03], [45.4, 0.02, -0.02], [47.0, 0.0, 0.0], [48.4, 0.8, 0.02], [49.6, 0.78, -0.06],                    // through, then a look left (the shed)
+    [51.0, -0.05, 0.0], [52.2, -0.9, -0.03], [53.6, -0.86, 0.0], [54.3, -0.4, 0.0],                                       // and right (the shop)
+    [54.5, -0.38, 0.02], [55.35, -PI + 0.04, -0.02], [57.9, -PI + 0.06, -0.12],                                             // the screech: turn round
+    [61.0, -PI + 0.05, -0.1], [62.9, -PI - 0.15, 0.0], [64.6, -PI * 2, -0.03], [67.6, -PI * 2, -0.03]                       // back off, and face the park
+  ];
+  var END = 68.2;
+  var SUBS = [[10.4, 13.2, 'Family Zoo. Twelve years, and it still makes my skin crawl.'], [25.9, 27.6, 'Come on. Not tonight.'], [31.7, 33.4, 'There you go.'],
+    [37.4, 40.0, 'Right. Let’s see what’s left of the place.'], [58.4, 61.0, 'No. No, no, no — it’s locked.'], [64.0, 66.8, 'Fine. The long way round, then.']];
+  /* A key may instead name a point to look at ([t, 'at', x, y, z from the gate line]): its yaw and pitch are worked out from
+     wherever the body is at that moment, so the head stays on the thing you are walking up to. */
+  function keyDir(k, t, p) {
+    if (k[1] !== 'at') return [k[1], k[2]];
+    var dx = k[2] - p.x, dz = Z(k[4]) - p.z, dy = k[3] - 1.66, hd = Math.hypot(dx, dz);
+    return [Math.atan2(-dx, -dz), Math.atan2(dy, hd)];
+  }
+  function lookAt(t, p) {
+    var i = 0; while (i < LOOK.length - 2 && LOOK[i + 1][0] <= t) i++;
+    var a = LOOK[i], b = LOOK[i + 1], k = easeIO(clamp((t - a[0]) / (b[0] - a[0]), 0, 1)), da = keyDir(a, t, p), db = keyDir(b, t, p);
+    cam.yaw = lerp(da[0], da[0] + angDiff(db[0], da[0]), k); cam.pitch = lerp(da[1], db[1], k);
+  }
+  function sample(t) { var p = bodyAt(t); cam.x = p.x; cam.z = p.z; cam.y = 1.66; lookAt(t, p); }
   function once(key, t) { if (T >= t && !fired[key]) { fired[key] = true; return true; } return false; }
   function win(t, a, b) { return t >= a && t < b; }
 
@@ -54,88 +94,115 @@ var Cutscene = (function () {
   function settle() {
     E.driven = false; E.setGate(0); E.setBeacon(false, 0); E.dustFill(0.1); E.lcd(''); E.ledR.color.setHex(0x1a0404); E.ledG.color.setHex(0x041a08); E.ctrlLed.color.setHex(0x1a0505);
     E.lights.gate.intensity = 0; E.introLight = false; var L = E.lights.shed, h = L.userData.home; L.position.set(h[0], h[1], h[2]); L.distance = h[3]; L.decay = 1.4; L.color.setHex(0xffd9a0); L.intensity = 0;
-    E.hangLetter.rotation.z = E.hangLetter.userData.rest; Hands.aim = null; Hands.card.visible = false; Hands.release(); Sound.motorSet(0); Sound.windSet(0.06);
+    E.hangLetter.rotation.z = E.hangLetter.userData.rest; Hands.aim = null; Hands.cardHold = null; Hands.card.visible = false; Hands.release(); Sound.motorSet(0); Sound.windSet(0.06);
     puffs.forEach(function (p) { p.life = 0; p.sprite.visible = false; });
     subEl.classList.remove('show'); skipEl.classList.remove('show'); fadeEl.style.opacity = 0; document.body.classList.remove('letterbox');
   }
 
   // ---------- one frame ----------
+  var GOPEN = [34.0, 41.6], GCLOSE = [49.5, 56.5];                       // the gate: opens for you, then shuts behind you
+  var tipW = new THREE.Vector3(), RD_FACE = WORLD + 0.652 + 0.0935;       // the face of the card reader (its dust layer)
   function update(dt) {
-    var t0 = T; T += dt;
+    T += dt;
     // skipping: hold Space (or the button) for a second and a bit
     if (skipping < 0) { skipHold = skipKey ? skipHold + dt : Math.max(0, skipHold - dt * 2); ringEl.style.strokeDashoffset = 100 - clamp(skipHold / 1.1, 0, 1) * 100; if (skipHold >= 1.1) skipping = 0; }
     else { skipping += dt; fadeEl.style.opacity = clamp(skipping / 0.45, 0, 1); if (skipping >= 0.5) { finish(); return true; } }
-    fade = T < 2.2 ? 1 - seg(T, 0.5, 2.2) : T > END - 0.01 ? 0 : 0; if (skipping < 0) fadeEl.style.opacity = fade;
+    fade = T < 2.2 ? 1 - seg(T, 0.5, 2.2) : 0; if (skipping < 0) fadeEl.style.opacity = fade;
     sample(T);
-    // walking: bob with distance covered, a footfall every stride
-    var d = Math.hypot(cam.x - lastX, cam.z - lastZ); lastX = cam.x; lastZ = cam.z; speed = damp(speed, dt > 0 ? d / dt : 0, 8, dt); bob += d * 1.9; stepPh += d;
-    if (stepPh > 1.5) { stepPh = 0; var inside = cam.z < WORLD + 9; Sfx.play(inside ? 'step_stone' : 'step_road', { vol: 0.5, fallback: function () { Sound.step(inside ? 0.11 : 0.14, inside ? 700 : 480); } }); }
-    var k = clamp(speed / 2.4, 0, 1.2); shakeT = Math.max(0, shakeT - dt * 2.4);
-    camera.position.set(cam.x + Math.sin(bob * 0.5) * 0.02 * k + (Math.random() - 0.5) * shakeT * 0.05, cam.y + Math.sin(bob) * 0.034 * k + (Math.random() - 0.5) * shakeT * 0.05, cam.z);
-    camera.rotation.set(cam.pitch + Math.sin(T * 0.7) * 0.004, cam.yaw + Math.sin(T * 0.45) * 0.006, Math.sin(bob * 0.5) * 0.006 * k);
+    /* the head on a walking body: lowest as each foot lands (one step = PI of phase), riding side to side over the stance leg,
+       and a slow breath when standing.  Footfalls are heard as they land. */
+    var d = Math.hypot(cam.x - lastX, cam.z - lastZ); lastX = cam.x; lastZ = cam.z; speed = damp(speed, dt > 0 ? d / dt : 0, 10, dt);
+    var run = clamp((speed - 2.2) / 2.4, 0, 1), stride = lerp(0.74, 1.7, run), ph0 = stepPh; stepPh += d / stride * PI;
+    if (Math.floor(stepPh / PI) !== Math.floor(ph0 / PI) && speed > 0.4) { var inside = cam.z < WORLD + 0.5; Sfx.play(inside ? 'step_stone' : 'step_road', { vol: 0.4 + run * 0.3, fallback: function () { Sound.step((inside ? 0.1 : 0.13) + run * 0.08, inside ? 700 : 480); } }); }
+    var wk = clamp(speed / 1.4, 0, 1), dip = (1 + Math.cos(2 * stepPh)) / 2, s1 = Math.sin(stepPh), br = Math.sin(T * 1.6);
+    var bobY = -dip * (0.026 * wk * (1 - run) + 0.05 * run), bobX = s1 * (0.022 * wk * (1 - run) + 0.02 * run);
+    shakeT = Math.max(0, shakeT - dt * 2.4);
+    camera.position.set(cam.x + bobX * Math.cos(cam.yaw) + (Math.random() - 0.5) * shakeT * 0.04, cam.y + bobY + br * 0.004 * (1 - wk) - run * 0.06 + (Math.random() - 0.5) * shakeT * 0.04, cam.z - bobX * Math.sin(cam.yaw));
+    camera.rotation.set(cam.pitch + br * 0.004 * (1 - wk) - dip * (0.004 * wk + 0.014 * run) - run * 0.03 + Math.sin(T * 0.7) * 0.002, cam.yaw + Math.sin(T * 0.45) * 0.004 + s1 * 0.006 * run, s1 * (0.005 * wk + 0.01 * run));
     if (camera.fov !== 72) { camera.fov = 72; camera.updateProjectionMatrix(); }
 
     // --- the torch ---
     if (once('click', 1.5)) Hands.click(function () { C.lit = true; Sfx.play('torch_click', { fallback: function () { Sound.click(); } }); });
-    var near = seg(T, 16.2, 17.6) * (1 - seg(T, 29.2, 30.6)) + seg(T, 51.6, 52.4) * (1 - seg(T, 55.6, 57));        // close work: the eye adjusts
-    flashlight.intensity = C.lit ? lerp(2.3, 0.62, near) : 0; flashlight.angle = 0.6; Hands.fill.intensity = C.lit ? 0.42 : 0.12; Hands.setLight(!!C.lit);
-    Hands.aim = win(T, 16.6, 29.6) ? [-0.03, -0.01, 0.1, 0.1, 0.16, 0] : win(T, 52.0, 56.0) ? [0.02, -0.02, 0.06, 0.0, -0.12, 0] : null;      // hold it back from things at arm's length
+    var near = seg(T, 20.4, 21.6) * (1 - seg(T, 33.2, 34.6)) + seg(T, 57.6, 58.3) * (1 - seg(T, 60.8, 62));        // close work: the eye adjusts
+    flashlight.intensity = C.lit ? lerp(2.3, 0.55, near) : 0; flashlight.angle = 0.6; Hands.fill.intensity = C.lit ? 0.42 : 0.12; Hands.setLight(!!C.lit);
+    Hands.aim = win(T, 20.6, 33.4) ? [0.0, -0.035, 0.08, -0.12, 0.2, 0] : win(T, 57.7, 61.0) ? [0.02, -0.02, 0.06, 0.0, -0.12, 0] : null;      // hold it back from things at arm's length
 
     // --- the sign: its loose letter stirs ---
-    E.hangLetter.rotation.z = E.hangLetter.userData.rest + Math.sin(T * 1.7) * 0.035 + (win(T, 11, 14) ? Math.sin((T - 11) * 5.2) * 0.06 * (1 - (T - 11) / 3) : 0);
-    if (once('creak', 11.2)) Sound.creak(0.5);
+    E.hangLetter.rotation.z = E.hangLetter.userData.rest + Math.sin(T * 1.7) * 0.03 + (win(T, 10.5, 14) ? Math.sin((T - 10.5) * 5.2) * 0.05 * (1 - (T - 10.5) / 3.5) : 0);
+    if (once('creak', 10.7)) Sound.creak(0.5);
 
-    // --- the reader ---
-    if (once('wipe1', 17.5)) { Hands.use('wipe1', { point: pt(RX - 0.02, RY + 0.02, RZ), pose: 'wipe', tip: 'wipe', rot: [1.35, 0.05, 0.12], dur: 2.5, reach: 0.38, move: function (t) { var u = Math.max(0, t - 0.38); return hv2.set(Math.sin(u * 5.2) * 0.1, 0.14 - u * 0.15, 0); } }); Sound.noise(0.5, 2600, 0.07, 0.4); Sound.noise(0.5, 2200, 0.07, 1.0); Sound.noise(0.5, 2400, 0.06, 1.55); }
-    if (win(T, 17.92, 19.95)) { var u1 = T - 17.92, wx = Math.sin(u1 * 5.2) * 0.1, wy = 0.14 - u1 * 0.15; E.dustWipe(0.5 + (wx - 0.02) / 0.3, 0.5 + (wy + 0.02) / 0.46, 0.3, 0.42); if (Math.random() < dt * 22) puff(RX + wx, RY + wy, RZ, 1); }
-    if (once('lcd1', 20.1)) { E.lcd('SWIPE CARD', '', '#39d86a'); Sound.tone(880, 880, 0.08, 0.1, 'square'); }
-    if (once('card1', 20.3)) Hands.card.visible = true;
-    if (once('swipe1', 20.5)) swipe('swipe1');
-    if (once('read1', 21.32)) { E.lcd('READING ...', '', '#e2b93b'); Sound.noise(0.16, 5200, 0.14); }
-    if (once('deny', 21.75)) { E.lcd('ACCESS DENIED', 'CARD ERROR', '#ff3a2a'); E.ledR.color.setHex(0xff2a1a); E.lights.gate.color.setHex(0xff3020); Sound.buzz(); }
-    if (win(T, 21.75, 23.6)) E.lights.gate.intensity = 0.5 * (Math.sin(T * 14) > 0 ? 1 : 0.2);
-    if (once('clear', 23.6)) { E.ledR.color.setHex(0x1a0404); E.lights.gate.intensity = 0; E.lcd('SWIPE CARD', '', '#39d86a'); }
-    if (once('wipe2', 23.7)) { Hands.card.visible = false; Hands.use('wipe2', { point: pt(RX + 0.1, RY + 0.02, RZ + 0.02), pose: 'point', tip: 'point', rot: [1.1, 0.3, 0.3], dur: 1.75, reach: 0.34, move: function (t) { return hv2.set(Math.sin(t * 9) * 0.006, Math.sin(Math.max(0, t - 0.34) * 7.5) * 0.15, 0); } }); Sound.noise(0.3, 3000, 0.07, 0.4); Sound.noise(0.3, 3200, 0.07, 0.8); Sound.noise(0.3, 2800, 0.06, 1.15); }
-    if (win(T, 24.04, 25.45)) { var u2 = T - 24.04; E.dustWipe(0.86, 0.5 + Math.sin(u2 * 7.5) * 0.33, 0.13, 0.5); if (Math.random() < dt * 16) puff(RX + 0.1, RY + Math.sin(u2 * 7.5) * 0.15, RZ, 1); }
-    if (once('card2', 25.7)) Hands.card.visible = true;
-    if (once('swipe2', 25.9)) swipe('swipe2');
-    if (once('read2', 26.72)) { E.lcd('READING ...', '', '#e2b93b'); Sound.noise(0.16, 5200, 0.14); }
-    if (once('grant', 27.2)) { E.lcd('ACCESS GRANTED', 'WELCOME BACK', '#39d86a'); E.ledG.color.setHex(0x35ff8a); E.lights.gate.color.setHex(0x35ff8a); E.lights.gate.intensity = 0.7; Sound.tone(880, 880, 0.1, 0.16, 'square'); Sound.tone(1320, 1320, 0.16, 0.16, 'square', 0.12); Sound.clunk(); }
-    if (once('cardAway', 28.9)) Hands.card.visible = false;
+    // --- the reader: wipe the dust off with a flat palm, top to bottom in overlapping strokes ---
+    if (once('wipe1', 21.5)) { Hands.use('wipe1', { point: pt(RX + 0.0, RY + 0.02, RD_FACE + 0.012), pose: 'wipe', tip: 'wipe', rot: [1.47, 0.1, 0.08], dur: 2.7, reach: 0.5,
+      move: function (t) { var u = Math.max(0, t - 0.5); return hv2.set(Math.sin(u * 4.6) * 0.085, 0.15 - Math.min(u, 1.9) * 0.15, 0); } });
+      Sound.noise(0.5, 2600, 0.07, 0.55); Sound.noise(0.5, 2200, 0.07, 1.25); Sound.noise(0.5, 2400, 0.06, 1.9); }
+    if (once('lcd1', 24.1)) { E.lcd('SWIPE CARD', '', '#39d86a'); Sound.tone(880, 880, 0.08, 0.1, 'square'); }
+    if (once('card1', 24.25)) Hands.card.visible = true;
+    if (once('swipe1', 24.5)) swipe('swipe1');
+    if (once('read1', 25.32)) { E.lcd('READING ...', '', '#e2b93b'); Sound.noise(0.16, 5200, 0.14); }
+    if (once('deny', 25.75)) { E.lcd('ACCESS DENIED', 'CARD ERROR', '#ff3a2a'); E.ledR.color.setHex(0xff2a1a); E.lights.gate.color.setHex(0xff3020); Sound.buzz(); }
+    if (win(T, 25.75, 27.6)) E.lights.gate.intensity = 0.5 * (Math.sin(T * 14) > 0 ? 1 : 0.2);
+    if (once('clear', 27.6)) { E.ledR.color.setHex(0x1a0404); E.lights.gate.intensity = 0; E.lcd('SWIPE CARD', '', '#39d86a'); }
+    // a fingertip run up and down the card slot to clear the grit out of it
+    if (once('wipe2', 27.7)) { Hands.card.visible = false; Hands.use('wipe2', { point: pt(E.slot.x, RY + 0.0, WORLD + 0.652 + 0.074), pose: 'point', tip: 'point', rot: [1.25, 0.32, 0.25], dur: 1.9, reach: 0.4,
+      move: function (t) { return hv2.set(0, Math.sin(Math.max(0, t - 0.4) * 7.2) * 0.15, 0); } });
+      Sound.noise(0.3, 3000, 0.07, 0.45); Sound.noise(0.3, 3200, 0.07, 0.85); Sound.noise(0.3, 2800, 0.06, 1.25); }
+    // dust comes off exactly where the palm or fingertip is touching the face
+    if ((win(T, 21.9, 24.2) || win(T, 28.05, 29.5)) && Hands.contact()) {
+      Hands.tipWorld(tipW); var lx = tipW.x - RX, ly = tipW.y - RY, lz = tipW.z - RD_FACE, palm = T < 25;
+      if (Math.abs(lz) < 0.04 && Math.abs(lx) < 0.17 && Math.abs(ly) < 0.25) {
+        E.dustWipe(0.5 + lx / 0.3, 0.5 + ly / 0.46, palm ? 0.24 : 0.09, palm ? 0.32 : 0.45);
+        if (Math.random() < dt * (palm ? 20 : 12)) puff(tipW.x, tipW.y, RD_FACE + 0.02, 1);
+      }
+    }
+    if (once('card2', 29.7)) Hands.card.visible = true;
+    if (once('swipe2', 29.9)) swipe('swipe2');
+    if (once('read2', 30.72)) { E.lcd('READING ...', '', '#e2b93b'); Sound.noise(0.16, 5200, 0.14); }
+    if (once('grant', 31.2)) { E.lcd('ACCESS GRANTED', 'WELCOME BACK', '#39d86a'); E.ledG.color.setHex(0x35ff8a); E.lights.gate.color.setHex(0x35ff8a); E.lights.gate.intensity = 0.7; Sound.tone(880, 880, 0.1, 0.16, 'square'); Sound.tone(1320, 1320, 0.16, 0.16, 'square', 0.12); Sound.clunk(); }
+    if (once('cardAway', 32.9)) Hands.card.visible = false;
 
-    // --- the gate opens ---
+    // --- the gate: opens for you; then, once you are well inside, the auto-close shuts it behind you ---
     var open = 0, moving = false;
-    if (win(T, 30.0, 37.6)) { var g1 = (T - 30.0) / 7.6; open = easeIO(g1) + Math.sin(T * 47) * 0.004 * clamp(1 - g1 * 4, 0, 1); moving = true; }
-    else if (T >= 37.6 && T < 47.6) open = 1;
-    else if (win(T, 47.6, 52.0)) { var g2 = (T - 47.6) / 4.4; open = 1 - g2 * g2 * (0.6 + 0.4 * g2); moving = true; }
+    if (win(T, GOPEN[0], GOPEN[1])) { var g1 = (T - GOPEN[0]) / (GOPEN[1] - GOPEN[0]); open = easeIO(g1) + Math.sin(T * 47) * 0.004 * clamp(1 - g1 * 4, 0, 1); moving = true; }
+    else if (T >= GOPEN[1] && T < GCLOSE[0]) open = 1;
+    else if (win(T, GCLOSE[0], GCLOSE[1])) { var g2 = (T - GCLOSE[0]) / (GCLOSE[1] - GCLOSE[0]); open = 1 - Math.pow(g2, 1.45); moving = true; }      // the drive speeds up as it goes, and slams
     E.driven = true; E.setGate(clamp(open, 0, 1));
-    var bf = E.setBeacon(moving || win(T, 29.4, 30.0), T); E.ctrlLed.color.setHex(T > 52 ? 0x1a0505 : moving ? 0x35ff8a : 0x1a0505);
-    if (T > 29.4 && T < 52.2) { E.lights.gate.color.setHex(0xffa030); E.lights.gate.intensity = bf * 1.5; }
-    Sound.motorSet(moving ? 0.22 : 0);
-    if (once('start', 30.0)) { Sound.clunk(); Sound.creak(0.6); }
-    if (once('creak2', 32.4)) Sound.creak(0.5); if (once('creak3', 35.3)) Sound.creak(0.4);
-    if (once('stop1', 37.6)) { Sound.clunk(); Sound.thud(0.3); }
-    if (once('start2', 47.6)) { Sound.clunk(); Sound.creak(0.7); }
-    if (once('creak4', 49.8)) Sound.creak(0.6);
-    if (once('slam', 52.0)) { Sound.clang(); shakeT = 1; E.lights.gate.intensity = 0; }
-    if (once('spark', 52.35)) { Sound.spark(); E.lights.gate.color.setHex(0xbfd8ff); }
-    if (win(T, 52.35, 52.75)) E.lights.gate.intensity = Math.random() < 0.5 ? 1.6 : 0; else if (T >= 52.75 && T < 53) E.lights.gate.intensity = 0;
-    // --- try the gate ---
-    if (once('rattle', 52.7)) { Hands.use('rattle', { point: pt(-0.347, 1.32, GZ), pose: 'hook', tip: 'hook', rot: [0.05, 0.15, 1.4], dur: 2.6, reach: 0.3, move: function (t) { var a = t > 0.3 && t < 2.1 ? Math.sin(t * 26) * 0.014 * (1 - Math.abs(t - 1.2) / 1.1) : 0; return hv2.set(0, 0, a); } }); }
-    if (win(T, 53.0, 54.8)) { var rk = Math.sin((T - 52.7) * 26) * 0.006 * (1 - Math.abs(T - 53.9) / 1.1); E.leaves[0].pivot.rotation.y = rk; E.leaves[1].pivot.rotation.y = -rk * 0.6; if (Math.random() < dt * 9) Sound.rattle(); }
+    var bf = E.setBeacon(moving || win(T, 33.4, GOPEN[0]), T); E.ctrlLed.color.setHex(T > GCLOSE[1] ? 0x1a0505 : moving ? 0x35ff8a : 0x1a0505);
+    if (T > 33.4 && T < GCLOSE[1] + 0.1) { E.lights.gate.color.setHex(0xffa030); E.lights.gate.intensity = bf * 1.5; }
+    var farK = clamp(1 - dist(cam.x, cam.z, 0, WORLD) / 22, 0.15, 1);
+    Sound.motorSet(moving ? (T > GCLOSE[0] ? 0.09 * farK + 0.03 : 0.22) : 0);
+    if (once('start', GOPEN[0])) { Sound.clunk(); Sound.creak(0.6); }
+    if (once('creak2', 36.4)) Sound.creak(0.5); if (once('creak3', 39.3)) Sound.creak(0.4);
+    if (once('stop1', GOPEN[1])) { Sound.clunk(); Sound.thud(0.3); }
+    if (once('start2', GCLOSE[0])) { Sound.tone(160, 60, 0.18, 0.12, 'square'); Sound.noise(0.15, 900, 0.1); }                    // far behind you, and quiet under the wind
+    if (once('creak4', 51.6)) Sound.creak(0.25);
+    if (once('screech', 54.3)) { Sound.creak(1); Sound.creak(0.8); Sound.noise(0.6, 1800, 0.18); }                               // the hinge shrieks: now you hear it
+    if (once('slam', GCLOSE[1])) { Sound.clang(); shakeT = 0.45; E.lights.gate.intensity = 0; }
+    if (once('spark', GCLOSE[1] + 0.35)) { Sound.spark(); E.lights.gate.color.setHex(0xbfd8ff); }
+    if (win(T, GCLOSE[1] + 0.35, GCLOSE[1] + 0.75)) E.lights.gate.intensity = Math.random() < 0.5 ? 1.6 : 0; else if (T >= GCLOSE[1] + 0.75 && T < GCLOSE[1] + 1) E.lights.gate.intensity = 0;
+    // --- try the gate: both hands would, but one holds the light; the free one grabs a bar and shakes it ---
+    if (once('rattle', 57.75)) { Hands.use('rattle', { point: pt(-0.347, 1.3, GZ - 0.04), pose: 'hook', tip: 'hook', rot: [0.05, 0.15, 1.4], dur: 2.8, reach: 0.25, move: function (t) { var a = t > 0.3 && t < 2.3 ? Math.sin(t * 26) * 0.014 * (1 - Math.abs(t - 1.3) / 1.1) : 0; return hv2.set(0, 0, a); } }); Sound.clang(); }
+    if (win(T, 58.05, 60.0)) { var rk = Math.sin((T - 57.75) * 26) * 0.006 * Math.max(0, 1 - Math.abs(T - 59.0) / 1.1); E.leaves[0].pivot.rotation.y = rk; E.leaves[1].pivot.rotation.y = -rk * 0.6; if (Math.random() < dt * 9) Sound.rattle(); }
 
     // --- subtitles, letterbox, the hands, dust ---
     var line = ''; for (var i = 0; i < SUBS.length; i++) if (win(T, SUBS[i][0], SUBS[i][1])) line = SUBS[i][2];
     if (line !== C.line) { C.line = line; if (line) subEl.textContent = line; subEl.classList.toggle('show', !!line); }
-    Hands.update(dt, { speed: speed, yaw: cam.yaw, pitch: cam.pitch, bob: bob, grounded: true });
+    Hands.update(dt, { speed: speed, yaw: cam.yaw, pitch: cam.pitch, phase: stepPh, sprint: run > 0.3, grounded: true });
     stepPuffs(dt);
     if (T >= END) { finish(); return true; }
     return false;
   }
   var hv2 = new THREE.Vector3();
-  function swipe(key) {       // the card comes down through the channel
-    Hands.use(key, { point: pt(E.slot.x + 0.005, RY + 0.25, RZ + 0.045), pose: 'pinch', tip: 'pinch', rot: [0.25, 0.15, 1.35], dur: 1.75, reach: 0.42,
-      move: function (t) { var u = clamp((t - 0.5) / 0.3, 0, 1); return hv2.set(0, -u * u * (3 - 2 * u) * 0.36, 0); }, onTouch: function () { Sound.noise(0.22, 4200, 0.12, 0.1); } });
+  /* The swipe: the card goes edge-first into the channel down the right side of the reader (its face toward you, its long
+     side vertical, a centimetre of it in the slot), is drawn down the length of the channel and comes back out. */
+  var CARD_Q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0)));
+  var cardP = new THREE.Vector3(), swipeU = null;
+  function swipe(key) {
+    swipeU = Hands.use(key, { point: pt(E.slot.x, RY + 0.2, WORLD + 0.766), pose: 'pinch', tip: 'pinch', rot: [0.5, -0.3, 1.5], dur: 1.75, reach: 0.42,
+      move: function (t) { var u = clamp((t - 0.5) / 0.3, 0, 1); return hv2.set(0, -u * u * (3 - 2 * u) * 0.3, 0); }, onTouch: function () { Sound.noise(0.22, 4200, 0.12, 0.1); } });
+    Hands.cardHold = function () {                // held upright between finger and thumb, from the moment the hand sets off until it lets go of the swipe
+      var u = swipeU; if (!u || u.leaving) return null;
+      Hands.tipWorld(cardP); cardP.z -= 0.019; return { p: cardP, q: CARD_Q };
+    };
   }
   function seg(t, a, b) { return sstep((t - a) / (b - a)); }
   function finish() {
@@ -146,8 +213,8 @@ var Cutscene = (function () {
 
   C.play = function (cb) {
     subEl = $('subs'); skipEl = $('skip'); fadeEl = $('fade'); ringEl = $('skipRing');
-    T = 0; fired = {}; done = cb; skipHold = 0; skipKey = false; skipping = -1; C.playing = true; C.lit = false; C.line = ''; bob = 0; speed = 0; stepPh = 0;
-    sample(0); lastX = cam.x; lastZ = cam.z;
+    T = 0; fired = {}; done = cb; skipHold = 0; skipKey = false; skipping = -1; C.playing = true; C.lit = false; C.line = ''; speed = 1.36; stepPh = 0;
+    sample(0); lastX = cam.x; lastZ = cam.z + 1.36 / 60;
     E.dustFill(1); E.lcd(''); E.driven = true; E.setGate(0); E.introLight = true;
     var L = E.lights.shed; L.position.set(2.2, 1.05, WORLD + 45.4); L.distance = 100; L.decay = 1.1; L.color.setHex(0xfff1d6); L.intensity = 2.3;        // the truck's headlights
     fadeEl.style.opacity = 1; skipEl.classList.add('show'); document.body.classList.add('letterbox'); Sound.windSet(0.12);

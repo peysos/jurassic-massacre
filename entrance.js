@@ -132,7 +132,10 @@ var Entrance = (function () {
     var grp = hang ? dyn(new THREE.Group()) : new THREE.Group();
     var plate = box(0.72, 0.94, 0.025, plateBack, hang ? -0.32 : 0, hang ? -0.43 : 0, 0, grp);
     mesh(new THREE.PlaneGeometry(0.72, 0.94), std(0xffffff, 0.72, { map: letterTex(word[i], i * 7 + 3), bumpMap: bump(2), bumpScale: 0.006 }), plate.position.x, plate.position.y, 0.0135, grp);
-    if (hang) { grp.position.set(lx + 0.32, ly + 0.43, AZ + 0.075); grp.rotation.z = slope - 0.5; grp.userData.rest = slope - 0.5; E.hangLetter = grp; }
+    /* The hanging letter: it has lost three bolts and turns on the one left in its top-right corner.  Gravity swings it until
+       its middle is under that bolt (+0.64 rad), which carries it out past the end of the arch, clear of its neighbour. */
+    if (hang) { grp.position.set(lx + 0.32, ly + 0.43, AZ + 0.075); grp.rotation.z = 0.6; grp.userData.rest = 0.6; E.hangLetter = grp;
+      cyl(0.022, 0.022, 0.05, EM.rustSteel, 0, 0, 0.01, grp, 8).rotation.x = PI / 2; box(0.05, 0.05, 0.02, EM.rustSteel, 0, 0, -0.03, grp); }
     else { grp.position.set(lx, ly, AZ + 0.075); grp.rotation.z = slope + (i === 1 ? 0.06 : i === 6 ? -0.04 : 0); }
     scene.add(grp); E.letters.push(grp);
   }
@@ -390,98 +393,361 @@ var Entrance = (function () {
   circles.push({ x: 4.15, z: GZ - 0.2, r: 0.3 });
 
   // ---------- plaza ----------
-  flat(52, 36.2, rt(EM.paver, 26, 18.1), 0.5, 0.022, 131.3);
-  // the fountain: a dry basin and the park's mascot in bronze
+  /* The forecourt between the gate and the ticket lanes.  It is closed in east and west by the park's rendered walls where the
+     paving ends (planted beds along them, gone wild), with a fenced service yard behind the maintenance shed and a locked
+     staff alley behind the gift shop, so there is nowhere to wander round the back of anything.  The fountain is at its
+     heart with the benches set round it; the walk from the gate to the ticket lanes runs straight past it. */
+  var PX1 = -25.4, PX2 = 26.4, PZ1 = 116.25, PZ2 = 149.25;
+  // stretcher-bond concrete pavers, 20 x 10 cm, 4 m to a repeat; weeds and moss in the joints, oil and rain stains on top
+  function paverPaint(height) {
+    return function (g, S) {
+      var px = S / 20, py = S / 40, r, c, tones = ['#6f6b62', '#66625a', '#77736a', '#5f5b53', '#726d63', '#6a665d', '#5a574f'];
+      g.fillStyle = height ? '#151515' : '#262820'; g.fillRect(0, 0, S, S);
+      for (r = 0; r < 40; r++) for (c = -1; c < 20; c++) {
+        var x = c * px + (r % 2 ? px / 2 : 0), y = r * py, n = (r * 13 + c * 7 + ((r * c) % 5)) % 7;
+        if (height) { var v = 150 + (n * 9) % 50; g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; g.fillRect(x + 1.6, y + 1.6, px - 3.2, py - 3.2); g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(x + 2.6, y + 2.6, px - 5.2, py - 5.2); }
+        else { g.fillStyle = tones[n]; g.fillRect(x + 1.4, y + 1.4, px - 2.8, py - 2.8); }
+      }
+      if (height) return;
+      g.globalAlpha = 0.5; speckle('rgba(0,0,0,0)', ['#4f4b43', '#8f8a7f', '#5c5850', '#3d3a33', '#9a958a'], 26000, 1.3)(g, S); g.globalAlpha = 1;
+      blotch(g, S, ['#1f2618', '#1a1c14', '#2e2a1c', '#283a1a', '#121410'], 70, 20, 130, 0.38);         // damp, moss, oil
+      g.fillStyle = 'rgba(56,74,34,.7)';                                                                 // weeds in the joints
+      for (var q = 0; q < 420; q++) { var jr = (Math.random() * 40) | 0, jx = Math.random() * S; g.fillRect(jx, jr * py - 1, 3 + Math.random() * 10, 2.4); }
+      g.strokeStyle = 'rgba(16,16,13,.7)'; g.lineWidth = 1.2;
+      for (q = 0; q < 12; q++) { var x0 = Math.random() * S, y0 = Math.random() * S; g.beginPath(); g.moveTo(x0, y0); for (var k2 = 0; k2 < 8; k2++) { x0 += (Math.random() - 0.5) * 50; y0 += (Math.random() - 0.5) * 50; g.lineTo(x0, y0); } g.stroke(); }
+    };
+  }
+  var plazaPaver = std(0xffffff, 0.93, { map: canvasTex(1024, paverPaint(false)), normalMap: normalTex(1024, paverPaint(true), 1.8), normalScale: new THREE.Vector2(0.8, 0.8) });
+  flat(52, 36.2, rt(plazaPaver, 13, 9.05), 0.5, 0.022, 131.3);
+
+  // the walls: rendered blockwork on a stone plinth, pilasters every 4.6 m, a stone coping, years of rain down the face
+  function renderPaint(g, S) {
+    g.fillStyle = '#9b968a'; g.fillRect(0, 0, S, S);
+    g.globalAlpha = 0.55; speckle('rgba(0,0,0,0)', ['#8a857a', '#aca79b', '#7e796e', '#b5b0a4', '#6f6a60'], 30000, 1.6)(g, S); g.globalAlpha = 1;
+    blotch(g, S, ['#6d6a5e', '#bab4a6', '#5c5b4e'], 40, 20, 90, 0.25);
+    streaks(g, S, S, 70, 'rgba(38,40,30,.85)', S * 0.9); grime(g, S, S, 1.4);
+    g.fillStyle = 'rgba(52,64,34,.55)'; for (var q = 0; q < 26; q++) { var x = Math.random() * S; g.beginPath(); g.ellipse(x, S - Math.random() * 40, 10 + Math.random() * 30, 6 + Math.random() * 20, 0, 0, 7); g.fill(); }   // algae at the foot
+    g.strokeStyle = 'rgba(30,30,26,.55)'; g.lineWidth = 1;
+    for (q = 0; q < 5; q++) { var cx = Math.random() * S, cy = Math.random() * S; g.beginPath(); g.moveTo(cx, cy); for (var k3 = 0; k3 < 7; k3++) { cx += (Math.random() - 0.5) * 30; cy += Math.random() * 30; g.lineTo(cx, cy); } g.stroke(); }
+  }
+  var renderMat = std(0xffffff, 0.94, { map: canvasTex(512, renderPaint), bumpMap: bump(3), bumpScale: 0.02 }), copeMat = std(0xffffff, 0.9, { map: EM.stone.map.clone(), bumpMap: bump(2), bumpScale: 0.03 });
+  copeMat.map.repeat.set(1, 1); copeMat.map.needsUpdate = true;
+  var plinthMat = std(0xffffff, 0.95, { map: canvasTex(256, function (g, S) { speckle('#57534b', ['#4a463f', '#625e55', '#3d3a34'], 6000, 1.6)(g, S); blotch(g, S, ['#2a3220', '#1e211a'], 18, 10, 50, 0.5); }) });
+  function sideWall(x1, x2, inner) {
+    wbox(x1, x2, 0, 3.4, PZ1, PZ2, renderMat, 3, null, true);
+    wbox(x1 - 0.07, x2 + 0.07, 3.4, 3.52, PZ1, PZ2, copeMat, 1.5);
+    wbox(x1 - 0.05, x2 + 0.05, 0, 0.32, PZ1, PZ2, plinthMat, 1.2);
+    for (var z = PZ1 + 1.8; z < PZ2 - 1; z += 4.6) {
+      var f = inner > x1 ? x2 : x1, d = inner > x1 ? 1 : -1;
+      wbox(Math.min(f, f + d * 0.14), Math.max(f, f + d * 0.14), 0, 3.62, z - 0.26, z + 0.26, renderMat, 3);
+      wbox(Math.min(f, f + d * 0.2) - 0.02, Math.max(f, f + d * 0.2) + 0.02, 3.62, 3.74, z - 0.32, z + 0.32, copeMat, 1.5);
+    }
+  }
+  sideWall(-26.0, PX1, 1); sideWall(PX2, 27.0, -1);
+  // overgrown hedging in a bed along each wall (not where the shed yard and the shop alley are)
   (function () {
-    var FX = 0, FZ = 132, pts = [[2.2, 0.06], [2.2, 0.46], [2.28, 0.54], [2.58, 0.56], [2.66, 0.5], [2.7, 0.3], [2.76, 0]].map(function (p) { return new THREE.Vector2(p[0], p[1]); });
-    mesh(new THREE.LatheGeometry(pts, 40), rt(EM.stone, 10, 1), FX, 0.02, FZ);
-    var bed = mesh(new THREE.CircleGeometry(2.2, 40), std(0xffffff, 0.5, { map: canvasTex(256, function (g, S) { speckle('#3d4038', ['#2c2f29', '#4c4f45', '#23261f'], 4000, 2)(g, S); blotch(g, S, ['#141712', '#28321c', '#3a2e1c'], 30, 14, 70, 0.6); g.fillStyle = '#5a4424'; for (var q = 0; q < 160; q++) { g.save(); g.translate(Math.random() * S, Math.random() * S); g.rotate(Math.random() * 6); g.globalAlpha = 0.5 + Math.random() * 0.5; g.fillStyle = ['#5a4424', '#6d5226', '#3f3018', '#75602c'][q % 4]; g.beginPath(); g.ellipse(0, 0, 4, 2, 0, 0, 7); g.fill(); g.restore(); } g.globalAlpha = 1; }) }), FX, 0.085, FZ);
-    bed.rotation.x = -PI / 2; bed.userData.noCast = true;
-    var pud = mesh(new THREE.CircleGeometry(1.25, 24), std(0x06090a, 0.04, { metalness: 0.9, transparent: true, opacity: 0.85 }), FX + 0.5, 0.092, FZ + 0.6); pud.rotation.x = -PI / 2; pud.scale.y = 0.6; pud.userData.noCast = true;
-    cyl(0.52, 0.62, 0.95, rt(EM.stone, 3, 1), FX, 0.5, FZ, null, 20); cyl(0.66, 0.6, 0.1, EM.stone, FX, 1.0, FZ, null, 20);
+    var clumps = [], col3 = new THREE.Color(), beds = [[PX1 + 0.65, 131.2, 148.6], [PX1 + 0.65, 117.0, 122.8], [PX2 - 0.65, 136.0, 148.6], [PX2 - 0.65, 117.0, 120.2]];
+    var edge = [];
+    beds.forEach(function (b) {
+      flat(1.3, b[2] - b[1] + 0.6, std(0x1d1a12, 1, { map: canvasTex(128, speckle('#2a2418', ['#1c1810', '#3a301e', '#46402a', '#2f3a1e'], 3000, 2)) }), b[0], 0.03, (b[1] + b[2]) / 2);
+      edge.push([b[0] + (b[0] < 0 ? 0.68 : -0.68), 0.06, (b[1] + b[2]) / 2, 0.08, 0.12, b[2] - b[1] + 0.6]);
+      for (var z = b[1]; z <= b[2]; z += 0.55 + srand() * 0.25) {
+        var s = 0.6 + srand() * 0.35, h = 1.0 + srand() * 0.9;
+        clumps.push([b[0] + (srand() - 0.5) * 0.4, h * 0.55, z, s, h * 0.6, s * 1.1, srand() * 0.3, srand() * 6, srand() * 0.3]);
+        if (srand() < 0.5) clumps.push([b[0] + (srand() - 0.5) * 0.6, 0.45 + srand() * 0.4, z + 0.25, s * 0.7, s * 0.6, s * 0.7, 0, srand() * 6, 0]);
+      }
+      boxes.push({ x1: b[0] - 0.65, x2: b[0] + 0.65, z1: b[1] - 0.3, z2: b[2] + 0.3 });
+    });
+    var hm = inst(jitter(new THREE.IcosahedronGeometry(1, 1), 0.28), M.leaf, clumps);
+    clumps.forEach(function (_, n) { var dead = srand() < 0.18; col3.setHSL(dead ? 0.09 + srand() * 0.03 : 0.26 + srand() * 0.07, dead ? 0.3 : 0.42, dead ? 0.1 : 0.06 + srand() * 0.05); hm.setColorAt(n, col3); });
+    inst(new THREE.BoxGeometry(1, 1, 1), EM.stone, edge);
+  })();
+
+  // service yard behind the shed: chain-link on steel posts, a padlocked gate; gas bottles, pallets and a drum inside
+  (function () {
+    var chain = M.chain.clone(); chain.map = chainTex.clone(); chain.map.needsUpdate = true;
+    function mesh2d(x1, x2, z, h) {
+      var len = x2 - x1, m2 = chain.clone(); m2.map = chain.map.clone(); m2.map.needsUpdate = true; m2.map.repeat.set(len / 0.4, h / 0.4);
+      mesh(new THREE.PlaneGeometry(len, h), m2, (x1 + x2) / 2, h / 2 + 0.05, z).userData.noCast = true;
+      cyl(0.03, 0.03, len, EM.steel, (x1 + x2) / 2, h + 0.05, z, null, 6).rotation.z = PI / 2;
+      [x1, x2].forEach(function (x) { cyl(0.045, 0.045, h + 0.15, EM.steel, x, (h + 0.15) / 2, z, null, 8); });
+      boxes.push({ x1: x1, x2: x2, z1: z - 0.08, z2: z + 0.08 });
+    }
+    mesh2d(PX1, -22.0, 124.1, 2.2); mesh2d(PX1, -22.0, 129.9, 2.2);
+    // a padlock and chain on the south fence's gate
+    var gl = new THREE.Group(); gl.position.set(-23.2, 1.05, 129.98); scene.add(gl);
+    box(0.06, 0.08, 0.025, M.gold, 0, -0.08, 0, gl); mesh(new THREE.TorusGeometry(0.06, 0.007, 6, 14), EM.steel, 0, 0, 0, gl).scale.set(1, 0.5, 1);
+    var yardMat = std(0xffffff, 0.9, { map: woodTex });
+    [[-24.3, 125.0, 0], [-24.2, 125.0, 0.14]].forEach(function (p, n) {                     // pallets
+      var G = new THREE.Group(); G.position.set(p[0], p[2] + 0.02, p[1]); G.rotation.y = n * 0.12; scene.add(G);
+      for (var q = 0; q < 5; q++) box(1.2, 0.022, 0.12, yardMat, 0, 0.122, -0.4 + q * 0.2, G);
+      [-0.5, 0, 0.5].forEach(function (x) { box(0.1, 0.1, 1.0, yardMat, x, 0.06, 0, G); });
+    });
+    [[-24.8, 128.6, 0x9a2018], [-24.4, 129.4, 0xc8b030]].forEach(function (b) {                 // gas bottles chained to the wall
+      var bm = std(b[2], 0.55, { bumpMap: bump(2), bumpScale: 0.01 });
+      cyl(0.15, 0.15, 1.1, bm, b[0], 0.6, b[1], null, 14); mesh(new THREE.SphereGeometry(0.15, 14, 8, 0, PI * 2, 0, PI / 2), bm, b[0], 1.15, b[1]);
+      cyl(0.03, 0.04, 0.12, EM.steel, b[0], 1.32, b[1], null, 8); circles.push({ x: b[0], z: b[1], r: 0.2 });
+    });
+    cyl(0.29, 0.29, 0.88, std(0x2f4a5a, 0.6, { map: rustTex }), -23.0, 0.46, 125.0, null, 16);
+  })();
+  // the staff alley behind the shop: a locked palisade gate at each end
+  function palisade(x1, x2, z, h) {
+    var bars = [], len = x2 - x1, n = Math.round(len / 0.13);
+    for (var q = 0; q <= n; q++) bars.push([x1 + q * len / n, h / 2, z, 1, h, 1]);
+    inst(new THREE.BoxGeometry(0.035, 1, 0.035), EM.green, bars);
+    [0.25, h - 0.25].forEach(function (y) { box(len, 0.06, 0.02, EM.green, (x1 + x2) / 2, y, z + 0.03); });
+    boxes.push({ x1: x1, x2: x2, z1: z - 0.08, z2: z + 0.08 });
+  }
+  palisade(25.0, PX2, 135.25, 2.3); palisade(25.0, PX2, 120.75, 2.3);
+  mesh(new THREE.PlaneGeometry(0.62, 0.36), std(0xffffff, 0.8, { map: textTex(['STAFF ONLY', 'NO PUBLIC ACCESS'], 256, 150, '#8d1f18', '#f1ecdd', '#f1ecdd') }), 25.7, 1.4, 135.31);
+
+  // ---------- the fountain: a dry stone basin with the park's mascot in bronze on a column ----------
+  /* The basin is turned from one profile: up the outside, over the rounded coping, down the inside (that order keeps every
+     face pointing out of the stone).  Inside: a dead leaf bed, a stagnant puddle with a green rim, a few coins. */
+  (function () {
+    var FX = 0, FZ = 132, R0 = 3.0;
+    var basinStone = std(0xffffff, 0.86, { map: canvasTex(512, function (g, S) {
+      speckle('#a39d8e', ['#938d7f', '#b3ad9e', '#857f72', '#c0baab', '#7a7569'], 16000, 1.8)(g, S);
+      blotch(g, S, ['#5f5e50', '#3d4632', '#6d6656'], 26, 14, 70, 0.32);
+      g.fillStyle = 'rgba(40,46,30,.75)'; g.fillRect(0, S * 0.62, S, S * 0.38);                                 // the old water line: stained below
+      g.globalAlpha = 0.5; speckle('rgba(0,0,0,0)', ['#2a3220', '#46502e'], 2600, 2.2)(g, S); g.globalAlpha = 1;
+      streaks(g, S, S, 40, 'rgba(36,40,28,.9)', S * 0.6);
+    }), bumpMap: bump(3), bumpScale: 0.03 });
+    var prof = [[3.06, 0.0], [3.06, 0.4], [3.09, 0.46], [3.1, 0.52], [3.06, 0.58], [2.98, 0.615], [2.88, 0.62], [2.79, 0.6], [2.74, 0.55], [2.73, 0.48], [2.72, 0.12], [2.7, 0.1]];
+    var basin = mesh(new THREE.LatheGeometry(prof.map(function (p) { return new THREE.Vector2(p[0], p[1]); }), 64), basinStone, FX, 0.02, FZ);
+    basin.material.map.repeat.set(6, 1);
+    // paved surround: a ring of granite setts and a kerb band
+    var setts = std(0xffffff, 0.9, { map: canvasTex(512, function (g, S) {
+      g.fillStyle = '#2a2a26'; g.fillRect(0, 0, S, S);
+      for (var r = 0; r < 6; r++) for (var c = 0; c < 48; c++) { var v = 88 + ((r * 31 + c * 17) % 7) * 7; g.fillStyle = 'rgb(' + v + ',' + (v - 3) + ',' + (v - 9) + ')'; g.fillRect(c * S / 48 + 1.5 + (r % 2) * 4, r * S / 6 + 2, S / 48 - 3, S / 6 - 4); }
+      g.globalAlpha = 0.45; speckle('rgba(0,0,0,0)', ['#3a3a34', '#7a7a70', '#1e2018'], 9000, 1.4)(g, S); g.globalAlpha = 1; blotch(g, S, ['#1f2618', '#2c2a1c'], 30, 10, 60, 0.4);
+    }) });
+    var ring = mesh(new THREE.RingGeometry(R0 + 0.05, 5.6, 72, 3), setts, FX, 0.03, FZ); ring.rotation.x = -PI / 2; ring.userData.noCast = true;
+    // ring UVs: u around, v across, so the setts run in courses round the basin
+    (function (geo) { var P2 = geo.attributes.position, U = geo.attributes.uv; for (var q = 0; q < P2.count; q++) { var x = P2.getX(q), y = P2.getY(q), r = Math.hypot(x, y), a = Math.atan2(y, x); U.setXY(q, (a / (PI * 2) + 0.5) * 6, (r - R0) / 2.55); } U.needsUpdate = true; })(ring.geometry);
+    var kerb = mesh(new THREE.RingGeometry(5.6, 5.85, 72, 1), EM.stone, FX, 0.034, FZ); kerb.rotation.x = -PI / 2; kerb.userData.noCast = true;
+    // the bed inside: dry silt and leaves
+    var bed = mesh(new THREE.CircleGeometry(2.71, 48), std(0xffffff, 0.92, { map: canvasTex(512, function (g, S) {
+      speckle('#3b3a30', ['#2d2c24', '#4a483c', '#24231c', '#55513f'], 12000, 2)(g, S); blotch(g, S, ['#141712', '#28321c', '#3a2e1c', '#4a3a22'], 40, 14, 80, 0.55);
+      for (var q = 0; q < 520; q++) { g.save(); g.translate(Math.random() * S, Math.random() * S); g.rotate(Math.random() * 6); g.globalAlpha = 0.6 + Math.random() * 0.4; g.fillStyle = ['#5a4424', '#6d5226', '#3f3018', '#75602c', '#4a3a20', '#7a5a2a'][q % 6]; g.beginPath(); g.ellipse(0, 0, 4 + Math.random() * 4, 2 + Math.random() * 2, 0, 0, 7); g.fill(); g.restore(); }
+      g.globalAlpha = 1;
+    }) }), FX, 0.13, FZ); bed.rotation.x = -PI / 2; bed.userData.noCast = true;
+    // the puddle that never dries: dark water with a slick of algae round its edge
+    var pudTex = canvasTex(256, function (g, S) { g.clearRect(0, 0, S, S); var gr = g.createRadialGradient(S / 2, S / 2, S * 0.2, S / 2, S / 2, S / 2); gr.addColorStop(0, 'rgba(6,10,9,1)'); gr.addColorStop(0.78, 'rgba(10,16,10,.95)'); gr.addColorStop(0.9, 'rgba(46,64,28,.8)'); gr.addColorStop(1, 'rgba(46,64,28,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(S / 2, S / 2, S / 2, S * 0.4, 0, 0, 7); g.fill(); });
+    var pud = mesh(new THREE.PlaneGeometry(2.6, 2.6), std(0xffffff, 0.05, { metalness: 0.6, map: pudTex, transparent: true, depthWrite: false }), FX + 0.7, 0.136, FZ + 0.9); pud.rotation.x = -PI / 2; pud.rotation.z = 0.5; pud.userData.noCast = true;
+    var coins = []; for (var q = 0; q < 18; q++) { var a = srand() * 6.28, r2 = 1.2 + srand() * 1.4; coins.push([FX + Math.cos(a) * r2, 0.134, FZ + Math.sin(a) * r2, 1, 1, 1, 0, srand() * 6, 0]); }
+    inst(new THREE.CylinderGeometry(0.012, 0.012, 0.003, 10), std(0xb08d4a, 0.35, { metalness: 0.9 }), coins).userData.noCast = true;
+    // the column: a turned stone pedestal with a basin of its own, dry spouts below its lip
+    var col = [[0.0, 0.0], [0.7, 0.0], [0.7, 0.12], [0.62, 0.18], [0.55, 0.2], [0.5, 0.26], [0.47, 0.32], [0.45, 0.9], [0.47, 0.95], [0.6, 1.0], [0.74, 1.04], [0.78, 1.1], [0.74, 1.14], [0.0, 1.14]];
+    mesh(new THREE.LatheGeometry(col.map(function (p) { return new THREE.Vector2(p[0], p[1]); }), 40), basinStone, FX, 0.1, FZ);
+    for (q = 0; q < 4; q++) { var sa = q * PI / 2 + PI / 4, sp = cyl(0.035, 0.045, 0.22, EM.iron, FX + Math.cos(sa) * 0.52, 0.86, FZ + Math.sin(sa) * 0.52, null, 8); sp.rotation.set(Math.sin(sa) * 1.2, 0, -Math.cos(sa) * 1.2); }
+    for (q = 0; q < 6; q++) { var la = srand() * 6.28; mesh(new THREE.PlaneGeometry(0.09, 0.05), std(0x5a4424, 1, { side: THREE.DoubleSide }), FX + Math.cos(la) * (0.2 + srand() * 0.4), 1.25, FZ + Math.sin(la) * (0.2 + srand() * 0.4)).rotation.set(-PI / 2, 0, srand() * 6); }
+    // Dottie, in bronze gone green
     var bronze = std(0xffffff, 0.55, { metalness: 0.6, map: canvasTex(128, function (g, S) { speckle('#3d6657', ['#2e5144', '#4f7f6c', '#2a3d33', '#6a917c'], 2600, 2.4)(g, S); blotch(g, S, ['#1c241c', '#7fae98', '#3a2a18'], 16, 6, 30, 0.45); streaks(g, S, S, 14, 'rgba(150,200,175,.7)'); }), bumpMap: bump(2), bumpScale: 0.02 });
-    var st = new THREE.Group(); st.position.set(FX, 1.05, FZ); st.rotation.y = 0.5; scene.add(st);
+    var st = new THREE.Group(); st.position.set(FX, 1.24, FZ); st.rotation.y = 0.5; scene.add(st);
     tube([[0, 0.62, -1.15, 0.02, 0.02], [0, 0.6, -0.7, 0.1, 0.1], [0, 0.66, -0.3, 0.26, 0.27], [0, 0.7, 0.1, 0.31, 0.33], [0, 0.72, 0.42, 0.24, 0.26], [0, 0.95, 0.66, 0.13, 0.14], [0, 1.3, 0.8, 0.09, 0.095], [0, 1.62, 0.9, 0.075, 0.08]], bronze, st, 14, 5);
     tube([[0, 1.6, 0.86, 0.07, 0.07], [0, 1.68, 0.98, 0.1, 0.085], [0, 1.66, 1.14, 0.075, 0.06], [0, 1.63, 1.24, 0.03, 0.03]], bronze, st, 10, 4);
     [[-0.2, -0.22], [0.2, -0.22], [-0.19, 0.3], [0.19, 0.3]].forEach(function (l) { tube([[l[0], 0.6, l[1], 0.1, 0.11], [l[0] * 1.05, 0.3, l[1], 0.08, 0.085], [l[0] * 1.05, 0.02, l[1] + 0.02, 0.09, 0.1]], bronze, st, 8, 3); });
     [-1, 1].forEach(function (sd) { mesh(new THREE.SphereGeometry(0.016, 6, 6), basic(0x050505), sd * 0.07, 1.72, 1.04, st); });
-    mesh(new THREE.PlaneGeometry(0.5, 0.2), std(0xffffff, 0.6, { map: textTex(['"DOTTIE"  ·  EST. 1987'], 256, 100, '#3a3a2c', '#c9b46a', null) }), FX, 0.55, FZ + 0.585).rotation.x = -0.1;
-    circles.push({ x: FX, z: FZ, r: 2.85 });
+    // the plaque, fixed to the column
+    var pl = mesh(new THREE.PlaneGeometry(0.42, 0.17), std(0xffffff, 0.45, { metalness: 0.6, map: canvasTex(256, function (g, S, H2) { g.fillStyle = '#6a5a2c'; g.fillRect(0, 0, S, H2); g.strokeStyle = '#3a2e14'; g.lineWidth = 4; g.strokeRect(5, 5, S - 10, H2 - 10); g.fillStyle = '#e2cf8a'; g.textAlign = 'center'; g.font = 'bold 30px Georgia, serif'; g.fillText('"DOTTIE"', S / 2, 42); g.font = '15px Georgia, serif'; g.fillText('FAMILY ZOO · EST. 1987', S / 2, 74); blotch(g, S, ['#2e4a3c', '#1a1a10'], 10, 6, 26, 0.5); }, 1, 1, true, 104) }), 0, 0.62, 0, null);
+    var pa = 0.5 + PI / 2 + 0.6; pl.position.set(FX + Math.sin(pa) * 0.452, 0.72, FZ + Math.cos(pa) * 0.452); pl.rotation.y = pa;
+    circles.push({ x: FX, z: FZ, r: 3.12 });
   })();
   // rubber cable protector: the power feed from the generator shed to the gift shop (and a hint where to go)
   var ramp = box(26.6, 0.06, 0.34, std(0xffffff, 0.85, { map: canvasTex(128, function (g, S, H) { g.fillStyle = '#c9a21c'; g.fillRect(0, 0, S, H); g.fillStyle = '#17160f'; for (var q = -1; q < 9; q++) { g.beginPath(); g.moveTo(q * 16, H); g.lineTo(q * 16 + 8, H); g.lineTo(q * 16 + 20, 0); g.lineTo(q * 16 + 12, 0); g.fill(); } grime(g, S, H, 1.4); }, 40, 1, true, 24) }), -2.6, 0.05, 126.2);
   ramp.userData.noCast = true;
   box(26.6, 0.03, 0.5, EM.rubber, -2.6, 0.035, 126.2).userData.noCast = true;
-  // lamp posts (their bulbs are switched by the plaza-lights breaker)
-  E.plazaBulbs = [];
-  [[-6.6, 139.5], [6.6, 139.5], [-6.6, 122.5], [6.6, 122.5]].forEach(function (p) {
-    cyl(0.07, 0.11, 4.2, EM.iron, p[0], 2.1, p[1], null, 8); cyl(0.17, 0.2, 0.5, EM.iron, p[0], 0.25, p[1], null, 8); cyl(0.1, 0.07, 0.12, EM.iron, p[0], 4.24, p[1], null, 8);
+  // lamp posts (their bulbs are switched by the plaza-lights breaker), each with a tattered park banner on an arm
+  E.plazaBulbs = []; E.banners = [];
+  var bannerTex = canvasTex(256, function (g, S, H2) {
+    g.fillStyle = '#254a30'; g.fillRect(0, 0, S, H2); g.fillStyle = '#d9ae35'; g.fillRect(0, 0, S, 18); g.fillRect(0, H2 - 18, S, 18);
+    g.fillStyle = '#ece3c4'; g.textAlign = 'center'; g.font = 'bold 44px ' + FONT; g.fillText('FAMILY', S / 2, 96); g.fillText('ZOO', S / 2, 146);
+    g.fillStyle = '#5c9a52'; g.beginPath(); g.ellipse(S / 2, 300, 70, 36, 0, 0, 7); g.fill(); g.beginPath(); g.moveTo(S / 2 + 40, 290); g.quadraticCurveTo(S / 2 + 90, 200, S / 2 + 70, 180); g.lineTo(S / 2 + 98, 186); g.quadraticCurveTo(S / 2 + 106, 230, S / 2 + 60, 310); g.fill();
+    g.fillStyle = '#ece3c4'; g.font = 'bold 26px ' + FONT; g.fillText('MEET THE', S / 2, 400); g.fillText('DINOSAURS', S / 2, 432);
+    g.fillStyle = 'rgba(200,190,160,.35)'; g.fillRect(0, 0, S, H2); streaks(g, S, H2, 30, 'rgba(30,30,20,.9)', H2); grime(g, S, H2, 1.3);
+    g.globalCompositeOperation = 'destination-out';
+    for (var q = 0; q < 9; q++) { g.beginPath(); g.moveTo(q * 32, H2); g.lineTo(q * 32 + 16, H2 - 20 - Math.random() * 40); g.lineTo(q * 32 + 32, H2); g.fill(); }
+    g.beginPath(); g.moveTo(S * 0.7, H2 * 0.55); g.lineTo(S, H2 * 0.42); g.lineTo(S, H2 * 0.8); g.fill();
+    g.globalCompositeOperation = 'source-over';
+  }, 1, 1, true, 512);
+  [[-6.6, 139.5], [6.6, 139.5], [-6.6, 122.5], [6.6, 122.5]].forEach(function (p, n) {
+    cyl(0.07, 0.11, 4.2, EM.iron, p[0], 2.1, p[1], null, 10); cyl(0.17, 0.2, 0.5, EM.iron, p[0], 0.25, p[1], null, 10); cyl(0.13, 0.17, 0.08, EM.iron, p[0], 0.54, p[1], null, 10); cyl(0.1, 0.07, 0.12, EM.iron, p[0], 4.24, p[1], null, 8);
     var bm = basic(0x16130c); E.plazaBulbs.push(bm);
-    mesh(new THREE.SphereGeometry(0.2, 12, 10), bm, p[0], 4.5, p[1]).userData.noCast = true;
-    var cage = mesh(new THREE.SphereGeometry(0.22, 6, 4), basic(0x0c0c0c, { wireframe: true }), p[0], 4.5, p[1]); cage.userData.noCast = true;
-    mesh(new THREE.ConeGeometry(0.3, 0.16, 8), EM.iron, p[0], 4.78, p[1]);
+    mesh(new THREE.SphereGeometry(0.2, 14, 10), bm, p[0], 4.5, p[1]).userData.noCast = true;
+    var cage = mesh(new THREE.SphereGeometry(0.215, 8, 5), basic(0x0c0c0c, { wireframe: true }), p[0], 4.5, p[1]); cage.userData.noCast = true;
+    mesh(new THREE.ConeGeometry(0.3, 0.16, 10), EM.iron, p[0], 4.78, p[1]);
     circles.push({ x: p[0], z: p[1], r: 0.22 });
+    // banner arms (on the side away from the fountain) and the banner hanging from them
+    var sx = p[0] > 0 ? 1 : -1; [3.55, 2.25].forEach(function (y) { box(0.62, 0.04, 0.04, EM.iron, p[0] + sx * 0.33, y, p[1]); cyl(0.03, 0.03, 0.05, EM.iron, p[0] + sx * 0.63, y, p[1], null, 8); });
+    var bg = dyn(new THREE.Group()); bg.position.set(p[0] + sx * 0.36, 3.55, p[1]); scene.add(bg);
+    var bgeo = new THREE.PlaneGeometry(0.56, 1.25, 6, 10), bmat = std(0xffffff, 0.9, { map: bannerTex, alphaTest: 0.5 });
+    mesh(bgeo, bmat, 0, -0.64, 0, bg); mesh(bgeo, bmat, 0, -0.64, 0, bg).rotation.y = PI;                       // printed both sides, one cloth
+    bgeo.userData = { base: bgeo.attributes.position.array.slice(), ph: n * 1.7, sx: sx }; E.banners.push(bgeo);
   });
-  // planters with dead shrubs, benches, bins, the park map
-  [[-9.5, 146.5], [9.5, 146.5], [-9.2, 120.2], [9.4, 137.2], [-12, 133]].forEach(function (p, n) {
-    box(1.5, 0.6, 1.5, rt(EM.stone, 2, 1), p[0], 0.3, p[1]); box(1.3, 0.05, 1.3, std(0x241c12, 1), p[0], 0.6, p[1]);
-    for (var q = 0; q < 9; q++) { var tw = cyl(0.008, 0.02, 0.5 + srand() * 0.7, M.wood, p[0] + (srand() - 0.5) * 0.7, 0.95, p[1] + (srand() - 0.5) * 0.7, null, 4); tw.rotation.set((srand() - 0.5) * 0.9, 0, (srand() - 0.5) * 0.9); }
-    circles.push({ x: p[0], z: p[1], r: 1.0 });
-  });
-  WB.bench(-9.2, 141.5, PI / 2); WB.bench(9.2, 142.5, -PI / 2); WB.bench(-4.3, 126.9, 0.4); WB.bench(4.6, 137.4, PI);
-  WB.bin(-9.2, 143.3); WB.bin(8.2, 131.2, 1); WB.bin(-7.2, 119.6);
-  WB.mapBoard(-8.6, 130.2, PI / 2);
+
+  // ---------- benches round the fountain (on the diagonals, leaving the walks clear), bins beside two of them ----------
+  [45, 135, 225, 315].forEach(function (deg) { var a = deg * PI / 180, bx = Math.cos(a) * 6.9, bz = 132 + Math.sin(a) * 6.9; WB.bench(bx, bz, Math.atan2(-bx, -(bz - 132))); });
+  WB.bin(6.3, 136.6); WB.bin(-6.3, 127.4); WB.bin(-7.4, 119.4); WB.bin(8.8, 134.2, true);
+
+  // ---------- planters: cast-stone troughs gone to dry grass and dead shrubs ----------
+  var dryGrass = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, alphaTest: 0.45, map: canvasTex(256, function (g, S) {
+    g.clearRect(0, 0, S, S);
+    for (var q = 0; q < 140; q++) {
+      var x = 20 + Math.random() * (S - 40), h = S * (0.4 + Math.random() * 0.58), lean = (Math.random() - 0.5) * 90, w = 1.6 + Math.random() * 2.4;
+      g.fillStyle = ['#a8925a', '#8f7a46', '#bfa86a', '#7a6838', '#c8b47a', '#6d5f36'][q % 6];
+      g.beginPath(); g.moveTo(x - w, S); g.quadraticCurveTo(x + lean * 0.3, S - h * 0.6, x + lean, S - h); g.quadraticCurveTo(x + lean * 0.35, S - h * 0.55, x + w, S); g.fill();
+      if (q % 5 === 0) { g.fillStyle = '#d2c08a'; g.beginPath(); g.ellipse(x + lean, S - h - 6, 3, 12, lean / 120, 0, 7); g.fill(); }                    // a seed head
+    }
+  }) });
+  var troughMat = std(0xffffff, 0.9, { map: canvasTex(256, function (g, S) { speckle('#8d887a', ['#7d786b', '#9d9889', '#6c675b', '#a8a393'], 9000, 1.6)(g, S); blotch(g, S, ['#2f3524', '#4a4636', '#1e2118'], 16, 8, 50, 0.45); streaks(g, S, S, 22, 'rgba(30,32,22,.85)'); g.fillStyle = 'rgba(40,52,24,.5)'; g.fillRect(0, S * 0.85, S, S * 0.15); }), bumpMap: bump(2), bumpScale: 0.025 });
+  var soilMat = std(0xffffff, 1, { map: canvasTex(128, function (g, S) { speckle('#2a2418', ['#1c1810', '#3a301e', '#46402a', '#5a4a2a'], 3500, 2)(g, S); for (var q = 0; q < 50; q++) { g.fillStyle = ['#5a4424', '#6d5226', '#3f3018'][q % 3]; g.beginPath(); g.ellipse(Math.random() * S, Math.random() * S, 3, 1.6, Math.random() * 3, 0, 7); g.fill(); } }) });
+  var twigMat = std(0x3a2c1e, 0.95, { map: barkTex });
+  function deadShrub(x, y, z, s) {        // a branching tangle of dead stems
+    var G = new THREE.Group(); G.position.set(x, y, z); G.rotation.y = srand() * 6; scene.add(G);
+    function branch(p, dir, len, r, depth) {
+      var end = p.clone().addScaledVector(dir, len), c = cyl(r * 0.6, r, len, twigMat, (p.x + end.x) / 2, (p.y + end.y) / 2, (p.z + end.z) / 2, G, 4);
+      c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      if (depth <= 0) return;
+      for (var k = 0; k < 2 + (srand() < 0.4 ? 1 : 0); k++) { var d2 = dir.clone().add(new THREE.Vector3((srand() - 0.5) * 1.3, 0.15 + srand() * 0.3, (srand() - 0.5) * 1.3)).normalize(); branch(end, d2, len * (0.55 + srand() * 0.2), r * 0.6, depth - 1); }
+    }
+    for (var k = 0; k < 4; k++) branch(new THREE.Vector3((srand() - 0.5) * 0.1, 0, (srand() - 0.5) * 0.1), new THREE.Vector3((srand() - 0.5) * 0.6, 1, (srand() - 0.5) * 0.6).normalize(), 0.35 * s, 0.022 * s, 3);
+  }
+  function planter(x, z, w, d) {
+    wbox(x - w / 2, x + w / 2, 0, 0.62, z - d / 2, z + d / 2, troughMat, 1.4, null, true);
+    [[0, d / 2], [0, -d / 2]].forEach(function (e) { wbox(x - w / 2 - 0.05, x + w / 2 + 0.05, 0.62, 0.7, z + e[1] - 0.09, z + e[1] + 0.09, troughMat, 1.4); });
+    [[w / 2], [-w / 2]].forEach(function (e) { wbox(x + e[0] - 0.09, x + e[0] + 0.09, 0.62, 0.7, z - d / 2 + 0.09, z + d / 2 - 0.09, troughMat, 1.4); });
+    flat(w - 0.18, d - 0.18, soilMat, x, 0.64, z);
+    var tufts = [], n = Math.round(w * d * 4);
+    for (var q = 0; q < n; q++) { var sc = 0.5 + srand() * 0.45; tufts.push([x + (srand() - 0.5) * (w - 0.4), 0.63, z + (srand() - 0.5) * (d - 0.4), sc, sc * (0.8 + srand() * 0.6), sc, 0, srand() * 6, 0]); }
+    var tm = inst(crossCard(0.8, 0.75), dryGrass, tufts); tm.userData.noCast = true;
+    var cc = new THREE.Color(); tufts.forEach(function (_, k) { cc.setHSL(0.1 + srand() * 0.04, 0.35, 0.42 + srand() * 0.2); tm.setColorAt(k, cc); });
+    deadShrub(x + (srand() - 0.5) * (w - 0.8), 0.64, z + (srand() - 0.5) * (d - 0.8), 1.4 + srand() * 0.5);
+  }
+  planter(-8.4, 146.4, 3.4, 1.4); planter(8.4, 146.4, 3.4, 1.4); planter(-9.6, 135.0, 1.4, 3.2); planter(9.0, 120.2, 2.6, 1.3);
+
+  // the visitor map, just inside the gate on the left of the walk, and a fingerpost by the fountain
+  WB.mapBoard(-6.2, 142.4, PI / 2);
+  (function () {
+    var G = new THREE.Group(); G.position.set(3.4, 0, 139.6); G.rotation.y = 0; scene.add(G);
+    cyl(0.06, 0.07, 3.0, EM.green, 0, 1.5, 0, G, 10); cyl(0.1, 0.12, 0.12, EM.green, 0, 0.06, 0, G, 10); mesh(new THREE.SphereGeometry(0.075, 10, 6), M.gold, 0, 3.05, 0, G);
+    [['TICKETS & PARK', 2.62, 'n'], ['GIFT SHOP', 2.24, 'e'], ['MAINTENANCE', 1.86, 'w']].forEach(function (f) {
+      var w2 = 1.3, a = f[2] === 'e' ? 0 : f[2] === 'w' ? PI : PI / 2;
+      var arm = new THREE.Group(); arm.position.set(0, f[1], 0); arm.rotation.y = a; G.add(arm);
+      [false, true].forEach(function (back) {          // printed both sides: the back face has the arrow drawn the other way so both point along the arm
+        var tex = canvasTex(512, function (g, S, H2) {
+          g.save(); if (back) { g.translate(S, 0); g.scale(-1, 1); }
+          g.fillStyle = '#254a30'; g.beginPath(); g.moveTo(0, 0); g.lineTo(S - 60, 0); g.lineTo(S, H2 / 2); g.lineTo(S - 60, H2); g.lineTo(0, H2); g.closePath(); g.fill(); g.strokeStyle = '#d9ae35'; g.lineWidth = 6; g.stroke(); g.restore();
+          g.fillStyle = '#ece3c4'; g.font = 'bold 54px ' + FONT; g.textBaseline = 'middle'; g.textAlign = back ? 'right' : 'left'; g.fillText(f[0], back ? S - 26 : 26, H2 / 2 + 3, S - 110);
+          E.chips(g, S, H2, 14, '#16170f'); E.streaks(g, S, H2, 16, 'rgba(40,30,20,.8)', H2);
+        }, 1, 1, true, 96);
+        var pnl = mesh(new THREE.PlaneGeometry(w2, w2 * 96 / 512), std(0xffffff, 0.8, { map: tex, alphaTest: 0.3 }), w2 / 2 + 0.06, 0, back ? -0.006 : 0.006, arm);
+        if (back) pnl.rotation.y = PI;
+      });
+      box(w2 - 0.12, w2 * 96 / 512 - 0.02, 0.01, EM.green, w2 / 2, 0, 0, arm);
+    });
+    circles.push({ x: 3.4, z: 139.6, r: 0.15 });
+  })();
 
   // ---------- ticket lanes ----------
-  /* Three ticket booths under one canopy, with a pair of tripod turnstiles in each gap between them.  The lanes stay locked
-     until the entry system is switched on from the staff computer. */
-  var TZ = TURN_Z, LANES = [-3.575, -2.025, 2.025, 3.575], HOUSE = [-4.35, -2.8, -1.25, 1.25, 2.8, 4.35];
+  /* Three ticket booths under one canopy, with a pair of tripod turnstiles in each gap between them.  Each lane is a metre
+     wide between steel cabinets, with the turnstile's arm reaching right across it and guide rails out in front and behind,
+     so there is no getting round one.  The lanes stay locked until the entry system is switched on from the staff computer.
+     The booths are real kiosks a person works in: a door at the back, a counter under the ticket window, a stool and a till. */
+  var TZ = TURN_Z, LANES = [-3.54, -2.06, 2.06, 3.54], HOUSE = [-4.275, -2.8, -1.325, 1.325, 2.8, 4.275];
   E.lanes = LANES;
   box(16.6, 0.2, 5.8, std(0x2c2e2f, 0.7, { map: roofTex, metalness: 0.4 }), 0, 3.3, TZ);                 // canopy deck
   box(16.9, 0.5, 0.1, EM.green, 0, 3.22, TZ + 2.95); box(16.9, 0.5, 0.1, EM.green, 0, 3.22, TZ - 2.95); box(0.1, 0.5, 5.9, EM.green, -8.4, 3.22, TZ); box(0.1, 0.5, 5.9, EM.green, 8.4, 3.22, TZ);
   mesh(new THREE.PlaneGeometry(9, 0.42), std(0xffffff, 0.75, { map: canvasTex(1024, function (g, S, H) { g.fillStyle = '#d8cfae'; g.fillRect(0, 0, S, H); g.fillStyle = '#254a30'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 36px ' + FONT; g.fillText('TICKETS  ·  ADMISSIONS  ·  PLEASE HAVE YOUR TICKET READY', S / 2, H / 2 + 2, S - 30); chips(g, S, H, 40, '#7d7664'); streaks(g, S, H, 40, 'rgba(60,44,22,.85)', H); }, 1, 1, true, 48) }), 0, 3.22, TZ + 3.005);
   [[-8.1, -2.6], [8.1, -2.6], [-8.1, 2.6], [8.1, 2.6]].forEach(function (c) { box(0.16, 3.2, 0.16, EM.iron, c[0], 1.6, TZ + c[1]); box(0.34, 0.08, 0.34, EM.iron, c[0], 0.04, TZ + c[1]); circles.push({ x: c[0], z: TZ + c[1], r: 0.18 }); });
   [-4, 0, 4].forEach(function (x) { box(1.3, 0.08, 0.28, EM.plastic, x, 3.16, TZ + 0.9); box(1.2, 0.02, 0.2, std(0x8a8d86, 0.5), x, 3.115, TZ + 0.9); });   // dead strip lights
-  var glassMat = EM.glassDirty, boothSign = std(0xffffff, 0.75, { map: canvasTex(256, function (g, S, H) { g.fillStyle = '#254a30'; g.fillRect(0, 0, S, H); g.fillStyle = '#e2b93b'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 40px ' + FONT; g.fillText('TICKETS', S / 2, H / 2 + 2); chips(g, S, H, 12, '#161714'); streaks(g, S, H, 10, 'rgba(60,44,22,.85)', H); }, 1, 1, true, 64) });
-  [-5.6, 0, 5.6].forEach(function (bx, n) {
-    var G = new THREE.Group(); G.position.set(bx, 0, TZ); scene.add(G);
-    box(2.2, 1.05, 2.4, rt(EM.cream, 2, 1), 0, 0.525, 0, G); box(2.3, 0.1, 2.5, EM.green, 0, 0.05, 0, G); box(2.3, 0.07, 2.5, EM.green, 0, 1.08, 0, G);
-    [[-1.04, -1.14], [1.04, -1.14], [-1.04, 1.14], [1.04, 1.14]].forEach(function (c) { box(0.1, 1.4, 0.1, EM.green, c[0], 1.8, c[1], G); });
-    box(2.36, 0.16, 2.56, EM.green, 0, 2.56, 0, G); box(2.5, 0.06, 2.7, std(0x2c2e2f, 0.7, { map: roofTex, metalness: 0.4 }), 0, 2.67, 0, G);
-    [[0, 1.17, 2.0, 0], [0, -1.17, 2.0, 0], [-1.07, 0, 2.2, PI / 2], [1.07, 0, 2.2, PI / 2]].forEach(function (w, q) {                                   // glazing
-      var gp = mesh(new THREE.PlaneGeometry(w[2], 1.38), glassMat, w[0], 1.8, w[1], G); gp.rotation.y = w[3]; gp.material.side = THREE.DoubleSide; gp.userData.noCast = true;
-    });
-    box(1.1, 0.04, 0.34, EM.steel, 0, 1.13, 1.3, G);                                                      // ticket shelf and speech grille (road side)
-    mesh(new THREE.CircleGeometry(0.09, 14), EM.steel, 0, 1.62, 1.176, G);
-    mesh(new THREE.PlaneGeometry(1.7, 0.42), boothSign, 0, 2.3, 1.185, G);
-    box(0.34, 0.5, 0.34, EM.plastic, 0.3, 1.3, 0.4, G); cyl(0.17, 0.17, 0.05, EM.rubber, -0.35, 0.72, -0.2, G, 12); cyl(0.03, 0.03, 0.7, EM.steel, -0.35, 0.36, -0.2, G, 6);   // till and stool inside
-    if (n === 1) { var crack = mesh(new THREE.PlaneGeometry(0.9, 0.9), basic(0xffffff, { transparent: true, opacity: 0.5, map: canvasTex(128, function (g, S) { g.clearRect(0, 0, S, S); g.strokeStyle = 'rgba(230,240,240,.9)'; g.lineWidth = 1; for (var q = 0; q < 14; q++) { var a = q / 14 * 6.283, r2 = 20 + Math.random() * 44; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * r2 * 0.5 + (Math.random() - 0.5) * 8, 64 + Math.sin(a) * r2 * 0.5); g.lineTo(64 + Math.cos(a) * r2, 64 + Math.sin(a) * r2); g.stroke(); } }), depthWrite: false }), 0.2, 1.75, 1.176, G); crack.userData.noCast = true; }
-    boxes.push({ x1: bx - 1.1, x2: bx + 1.1, z1: TZ - 1.2, z2: TZ + 1.2, solid: true });
-  });
-  // turnstile cabinets and tripods
+  var boothWall = std(0xffffff, 0.84, { map: EM.cream.map.clone(), bumpMap: bump(2), bumpScale: 0.012 }); boothWall.map.repeat.set(1, 1); boothWall.map.needsUpdate = true;
+  var boothSign = std(0xffffff, 0.75, { map: canvasTex(256, function (g, S, H) { g.fillStyle = '#254a30'; g.fillRect(0, 0, S, H); g.fillStyle = '#e2b93b'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = 'bold 40px ' + FONT; g.fillText('TICKETS', S / 2, H / 2 + 2); chips(g, S, H, 12, '#161714'); streaks(g, S, H, 10, 'rgba(60,44,22,.85)', H); }, 1, 1, true, 64) });
+  var deskTop = std(0x4a3a2a, 0.6, { map: woodTex }), floorLino = std(0xffffff, 0.8, { map: canvasTex(128, function (g, S) { for (var a = 0; a < 4; a++) for (var b = 0; b < 4; b++) { g.fillStyle = (a + b) % 2 ? '#4a4438' : '#6a6252'; g.fillRect(a * 32, b * 32, 32, 32); } g.globalAlpha = 0.5; speckle('rgba(0,0,0,0)', ['#2a2620', '#7a7262'], 1500, 1.5)(g, S); g.globalAlpha = 1; grime(g, S, S, 1.3); }, 2, 2) });
+  var crackTex = canvasTex(128, function (g, S) { g.clearRect(0, 0, S, S); g.strokeStyle = 'rgba(230,240,240,.9)'; g.lineWidth = 1; for (var q = 0; q < 14; q++) { var a = q / 14 * 6.283, r2 = 20 + Math.random() * 44; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * r2 * 0.5 + (Math.random() - 0.5) * 8, 64 + Math.sin(a) * r2 * 0.5); g.lineTo(64 + Math.cos(a) * r2, 64 + Math.sin(a) * r2); g.stroke(); } });
+  function booth(bx, n) {
+    var G = new THREE.Group(); G.position.set(bx, 0, TZ); scene.add(G); G.updateMatrixWorld(true);
+    var W2 = 1.1, D2 = 1.2, T = 0.09, FL = 0.16, SILL = 1.02, TOP = 2.42;
+    function wb(x1, x2, y1, y2, z1, z2, mat, tile) { var m = box(x2 - x1, y2 - y1, z2 - z1, mat, (x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2, G); worldUV(m, tile || 2); return m; }
+    wb(-W2 - 0.05, W2 + 0.05, 0, FL, -D2 - 0.05, D2 + 0.05, EM.stone, 1.5);                                  // plinth
+    flat(2 * W2 - 2 * T, 2 * D2 - 2 * T, floorLino, 0, FL + 0.003, 0, G);
+    // lower walls (front and both sides) up to the sill; the back wall runs full height round a door
+    wb(-W2, W2, FL, SILL, D2 - T, D2, boothWall); wb(-W2, -W2 + T, FL, SILL, -D2 + T, D2 - T, boothWall); wb(W2 - T, W2, FL, SILL, -D2 + T, D2 - T, boothWall);
+    var DX1 = -0.18, DX2 = 0.66;
+    wb(-W2, DX1, FL, TOP, -D2, -D2 + T, boothWall); wb(DX2, W2, FL, TOP, -D2, -D2 + T, boothWall); wb(DX1, DX2, 2.1, TOP, -D2, -D2 + T, boothWall);
+    // sills, corner posts, header band, roof
+    wb(-W2 - 0.03, W2 + 0.03, SILL, SILL + 0.05, D2 - T - 0.04, D2 + 0.03, EM.green, 1); wb(-W2 - 0.03, -W2 + T + 0.03, SILL, SILL + 0.05, -D2 + T, D2 - T, EM.green, 1); wb(W2 - T - 0.03, W2 + 0.03, SILL, SILL + 0.05, -D2 + T, D2 - T, EM.green, 1);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) { box(0.1, TOP - SILL, 0.1, EM.green, c[0] * (W2 - 0.05), (TOP + SILL) / 2, c[1] * (D2 - 0.05), G); });
+    wb(-W2 - 0.02, W2 + 0.02, TOP, TOP + 0.18, -D2 - 0.02, D2 + 0.02, EM.green, 1);
+    wb(-W2 - 0.18, W2 + 0.18, TOP + 0.18, TOP + 0.26, -D2 - 0.18, D2 + 0.18, std(0x2c2e2f, 0.7, { map: roofTex, metalness: 0.4 }), 1);
+    mesh(new THREE.PlaneGeometry(1.7, 0.16), boothSign, 0, TOP + 0.09, D2 + 0.021, G);
+    // glazing: front with a mullion each side of the ticket window, both sides in two panes
+    function pane(w, h, x, y, z, ry) { var gp = mesh(new THREE.PlaneGeometry(w, h), EM.glassDirty, x, y, z, G); gp.rotation.y = ry || 0; gp.material.side = THREE.DoubleSide; gp.userData.noCast = true; return gp; }
+    var GH = TOP - SILL - 0.05, GY = (TOP + SILL + 0.05) / 2;
+    pane(2 * W2 - 0.2, GH, 0, GY, D2 - 0.045);
+    [-0.42, 0.42].forEach(function (x) { box(0.05, GH, 0.06, EM.green, x, GY, D2 - 0.045, G); });
+    [-1, 1].forEach(function (s2) { pane(2 * D2 - 0.2, GH, s2 * (W2 - 0.045), GY, 0, PI / 2); box(0.06, GH, 0.05, EM.green, s2 * (W2 - 0.045), GY, 0, G); });
+    // the ticket window: speech grille, a deal tray let into the sill, a little shelf outside
+    mesh(new THREE.CircleGeometry(0.075, 18), EM.steel, 0, 1.55, D2 - 0.04, G); mesh(new THREE.RingGeometry(0.075, 0.085, 18), EM.plastic, 0, 1.55, D2 - 0.039, G);
+    box(0.36, 0.04, 0.3, EM.steel, 0, SILL + 0.02, D2 - 0.02, G); box(1.0, 0.035, 0.26, EM.steel, 0, SILL - 0.02, D2 + 0.12, G);
+    [-0.4, 0.4].forEach(function (x) { box(0.03, 0.12, 0.2, EM.steel, x, SILL - 0.1, D2 + 0.1, G).rotation.x = 0.5; });
+    if (n === 1) mesh(new THREE.PlaneGeometry(0.9, 0.9), basic(0xffffff, { transparent: true, opacity: 0.5, map: crackTex, depthWrite: false }), 0.32, 1.78, D2 - 0.04, G).userData.noCast = true;
+    // the door: a steel leaf in a green frame, shut, a padlocked hasp on it
+    var dw = DX2 - DX1;
+    box(dw, 1.94, 0.045, std(0x34584a, 0.6, { metalness: 0.3, map: EM.green.map }), (DX1 + DX2) / 2, FL + 0.97, -D2 - 0.005, G);
+    box(0.05, 1.98, 0.07, EM.green, DX1 + 0.025, FL + 0.99, -D2 - 0.01, G); box(0.05, 1.98, 0.07, EM.green, DX2 - 0.025, FL + 0.99, -D2 - 0.01, G); box(dw, 0.05, 0.07, EM.green, (DX1 + DX2) / 2, FL + 1.96, -D2 - 0.01, G);
+    box(0.12, 0.03, 0.03, EM.steel, DX2 - 0.14, 1.08, -D2 - 0.04, G); box(0.05, 0.08, 0.02, M.gold, DX2 - 0.1, 0.98, -D2 - 0.045, G);
+    mesh(new THREE.PlaneGeometry(0.3, 0.16), std(0xffffff, 0.8, { map: textTex(['STAFF ONLY'], 256, 120, '#d8cfae', '#8d1f18', '#8d1f18') }), (DX1 + DX2) / 2, 1.62, -D2 - 0.03, G).rotation.y = PI;
+    // inside: the counter under the window, the till, a stool, a ticket roll, a calendar left at the last month the park opened
+    box(2 * W2 - 2 * T, 0.04, 0.5, deskTop, 0, 0.98, D2 - T - 0.25, G); box(2 * W2 - 2 * T, 0.8, 0.03, EM.green, 0, 0.56, D2 - T - 0.49, G);
+    var till = new THREE.Group(); till.position.set(-0.32, 1.0, D2 - 0.38); till.rotation.y = 0.2; G.add(till);
+    box(0.34, 0.1, 0.32, EM.plastic, 0, 0.05, 0, till); var tf = box(0.3, 0.16, 0.04, EM.plastic, 0, 0.16, -0.1, till); tf.rotation.x = -0.4;
+    mesh(new THREE.PlaneGeometry(0.26, 0.1), basic(0x0b140d), 0, 0.17, -0.078, till).rotation.x = -0.4;
+    cyl(0.04, 0.04, 0.09, std(0xe9e2d0, 0.8), 0.3, 1.04, D2 - 0.3, G, 12).rotation.z = PI / 2;
+    cyl(0.17, 0.17, 0.05, EM.rubber, 0.25, 0.7, D2 - 0.75, G, 14); cyl(0.025, 0.025, 0.52, EM.steel, 0.25, 0.42, D2 - 0.75, G, 6); cyl(0.2, 0.22, 0.03, EM.steel, 0.25, FL + 0.015, D2 - 0.75, G, 14);
+    mesh(new THREE.PlaneGeometry(0.3, 0.4), std(0xffffff, 0.9, { map: textTex(['AUGUST', '2014'], 128, 170, '#efe9d6', '#8d1f18', null) }), -0.75, 1.75, -D2 + T + 0.005, G);
+    boxes.push({ x1: bx - W2 - 0.05, x2: bx + W2 + 0.05, z1: TZ - D2 - 0.05, z2: TZ + D2 + 0.05, solid: true });
+  }
+  [-5.6, 0, 5.6].forEach(booth);
+  // turnstile cabinets: brushed steel, sloped lids, a lamp panel on the entry face
   var ledX = canvasTex(64, function (g, S) { g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, S, S); g.strokeStyle = '#ff2a1a'; g.lineWidth = 9; g.beginPath(); g.moveTo(16, 16); g.lineTo(48, 48); g.moveTo(48, 16); g.lineTo(16, 48); g.stroke(); });
   var ledGo = canvasTex(64, function (g, S) { g.fillStyle = '#0a0a0a'; g.fillRect(0, 0, S, S); g.strokeStyle = '#35ff8a'; g.lineWidth = 9; g.beginPath(); g.moveTo(32, 50); g.lineTo(32, 16); g.moveTo(16, 30); g.lineTo(32, 14); g.lineTo(48, 30); g.stroke(); });
+  var cabSteel = std(0xb4babd, 0.36, { metalness: 0.75, map: metalTex }), CW = 0.45, CL = 1.2, CH = 1.0;
   E.laneLeds = [];
   HOUSE.forEach(function (hx) {
-    box(0.26, 0.94, 1.25, EM.steel, hx, 0.47, TZ); box(0.3, 0.05, 1.3, EM.plastic, hx, 0.965, TZ); box(0.3, 0.06, 1.3, EM.rubber, hx, 0.03, TZ);
-    boxes.push({ x1: hx - 0.14, x2: hx + 0.14, z1: TZ - 0.64, z2: TZ + 0.64 });
+    box(CW, CH - 0.06, CL, cabSteel, hx, (CH - 0.06) / 2, TZ);
+    var lid = box(CW + 0.02, 0.05, CL + 0.02, cabSteel, hx, CH - 0.02, TZ); lid.rotation.x = 0.0;
+    box(CW + 0.04, 0.06, CL + 0.04, EM.rubber, hx, 0.03, TZ);
+    [-1, 1].forEach(function (e) { box(CW - 0.06, 0.12, 0.012, EM.plastic, hx, CH - 0.25, TZ + e * (CL / 2 + 0.004)); });   // the ticket slots
+    boxes.push({ x1: hx - CW / 2, x2: hx + CW / 2, z1: TZ - CL / 2, z2: TZ + CL / 2 });
   });
   E.tripods = LANES.map(function (lx, n) {
-    var hx = lx + 0.775, led = basic(0x555555, { map: ledX, fog: false }); E.laneLeds.push(led);
-    mesh(new THREE.PlaneGeometry(0.15, 0.15), led, hx, 0.72, TZ + 0.627);
-    var tilt = new THREE.Group(); tilt.position.set(hx - 0.14, 0.86, TZ); tilt.rotation.z = PI / 4; scene.add(tilt);
-    cyl(0.07, 0.09, 0.12, EM.plastic, 0, -0.02, 0, tilt, 12);
+    var hx = lx + 0.512 + 0.0, led = basic(0x555555, { map: ledX, fog: false }); E.laneLeds.push(led);
+    mesh(new THREE.PlaneGeometry(0.15, 0.15), led, hx + CW / 2 - 0.12, 0.8, TZ + CL / 2 + 0.006);
+    // the rotor: its hub points down into the lane at 45 degrees; three arms on a 45-degree cone, so the top one lies level across the lane and the other two point down
+    var tilt = new THREE.Group(); tilt.position.set(hx - 0.02, 0.9, TZ); tilt.rotation.z = PI * 0.75; scene.add(tilt);
+    cyl(0.1, 0.12, 0.2, cabSteel, 0, -0.06, 0, tilt, 16);
     var spin = dyn(new THREE.Group()); tilt.add(spin);
-    cyl(0.06, 0.06, 0.1, EM.steel, 0, 0.07, 0, spin, 12);
+    cyl(0.075, 0.075, 0.1, EM.steel, 0, 0.08, 0, spin, 16);
+    var AL = 0.86;
     for (var q = 0; q < 3; q++) {
-      var arm = new THREE.Group(); arm.rotation.y = PI + q * PI * 2 / 3; spin.add(arm);
-      var a = cyl(0.02, 0.02, 0.6, EM.steel, 0.3 * Math.SQRT1_2 + 0.03, 0.3 * Math.SQRT1_2 + 0.09, 0, arm, 8); a.rotation.z = -PI / 4;
-      mesh(new THREE.SphereGeometry(0.024, 8, 6), EM.rubber, 0.6 * Math.SQRT1_2 + 0.03, 0.6 * Math.SQRT1_2 + 0.09, 0, arm);
+      var arm = new THREE.Group(); arm.rotation.y = q * PI * 2 / 3; spin.add(arm);
+      var a = cyl(0.022, 0.022, AL, EM.steel, AL / 2 * Math.SQRT1_2 + 0.04, AL / 2 * Math.SQRT1_2 + 0.1, 0, arm, 10); a.rotation.z = -PI / 4;
+      mesh(new THREE.SphereGeometry(0.026, 10, 8), EM.rubber, AL * Math.SQRT1_2 + 0.04, AL * Math.SQRT1_2 + 0.1, 0, arm);
     }
-    var bx = { x1: lx - 0.66, x2: lx + 0.66, z1: TZ - 0.07, z2: TZ + 0.07 }; boxes.push(bx);
+    var bx = { x1: lx - 0.52, x2: lx + 0.52, z1: TZ - 0.07, z2: TZ + 0.07 }; boxes.push(bx);
     return { x: lx, spin: spin, box: bx, ang: 0, target: 0, side: 0 };
   });
   W.laneBoxes = E.tripods.map(function (t) { return t.box; });
+  // guide rails out in front of and behind the lanes, on the cabinets' lines
+  HOUSE.forEach(function (hx) {
+    [-1, 1].forEach(function (e) {
+      var z0 = TZ + e * CL / 2, z1 = TZ + e * (CL / 2 + 1.3);
+      cyl(0.024, 0.024, 1.3, cabSteel, hx, 0.95, (z0 + z1) / 2, null, 8).rotation.x = PI / 2; cyl(0.02, 0.02, 1.3, cabSteel, hx, 0.5, (z0 + z1) / 2, null, 8).rotation.x = PI / 2;
+      cyl(0.035, 0.035, 0.97, cabSteel, hx, 0.485, z1, null, 10); mesh(new THREE.SphereGeometry(0.035, 10, 6, 0, PI * 2, 0, PI / 2), cabSteel, hx, 0.97, z1);
+      boxes.push({ x1: hx - 0.04, x2: hx + 0.04, z1: Math.min(z0, z1), z2: Math.max(z0, z1) });
+    });
+  });
   // railings closing the gaps beside the outer booths, and the fence on either side
   [-1, 1].forEach(function (s) { box(0.5, 1.05, 0.06, EM.steel, s * 6.9, 0.55, TZ); });
   WB.fence(-149, TZ, -16.6, TZ); WB.fence(-10.4, TZ, -6.9, TZ); WB.fence(6.9, TZ, 149, TZ);
@@ -514,7 +780,44 @@ var Entrance = (function () {
     if ((zOld - TZ) * (zNew - TZ) > 0) return;
     for (var n = 0; n < E.tripods.length; n++) { var t = E.tripods[n]; if (Math.abs(x - t.x) < 0.66 && t.box.off) { t.target += (zNew < zOld ? 1 : -1) * PI * 2 / 3; Sfx.play('turnstile', { vol: 0.7, fallback: function () { Sound.clunk(); Sound.click(); } }); } }
   };
+  /* ---------- the plaza moving on its own: wind in the banners, dead leaves skittering over the paving, moths at the lamps ---------- */
+  var leafN = 46, leafI = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.11, 0.07), std(0xffffff, 0.95, { side: THREE.DoubleSide, map: canvasTex(64, function (g, S) { g.clearRect(0, 0, S, S); g.fillStyle = '#6d5226'; g.beginPath(); g.ellipse(32, 32, 28, 15, 0, 0, 7); g.fill(); g.strokeStyle = '#3f3018'; g.lineWidth = 2; g.beginPath(); g.moveTo(6, 32); g.lineTo(58, 32); g.stroke(); }), alphaTest: 0.4 }), leafN);
+  leafI.frustumCulled = false; leafI.userData.noCast = true; scene.add(dyn(leafI));
+  var leaves = [], lcol = new THREE.Color();
+  for (i = 0; i < leafN; i++) { leaves.push({ x: -22 + Math.random() * 46, z: 117.5 + Math.random() * 30, y: 0.03, vx: 0, vz: 0, r: Math.random() * 6, spin: 0, hop: 0, k: 0.6 + Math.random() * 0.8 }); lcol.setHSL(0.07 + Math.random() * 0.05, 0.45, 0.22 + Math.random() * 0.18); leafI.setColorAt(i, lcol); }
+  var moths = [], mothMat = new THREE.SpriteMaterial({ map: softTex('rgba(235,225,200,.95)', 'rgba(200,190,160,.35)'), transparent: true, depthWrite: false, opacity: 0 });
+  [[-6.6, 139.5], [6.6, 139.5], [-6.6, 122.5], [6.6, 122.5]].forEach(function (p) { for (var q = 0; q < 3; q++) { var sp = dyn(new THREE.Sprite(mothMat)); sp.scale.set(0.035, 0.035, 1); sp.position.set(p[0], 4.5, p[1]); scene.add(sp); moths.push({ s: sp, x: p[0], z: p[1], a: Math.random() * 6, r: 0.25 + Math.random() * 0.25, sp: 3 + Math.random() * 4, y: Math.random() * 6 }); } });
+  var windT = 0, gust = 0, gustT = 4, dm = new THREE.Object3D();
+  E.ambient = function (dt) {
+    windT += dt; gustT -= dt; if (gustT <= 0) { gustT = 5 + Math.random() * 9; gust = 1; if (player.z > 110) Sound.noise(1.6, 900, 0.035); }
+    gust = Math.max(0, gust - dt * 0.45);
+    var w = 0.35 + 0.25 * Math.sin(windT * 0.13) + gust * 1.1, wx = Math.cos(0.7 + Math.sin(windT * 0.05) * 0.5) * w, wz = Math.sin(0.7 + Math.sin(windT * 0.05) * 0.5) * w * 0.6;
+    // banners: tied at the pole edge and along the arms; the free edge and the middle ripple
+    for (var n = 0; n < E.banners.length; n++) {
+      var bg = E.banners[n], pa = bg.attributes.position, base = bg.userData.base, ph = bg.userData.ph, sx2 = bg.userData.sx;
+      for (var k = 0; k < pa.count; k++) {
+        var x = base[k * 3], y = base[k * 3 + 1], u = clamp((x * sx2 + 0.28) / 0.56, 0, 1), v = (y + 0.625) / 1.25, f = u * (0.35 + 0.65 * Math.sin(v * PI)) * (0.4 + w * 0.7);
+        pa.setZ(k, Math.sin(windT * 3.1 + u * 5 + v * 2.2 + ph) * 0.03 * f + Math.sin(windT * 5.3 + v * 7 + ph) * 0.008 * f);
+      }
+      pa.needsUpdate = true; bg.computeVertexNormals();
+    }
+    if (player.z < 100 && state === 'playing') return;                        // nobody here to see the rest
+    for (n = 0; n < leafN; n++) {
+      var L = leaves[n];
+      L.vx = damp(L.vx, wx * L.k * (gust > 0.2 ? 2.2 : 0.8) + Math.sin(windT * 1.7 + n) * 0.15, 2, dt); L.vz = damp(L.vz, wz * L.k * (gust > 0.2 ? 2.2 : 0.8) + Math.cos(windT * 1.3 + n * 2) * 0.15, 2, dt);
+      var moving = Math.hypot(L.vx, L.vz); L.x += L.vx * dt; L.z += L.vz * dt; L.spin = damp(L.spin, moving * 3, 3, dt); L.r += L.spin * dt;
+      if (gust > 0.6 && Math.random() < dt * 0.6) L.hop = 0.5 + Math.random() * 0.5;
+      L.hop = Math.max(0, L.hop - dt * 1.5); L.y = 0.032 + Math.sin(L.hop * PI) * 0.25 * L.hop;
+      if (L.x > 25 || L.x < -24.5 || L.z > 148.5 || L.z < 117 || inBox(L.x, L.z, 0.05) || inRect(L.x, L.z, { x1: -3.2, x2: 3.2, z1: 128.8, z2: 135.2 })) { L.x = -24 + Math.random() * 2; L.z = 118 + Math.random() * 30; if (inBox(L.x, L.z, 0.1)) L.x = -18; }
+      dm.position.set(L.x, L.y, L.z); dm.rotation.set(-PI / 2 + Math.sin(L.r) * 0.4 * (L.hop > 0 ? 1 : 0.2), 0, L.r); dm.updateMatrix(); leafI.setMatrixAt(n, dm.matrix);
+    }
+    leafI.instanceMatrix.needsUpdate = true;
+    var lit = E.plazaBulbs.length && E.plazaBulbs[0].color.r > 0.5;
+    mothMat.opacity = damp(mothMat.opacity, lit ? 0.85 : 0, 2, dt);
+    if (mothMat.opacity > 0.01) moths.forEach(function (m) { m.a += dt * m.sp; m.y += dt * 2.3; m.s.position.set(m.x + Math.cos(m.a) * m.r + Math.sin(m.a * 3.1) * 0.05, 4.5 + Math.sin(m.y) * 0.18, m.z + Math.sin(m.a * 1.3) * m.r); });
+  };
   E.step = function (dt, instant) {
+    E.ambient(instant ? 0 : dt);
     var esc = P.esc, open = P.turn && (!esc || esc.turn >= 1), n;
     for (n = 0; n < E.tripods.length; n++) {
       var t = E.tripods[n]; t.box.off = !!open;

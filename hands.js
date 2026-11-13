@@ -173,7 +173,8 @@ var Hands = (function () {
     var mesh = new THREE.SkinnedMesh(geo, gloveMat); mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true;
     var root = new THREE.Group(); root.add(mesh); mesh.add(arm); mesh.bind(new THREE.Skeleton(bones));
     // sleeve, strap buckle
-    var sleeve = tube([[0, 0.001, 0.058, 0.0375, 0.0300], [0, 0.001, 0.066, 0.0420, 0.0345], [0, 0.0, 0.080, 0.0440, 0.0365], [0, -0.001, 0.110, 0.0428, 0.0352], [0, -0.003, 0.2, 0.0470, 0.0400], [0, -0.008, 0.34, 0.0540, 0.0470], [0, -0.016, 0.52, 0.0600, 0.0540]], clothMat, arm, 18, 5);
+    // the forearm's sleeve runs back to the elbow (FORE metres); the upper arm is a separate piece posed from the shoulder each frame
+    var sleeve = tube([[0, 0.001, 0.058, 0.0375, 0.0300], [0, 0.001, 0.066, 0.0420, 0.0345], [0, 0.0, 0.080, 0.0440, 0.0365], [0, -0.001, 0.110, 0.0428, 0.0352], [0, -0.002, 0.17, 0.0450, 0.0385], [0, -0.002, 0.23, 0.0485, 0.0425], [0, 0, 0.262, 0.0500, 0.0450], [0, 0, 0.275, 0.040, 0.036], [0, 0, 0.28, 0.01, 0.01]], clothMat, arm, 18, 4);
     box(0.014, 0.004, 0.012, brass, 0.004, 0.0292, 0.029, arm); mesh2(new THREE.SphereGeometry(0.0042, 10, 8), brass, 0.004, 0.0318, 0.029, arm);
     box(0.02, 0.0016, 0.03, strapMat, -0.012, 0.0286, 0.029, arm).rotation.y = 0.0;
     cyl(0.0042, 0.0042, 0.002, brass, 0.02, 0.0365, 0.083, arm, 10);                                                 // sleeve button
@@ -249,6 +250,17 @@ var Hands = (function () {
   var rig = new THREE.Group(); camera.add(rig); H.rig = rig;
   var R = buildHand(false), L = buildHand(true); rig.add(R.root); rig.add(L.root); H.R = R; H.L = L;
   var torch = buildFlashlight(); R.hand.add(torch); H.torch = torch; var tailCap = torch.userData.cap;
+  /* The arms.  Each forearm (wrist to elbow, FORE m) is rigid and part of the hand's rig; the elbow is found by two-bone IK
+     from the shoulder, and the upper arm is a sleeve posed from the elbow back to the shoulder (behind the near plane), so a
+     hand always has an arm attached to it however far it reaches. */
+  var FORE = 0.262, UPPER = 0.3, SHO = { L: new V(-0.19, -0.27, 0.06), R: new V(0.19, -0.27, 0.06) }, POLE = { L: new V(-0.6, -1, 0.2).normalize(), R: new V(0.6, -1, 0.2).normalize() };
+  function upperArm() {
+    var g = new THREE.Group(); rig.add(g);
+    var m = tube([[0, 0, -0.02, 0.046, 0.042], [0, 0, 0.02, 0.05, 0.046], [0, 0, 0.3, 0.056, 0.052], [0, 0, 0.62, 0.066, 0.06], [0, 0, 1.0, 0.07, 0.064]], clothMat, g, 16, 3);
+    m.castShadow = true; var el = mesh2(new THREE.SphereGeometry(0.049, 14, 10), clothMat, 0, 0, 0, g); el.scale.set(1, 0.92, 1.05);
+    g.userData.tube = m; return g;
+  }
+  var UA = { L: upperArm(), R: upperArm() };
   /* How the flashlight lies in the right hand.  PHI is the angle between the barrel and the straight fingers (the head leaves
      the hand on the thumb side); the barrel runs under the knuckle of the index finger, which meets it IDX metres from the tail. */
   var PHI = 1.05, IDX = 0.08, RB = 0.0147, GRIP_DIR = new V(), WRIST = new THREE.Euler(0.12, -1.0, 0, 'YXZ'), GRIP_P = new V();
@@ -320,6 +332,7 @@ var Hands = (function () {
   POSE.fist  = [0.45, 0.35, 0.2, 0.55, 0.7,  1.3, 1.55, 0.85,  1.38, 1.6, 0.9,  1.44, 1.62, 0.92,  1.5, 1.6, 0.9,   0, 0, 0, 0];
   POSE.hook  = [0.3, 0.2, 0.1, 0.4, 0.5,   0.85, 1.3, 0.7,  0.9, 1.34, 0.72,  0.94, 1.36, 0.74,  1.0, 1.36, 0.74,   0, 0, 0, 0];      // round a bar or a lever
   POSE.pinch = [0.62, 0.42, 0.3, 0.3, 0.42,  0.72, 0.7, 0.35,  0.82, 0.78, 0.4,  1.2, 1.45, 0.8,  1.34, 1.5, 0.85,   0.03, 0, 0, 0];   // thumb against the first two fingers
+  POSE.carry = [0.4, 0.3, 0.15, 0.55, 0.7,  1.0, 1.45, 0.8,  1.05, 1.5, 0.82,  1.1, 1.52, 0.84,  1.15, 1.52, 0.84,   0.02, 0, 0, -0.03];   // fingers round a carry handle, thumb over them
   POSE.wipe  = [0.1, 0.05, 0, 0.1, 0.12,   0.12, 0.16, 0.1,  0.14, 0.18, 0.1,  0.14, 0.18, 0.12,  0.18, 0.2, 0.12,   0.02, 0, 0, -0.03];
   POSE.grip[0] = 0.05; POSE.grip[1] = 0.22; POSE.grip[2] = 0.1; POSE.grip[3] = 0.3; POSE.grip[4] = 0.4;
   var GRIP_PRESS = POSE.grip.slice(); GRIP_PRESS[1] = 0.34; GRIP_PRESS[3] = 0.52; GRIP_PRESS[4] = 0.86;
@@ -337,7 +350,7 @@ var Hands = (function () {
   H.use = function (key, o) {
     if (use && use.key === key && !use.leaving) { use.alive = o && o.dur ? use.alive : 0.16; if (o && o.spin !== undefined) use.spin = o.spin; return use; }
     use = { key: key, t: 0, alive: o.dur || 0.16, oneShot: !!o.dur, point: o.point, pose: POSE[o.pose] || POSE.point, tip: TIP[o.tip || o.pose] || TIP.point, rot: o.rot || [0.1, 0.25, 0.4],
-      move: o.move, onTouch: o.onTouch, touched: false, leaving: false, out: 0, press: o.press || 0, spin: 0, from: { pos: Lcur.pos.clone(), q: Lcur.q.clone(), wq: Lcur.wq.clone(), pose: Lcur.pose.slice() }, reach: o.reach || 0.24, prop: o.prop };
+      move: o.move, onTouch: o.onTouch, touched: false, leaving: false, out: 0, press: o.press || 0, spin: 0, body: !!o.body, from: { pos: Lcur.pos.clone(), q: Lcur.q.clone(), wq: Lcur.wq.clone(), pose: Lcur.pose.slice() }, reach: o.reach || 0.24, prop: o.prop };
     return use;
   };
   H.busy = function () { return !!(use && !use.leaving) || clipT >= 0; };
@@ -355,29 +368,83 @@ var Hands = (function () {
   H.reloading = function () { return clipT >= 0; };
   function seg(t, a, b) { return sstep((t - a) / (b - a)); }
 
+  // ---------- the right hand at work (pushing a door with the torch still in it, while the left carries something) ----------
+  var useR = null;
+  H.useR = function (key, o) {
+    if (useR && useR.key === key && !useR.leaving) return useR;
+    useR = { key: key, t: 0, alive: o.dur || 0.5, point: o.point, rot: o.rot || [0.25, -0.5, -1.3], tip: o.tip ? TIP[o.tip] : TIP.fist, reach: o.reach || 0.32, onTouch: o.onTouch, touched: false, leaving: false, out: 0, press: o.press || 0, move: o.move };
+    return useR;
+  };
+
+  /* Arm solving: given where a wrist must be (camera space) and the forearm orientation it would have if nothing else
+     mattered (`base`), aim the forearm at the elbow two-bone IK finds from the shoulder (within what a wrist can bend),
+     then lay the upper arm from that elbow back to the shoulder.  Writes the forearm's root rotation and the hand bone's
+     local rotation (mirrored for the left hand, whose rig is flipped in x). */
+  var aV1 = new V(), aV2 = new V(), aV3 = new V(), aV4 = new V(), aQ1 = new Q(), aQ2 = new Q(), ZP = new V(0, 0, 1), ZN = new V(0, 0, -1);
+  function solveArm(side, W, handQ, baseQ, maxBend, rootOut, wristOut) {
+    var S = SHO[side], pole = POLE[side], d = aV1.copy(W).sub(S), L = d.length(); d.multiplyScalar(1 / (L || 1));
+    var Lc = clamp(L, 0.12, FORE + UPPER - 0.002), x = (UPPER * UPPER - FORE * FORE + Lc * Lc) / (2 * Lc), h = Math.sqrt(Math.max(0, UPPER * UPPER - x * x));
+    var pp = aV2.copy(pole).addScaledVector(d, -pole.dot(d)); if (pp.lengthSq() < 1e-6) pp.set(side === 'L' ? -1 : 1, 0, 0); pp.normalize();
+    var E = aV3.copy(S).addScaledVector(d, x).addScaledVector(pp, h);          // the elbow IK would like
+    var f = aV4.copy(W).sub(E).normalize();                                     // elbow -> wrist
+    var bf = aV2.copy(ZN).applyQuaternion(baseQ), ang = Math.acos(clamp(bf.dot(f), -1, 1));
+    if (ang > maxBend) { aQ2.setFromUnitVectors(bf, f); aQ1.identity().slerp(aQ2, maxBend / ang); f.copy(bf).applyQuaternion(aQ1); }
+    rootOut.copy(aQ1.setFromUnitVectors(bf, f)).multiply(baseQ);
+    var rel = aQ2.copy(rootOut).invert().multiply(handQ);
+    if (side === 'L') wristOut.set(rel.x, -rel.y, -rel.z, rel.w); else wristOut.copy(rel);
+    // the upper arm: from the elbow the forearm actually ends at, back to the shoulder
+    var Ea = aV3.copy(W).addScaledVector(f, -FORE), g = UA[side], to = aV1.copy(S).sub(Ea), len = to.length();
+    g.position.copy(Ea); g.quaternion.setFromUnitVectors(ZP, to.multiplyScalar(1 / (len || 1))); g.userData.tube.scale.z = Math.max(0.05, len);
+  }
+
   // ---------- every frame ----------
-  var aimCur = [0, 0, 0, 0, 0, 0], sway = { x: 0, y: 0, vx: 0, vy: 0 }, lastYaw = null, lastPitch = 0, bobK = 0, block = 0, landT = 0, RQ = new Q(), RP = new V(), tailW = new V();
+  var aimCur = [0, 0, 0, 0, 0, 0], sway = { x: 0, y: 0, vx: 0, vy: 0 }, lastYaw = null, lastPitch = 0, bobK = 0, runK = 0, block = 0, landT = 0, RQ = new Q(), RP = new V(), tailW = new V();
+  var leanW = new V(), leanWant = new V(), lv = new V(), lq = new Q(), carryK = 0, carrySw = 0, carryV = 0, freeK = 0;
+  var hQ = new Q(), bQ = new Q(), rootQ = new Q(), wristQ = new Q(), pitchQ = new Q(), XAX = new V(1, 0, 0), WRISTQ = new Q().setFromEuler(WRIST);
+  var hM = new THREE.Matrix4(), camInv = new THREE.Matrix4(), MIRX = new THREE.Matrix4().makeScale(-1, 1, 1), hP = new V(), hQ2 = new Q(), hS = new V();
+  H.lean = leanW; H.tipCam = new V();
+  // where the left hand's working point is right now, in the world (the cinematic wipes dust off exactly where the palm is)
+  H.tipWorld = function (out) { return camera.localToWorld((out || new V()).copy(Lcur.tip || H.tipCam)); };
+  H.contact = function () { return !!(use && !use.leaving && use.t >= use.reach); };
   H.update = function (dt, c) {
     if (!H.visible) return;
     c = c || {};
     var t = (H.time = (H.time || 0) + dt), speed = c.speed || 0, mv = clamp(speed / 4.4, 0, 1.6);
+    /* the stride: one step is PI of phase.  Callers that only know a distance-based bob value get a phase made from it. */
+    var ph = c.phase !== undefined ? c.phase : (c.bob || 0) * 1.25, wk = clamp(speed / 4.4, 0, 1), sprinting = c.sprint ? 1 : 0;
     // --- sway: the torch lags a little behind the view ---
     if (lastYaw === null) { lastYaw = c.yaw || 0; lastPitch = c.pitch || 0; }
     var dy = dt > 0 ? clamp(angDiff(c.yaw || 0, lastYaw) / dt, -5, 5) : 0, dp = dt > 0 ? clamp(((c.pitch || 0) - lastPitch) / dt, -5, 5) : 0; lastYaw = c.yaw || 0; lastPitch = c.pitch || 0;
     sway.x = damp(sway.x, -dy * 0.03, 9, dt); sway.y = damp(sway.y, dp * 0.03, 9, dt);
-    bobK = damp(bobK, c.grounded === false ? 0 : mv, 7, dt);
+    bobK = damp(bobK, c.grounded === false ? 0 : wk, 7, dt); runK = damp(runK, sprinting && c.grounded !== false ? clamp((speed - 4.6) / 3.4, 0, 1) : 0, 6, dt);
     if (c.landed) landT = 0.3; landT = Math.max(0, landT - dt);
     // --- walls: draw the torch in rather than let it poke through ---
     var bl = 0; if (c.x !== undefined) { var fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw); bl = inBox(c.x + fx * 0.74, c.z + fz * 0.74, 0.02) ? 1 : inBox(c.x + fx * 0.6, c.z + fz * 0.6, 0.02) ? 1 : 0; }
     block = damp(block, bl, 10, dt);
     offBlend = damp(offBlend, lightOn || clipT >= 0 ? 0 : 1, 6, dt);
-    var bob = c.bob || 0, sp = c.sprint ? 1 : 0;
-    // --- right hand ---
+
+    /* --- leaning in: when a hand is sent somewhere beyond arm's length, the body bends toward it (the camera moves) --- */
+    leanWant.set(0, 0, 0);
+    var act = use && !use.leaving ? use : useR && !useR.leaving ? useR : H.hold && H.hold.want > 0.5 && H.hold.reach ? { point: H.hold.reach } : null;
+    if (act && act.point && clipT < 0) {                                  // (the camera arrives here where the body stands, not yet leaned)
+      camera.updateMatrixWorld(true);
+      lv.copy(act.point()); camera.worldToLocal(lv);
+      var sh = act === use ? SHO.L : SHO.R, reachD = lv.distanceTo(sh), excess = reachD - (FORE + UPPER - 0.1);
+      if (excess > 0) { lv.sub(sh).normalize().multiplyScalar(Math.min(excess, act === use || act === useR || !H.hold.leanMax ? 0.55 : H.hold.leanMax)); lv.applyQuaternion(camera.quaternion); if (lv.y > 0) lv.y = 0; leanWant.copy(lv); }
+    }
+    // ease into the lean and out of it at the pace of a body bending (never faster than ~0.6 m/s)
+    lv.copy(leanWant).sub(leanW); var lstep = lv.length(), lmax = 0.6 * dt; lv.multiplyScalar(lstep > 0 ? Math.min(1, (1 - Math.exp(-dt * 3.5)) , lmax / lstep) : 0); leanW.add(lv);
+    camera.position.add(leanW); camera.updateMatrixWorld(true);
+
+    // --- right hand: held out in front, the beam bobbing with the stride ---
     RP.copy(HOLD.pos); RQ.copy(HOLD.q);
-    var px = Math.sin(bob) * 0.007 * bobK + sway.x * 0.35, py = -Math.abs(Math.cos(bob)) * 0.009 * bobK + Math.sin(t * 1.3) * 0.0022 - sway.y * 0.3 - offBlend * 0.035 - landT * 0.12 - sp * 0.02 + (c.crouch ? 0.012 : 0);
-    var pz = block * 0.13 + sp * 0.02 + offBlend * 0.02;
+    var s1 = Math.sin(ph), dip = (1 + Math.cos(2 * ph)) / 2, rk = runK;          // dip: 1 at each footfall, 0 mid-stride
+    var px = s1 * (0.0065 * bobK + 0.016 * rk) + sway.x * 0.35;
+    var py = -dip * (0.009 * bobK + 0.026 * rk) + Math.sin(t * 1.3) * 0.0022 - sway.y * 0.3 - offBlend * 0.035 - landT * 0.12 - rk * 0.03 + (c.crouch ? 0.012 : 0);
+    var pz = block * 0.13 + rk * (0.02 + Math.cos(ph) * 0.035) + offBlend * 0.02;
     if (c.menu) py -= 0.3;                                               // title screen: keep the light, drop the hand out of shot
-    var rx = sway.y * 0.9 - offBlend * 0.16 + Math.sin(t * 1.3 + 1) * 0.004 - landT * 0.5 - sp * 0.1, ry = sway.x * 0.9 + offBlend * 0.1 + Math.sin(bob) * 0.012 * bobK, rz = sway.x * -0.6 + Math.sin(bob) * 0.02 * bobK + sp * 0.12;
+    var rx = sway.y * 0.9 - offBlend * 0.16 + Math.sin(t * 1.3 + 1) * 0.004 - landT * 0.5 - dip * (0.014 * bobK + 0.05 * rk) - rk * 0.1 + s1 * 0.04 * rk;
+    var ry = sway.x * 0.9 + offBlend * 0.1 + s1 * (0.012 * bobK + 0.05 * rk), rz = sway.x * -0.6 + s1 * (0.02 * bobK + 0.07 * rk) + rk * 0.12;
     var pose = POSE.grip;
     if (H.aim) for (var ai = 0; ai < 6; ai++) aimCur[ai] = damp(aimCur[ai], H.aim[ai], 5, dt); else for (ai = 0; ai < 6; ai++) aimCur[ai] = damp(aimCur[ai], 0, 5, dt);
     px += aimCur[0]; py += aimCur[1]; pz += aimCur[2]; rx += aimCur[3]; ry += aimCur[4]; rz += aimCur[5];              // H.aim: a cinematic asking for the torch to be held differently
@@ -391,23 +458,55 @@ var Hands = (function () {
     // reload: turn the tail to the left hand
     var rl = 0, T = clipT;
     if (T >= 0) { rl = seg(T, 0, 0.32) * (1 - seg(T, RELOAD - 0.36, RELOAD - 0.04)); px += -0.085 * rl; py += 0.055 * rl; pz += 0.04 * rl; ry += -1.0 * rl; rx += 0.38 * rl; rz += -0.5 * rl; }
-    tmpE.set(rx, ry, rz, 'YXZ'); tmpQ.setFromEuler(tmpE); R.root.quaternion.copy(tmpQ).multiply(RQ);
-    R.root.position.set(RP.x + px, RP.y + py, RP.z + pz); applyPose(R, pose);
+    tmpE.set(rx, ry, rz, 'YXZ'); tmpQ.setFromEuler(tmpE); bQ.copy(tmpQ).multiply(RQ);              // the forearm as the hold would have it
+    var rW = tmpV.set(RP.x + px, RP.y + py, RP.z + pz);
+    // the right hand pushing something (a door) with the torch still in its grip
+    if (useR) {
+      var u2 = useR; u2.t += dt; u2.alive -= dt; if (u2.alive <= 0 && !u2.leaving) { u2.leaving = true; u2.out = 0; }
+      lv.copy(u2.point()); camera.worldToLocal(lv);
+      tmpE.set(u2.rot[0], u2.rot[1], u2.rot[2], 'YXZ'); lq.setFromEuler(tmpE);                       // the forearm's rotation for the push
+      var lqh = lq.clone().multiply(WRISTQ), tipR = u2.tip.clone().applyQuaternion(lqh), inR = easeIO(clamp(u2.t / u2.reach, 0, 1)), prR = u2.press ? Math.sin(clamp((u2.t - u2.reach) / 0.25, 0, 1) * PI) * u2.press : 0;
+      lv.sub(tipR); lv.z -= prR;
+      if (!u2.touched && u2.t >= u2.reach) { u2.touched = true; if (u2.onTouch) u2.onTouch(); }
+      var wR = u2.leaving ? 1 - easeIO(clamp((u2.out += dt) / 0.35, 0, 1)) : inR;
+      rW.lerp(lv, wR); hQ.copy(bQ).multiply(WRISTQ); hQ.slerp(lqh, wR); bQ.slerp(lq, wR);
+      if (u2.leaving && u2.out >= 0.35) useR = null;
+    } else hQ.copy(bQ).multiply(WRISTQ);
+    solveArm('R', rW, hQ, bQ, 0.75, rootQ, wristQ);
+    R.root.position.copy(rW); R.root.quaternion.copy(rootQ); R.hand.quaternion.copy(wristQ); applyPose(R, pose);
     // --- the torch itself: lens, flare, the pieces that come apart ---
     var lit = flashlight.intensity > 0.05; H.lensMat.color.setHex(lit ? 0xfff6dd : 0x0a0a0a); H.lensMat.opacity = lit ? 1 : 0.35; H.ledMat.color.setHex(lit ? 0xffffff : 0x6a5a20);
     H.flare.material.opacity = lit ? clamp(flashlight.intensity / 6, 0.2, 1) * 0.4 : 0;
+
     // --- left hand ---
-    var tp = REST_L.pos, tq = REST_L.q, tw = ID, tPose = POSE.relax, w = 1;
-    if (H.carried) { tp = new V(-0.27 + sway.x * 0.3, -0.1 - Math.abs(Math.cos(bob)) * 0.014 * bobK - sway.y * 0.3, -0.52); tmpE.set(0.3, 0.35, 0.12 + Math.sin(bob) * 0.04 * bobK, 'YXZ'); tq = new Q().setFromEuler(tmpE); tPose = POSE.fist; }   // carrying: fist over the handle, the load hanging below
+    var tp = REST_L.pos, tq = REST_L.q, tPose = POSE.relax;
+    pitchQ.setFromAxisAngle(XAX, -(c.pitch || 0));                        // body space -> camera space (the body does not pitch with the head)
+    // running with nothing in it: the free arm pumps, the fist swinging up into the lower left of the view
+    freeK = damp(freeK, !H.carried && !use && T < 0 ? rk : 0, 6, dt);
+    if (freeK > 0.02) {
+      var swg = Math.sin(ph + 0.4);
+      var fp = new V(-0.24 - swg * 0.02, -0.5 + Math.max(0, swg) * 0.16, -0.22 - swg * 0.17).applyQuaternion(pitchQ);
+      tmpE.set(0.9 - swg * 0.5, 0.3, 0.5 + swg * 0.2, 'YXZ'); var fq = new Q().setFromEuler(tmpE).premultiply(pitchQ);
+      tp = REST_L.pos.clone().lerp(fp, freeK); tq = REST_L.q.clone().slerp(fq, freeK); tPose = mixPose(POSE.relax, POSE.fist, freeK, []);
+    }
+    // carrying: the can hangs from the hand at the side, swinging a little with the stride; the hand sits at the lower left edge of the view
+    carryK = damp(carryK, H.carried ? 1 : 0, 8, dt);
+    if (H.carried) {
+      var acc = (speed - (H._lastSpeed || 0)) / Math.max(dt, 1e-3); H._lastSpeed = speed;
+      carryV += (-carrySw * 38 - carryV * 4.2 - clamp(acc, -20, 20) * 0.02 + Math.sin(ph) * 0.9 * wk) * dt; carrySw += carryV * dt; carrySw = clamp(carrySw, -0.35, 0.35);
+      var cp = new V(-0.3 + Math.sin(ph) * 0.006 * wk, -0.4 - dip * 0.012 * wk + sway.y * -0.2, -0.43 + sway.x * 0.1).applyQuaternion(pitchQ);
+      tmpE.set(-0.06 + carrySw, 0.0, 0.16 + Math.sin(ph) * 0.03 * wk, 'YXZ'); var cq = new Q().setFromEuler(tmpE).premultiply(pitchQ);
+      tp = cp; tq = cq; tPose = POSE.carry;
+    }
     if (T >= 0) {
       // torch space: the tail is at z = 0 and the tube runs toward -z
-      var capOff = 0, capSpin = 0, cellZ = null, freshZ = null, hold = 0, near = 0;
+      var capOff = 0, capSpin = 0, cellZ = null, freshZ = null, near = 0;
       near = seg(T, 0.18, 0.5) * (1 - seg(T, 0.98, 1.2)) + seg(T, 1.34, 1.62) * (1 - seg(T, RELOAD - 0.3, RELOAD - 0.02));
       if (T < 1.1) { capSpin = seg(T, 0.5, 0.82) * 5.5; capOff = seg(T, 0.52, 0.82) * 0.006 + seg(T, 0.82, 1.0) * 0.07; }
       else { capSpin = (1 - seg(T, 1.92, 2.2)) * 5.5; capOff = (1 - seg(T, 1.86, 1.98)) * 0.07 + (1 - seg(T, 1.92, 2.2)) * 0.006; }
       if (T > 0.86 && T < 1.5) cellZ = -0.03 + seg(T, 0.86, 1.06) * 0.1;
       if (T > 1.3 && T < 1.9) freshZ = 0.085 - seg(T, 1.62, 1.86) * 0.115;
-      tailCap.position.z = 0.0 + capOff * (T > 1.0 && T < 1.9 ? 1 : 1); tailCap.rotation.z = capSpin; tailCap.visible = !(T > 1.08 && T < 1.78);
+      tailCap.position.z = capOff; tailCap.rotation.z = capSpin; tailCap.visible = !(T > 1.08 && T < 1.78);
       H.spent.visible = cellZ !== null; if (cellZ !== null) { H.spent.position.set(0, T > 1.06 ? -(T - 1.06) * (T - 1.06) * 3.2 : 0, cellZ + (T > 1.06 ? (T - 1.06) * 0.1 : 0)); H.spent.rotation.x = T > 1.06 ? (T - 1.06) * 7 : 0; }
       H.spare.visible = freshZ !== null; if (freshZ !== null) H.spare.position.set(0, 0, freshZ);
       if (!clip.dropped && T > 1.2) { clip.dropped = true; Sfx.play('battery_drop', { vol: 0.6, fallback: function () { Sound.tone(900, 500, 0.05, 0.12, 'square'); Sound.noise(0.06, 3000, 0.12, 0.09); } }); }
@@ -416,32 +515,46 @@ var Hands = (function () {
       var hz = freshZ !== null && T < 1.9 ? freshZ + 0.03 : capOff + 0.012;
       torch.updateWorldMatrix(true, false); tailW.set(0, 0, hz).applyMatrix4(torch.matrixWorld); camera.worldToLocal(tailW);
       tmpE.set(0.15, -1.25, 0.2 + Math.sin(capSpin) * 0.35, 'YXZ'); var q2 = new Q().setFromEuler(tmpE), off = TIP.pinch.clone(); off.x = -off.x; off.applyQuaternion(q2);
-      var gp = tailW.clone().sub(off); tp = REST_L.pos.clone().lerp(gp, near); tq = REST_L.q.clone().slerp(q2, near); tPose = mixPose(POSE.relax, POSE.pinch, near, []);
+      var gp = tailW.clone().sub(off); tp = tp.clone().lerp(gp, near); tq = tq.clone().slerp(q2, near); tPose = mixPose(tPose, POSE.pinch, near, []);
       clipT += dt; if (clipT >= RELOAD) { clipT = -1; H.spare.visible = H.spent.visible = false; tailCap.visible = true; tailCap.position.z = 0; tailCap.rotation.z = 0; var cd = clip.done; clip = null; if (cd) cd(); }
     } else if (use) {
       var u = use; u.t += dt; u.alive -= dt;
       if (u.alive <= 0 && !u.leaving) { u.leaving = true; u.out = 0; }
       var pt = u.point ? u.point() : null;
       if (pt) {
-        tmpV.copy(pt); if (u.move) tmpV.add(u.move(u.t, u)); camera.updateWorldMatrix(true, false); camera.worldToLocal(tmpV);
-        tmpE.set(u.rot[0], u.rot[1], u.rot[2] + (u.spin || 0), 'YXZ'); var uq = new Q().setFromEuler(tmpE), to = u.tip.clone(); to.x = -to.x; to.applyQuaternion(uq);
-        var inn = easeOut(clamp(u.t / u.reach, 0, 1)), pr = u.press ? Math.sin(clamp((u.t - u.reach) / 0.16, 0, 1) * PI) * u.press : 0;
-        tmpV.sub(to); tmpV.z -= pr;
-        if (tmpV.length() > 0.8) tmpV.setLength(0.8);
+        var hv = new V().copy(pt); if (u.move) hv.add(u.move(u.t, u)); camera.worldToLocal(hv);
+        tmpE.set(u.rot[0], u.rot[1], u.rot[2] + (u.spin || 0), 'YXZ'); var uq = new Q().setFromEuler(tmpE); if (u.body) uq.premultiply(pitchQ);
+        var to = u.tip.clone(); to.x = -to.x; to.applyQuaternion(uq);
+        var inn = easeIO(clamp(u.t / u.reach, 0, 1)), pr = u.press ? Math.sin(clamp((u.t - u.reach) / 0.16, 0, 1) * PI) * u.press : 0;
+        hv.sub(to); hv.z -= pr;
         if (!u.touched && u.t >= u.reach) { u.touched = true; if (u.onTouch) u.onTouch(); }
-        /* The forearm points from the shoulder to the wrist; the hand keeps the rotation asked for, and the difference is taken up
-           at the wrist (as far as a wrist bends).  The hand bone lives in the mirrored hand's space, hence the flipped terms. */
-        var fdir = tmpV.clone().sub(SHOULDER_L).normalize(), hdir = FWD.clone().applyQuaternion(uq), sw = new Q().setFromUnitVectors(hdir, fdir), sa = 2 * Math.acos(clamp(sw.w, -1, 1));
-        if (sa > 1.05) sw.slerp(ID, 1 - 1.05 / sa);
-        var aq = sw.multiply(uq), rel = aq.clone().invert().multiply(uq), wq = new Q(rel.x, -rel.y, -rel.z, rel.w);
-        if (u.leaving) { u.out += dt; var o2 = easeIO(clamp(u.out / 0.3, 0, 1)); tp = tmpV.clone().lerp(H.carried ? tp : REST_L.pos, o2); tq = aq.clone().slerp(tq, o2); tw = wq.clone().slerp(ID, o2); tPose = mixPose(u.pose, tPose, o2, []); if (u.out >= 0.3) use = null; }
-        else { tp = u.from.pos.clone().lerp(tmpV, inn); tq = u.from.q.clone().slerp(aq, inn); tw = u.from.wq.clone().slerp(wq, inn); tPose = mixPose(u.from.pose, u.pose, inn, []); }
+        if (u.leaving) { u.out += dt; var o2 = easeIO(clamp(u.out / 0.34, 0, 1)); tp = hv.clone().lerp(tp, o2); tq = uq.clone().slerp(tq, o2); tPose = mixPose(u.pose, tPose, o2, []); if (u.out >= 0.34) use = null; }
+        else { tp = u.from.pos.clone().lerp(hv, inn); tq = u.from.q.clone().slerp(uq, inn); tPose = mixPose(u.from.pose, u.pose, inn, []); }
+        H.tipCam.copy(u.tip); H.tipCam.x = -H.tipCam.x; H.tipCam.applyQuaternion(tq).add(tp);          // where the working part of the hand is now (camera space)
       } else use = null;
     }
-    Lcur.pos.copy(tp); Lcur.q.copy(tq); Lcur.wq.copy(tw); Lcur.pose = tPose;
-    L.root.position.copy(tp); L.root.quaternion.copy(tq); L.hand.quaternion.copy(tw); applyPose(L, tPose);
+    /* Holding an object exactly: H.hold = { inv: inverse of the object's matrix in the left hand's frame, world(): where the
+       object must be (a world matrix), want: 0..1, rate }.  The hand goes wherever puts the object there; k blends it in and out. */
+    if (H.hold) {
+      var Ho = H.hold; Ho.k = damp(Ho.k || 0, Ho.want, Ho.rate || 5, dt); if (Math.abs(Ho.k - Ho.want) < 0.004) Ho.k = Ho.want;
+      if (Ho.k > 0.001) {
+        hM.copy(Ho.world()).multiply(Ho.inv); camInv.copy(camera.matrixWorld).invert(); hM.premultiply(camInv).multiply(MIRX); hM.decompose(hP, hQ2, hS);
+        tp = tp.clone().lerp(hP, Ho.k); tq = tq.clone().slerp(hQ2, Ho.k); tPose = mixPose(tPose, Ho.pose || POSE.carry, Ho.k, []);
+      }
+      if (Ho.k === 0 && Ho.want === 0 && Ho.done) { var dn = Ho.done; H.hold = null; dn(); } else if (Ho.k === 0 && Ho.want === 0) H.hold = null;
+    }
+    Lcur.pos.copy(tp); Lcur.q.copy(tq); Lcur.pose = tPose;
+    solveArm('L', tp, tq, tq, 0.95, rootQ, wristQ);
+    L.root.position.copy(tp); L.root.quaternion.copy(rootQ); L.hand.quaternion.copy(wristQ); applyPose(L, tPose);
+    UA.L.visible = UA.R.visible = true;
+    /* A cinematic can take the staff card out of the hand's frame and place it exactly (in the swipe slot): it rides on the
+       camera for that time (never on the mirrored left hand's frame, which would flip its printing). */
+    var cw = H.cardHold && H.card.visible ? H.cardHold() : null;
+    if (cw) {
+      if (H.card.parent !== camera) camera.add(H.card);
+      H.card.position.copy(cw.p); camera.worldToLocal(H.card.position); H.card.quaternion.copy(camera.quaternion).invert().multiply(cw.q);
+    } else if (H.card.parent !== L.hand) { L.hand.add(H.card); H.card.position.set(-0.062, -0.022, -0.118); H.card.rotation.set(0.2, 0.25, 1.45); }
     H.block = block;
-    if (H.carried) H.carried.visible = !(use || T >= 0) || true;
   };
   H.setLight = function (on) { lightOn = on; };
 
