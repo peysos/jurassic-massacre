@@ -68,7 +68,7 @@ var Extras = (function () {
       [0.07, 2.2].forEach(function (x) { box(0.07, 3.35, 0.07, M.metal, x, 1.7, 0, lf); }); [0.08, 1.7, 3.36].forEach(function (y) { box(2.2, 0.07, 0.07, M.metal, 1.12, y, 0, lf); });
       box(0.5, 0.36, 0.03, M.yellow, 1.5, 1.9, 0.045, lf); lf.userData = { base: L[1], dir: L[2] }; leaves.push(lf);
     });
-    gateBox = solid(-71.35, -69.65, -92.3, -87.7, true);
+    gateBox = solid(-71.35, -69.65, -92.3, -87.7, true); gateBox.off = false;
     box(0.22, 1.35, 0.22, M.dark, -69.8, 0.67, -86.9); box(0.3, 0.4, 0.12, M.metal, -69.74, 1.36, -86.9).rotation.y = PI / 2;
     readerLamp = basic(0xff3020, { fog: false }); mesh(new THREE.SphereGeometry(0.05, 8, 8), readerLamp, -69.66, 1.5, -86.9); box(0.02, 0.05, 0.16, basic(0x111111), -69.66, 1.3, -86.9);
     circles.push({ x: -69.8, z: -86.9, r: 0.3 });
@@ -77,18 +77,7 @@ var Extras = (function () {
 
   // ---------- the keeper behind the north bunker ----------
   (function () {
-    var g = grp(KEEPER[0], KEEPER[1], PI), khaki = std(0x77704e, 0.95, { bumpMap: bump(3), bumpScale: 0.02 }), trouser = std(0x3a3b2c, 1), skin = std(0x8e8a7a, 0.8), boot = std(0x17130f, 0.7);
-    var torso = box(0.46, 0.64, 0.25, khaki, 0, 0.5, -0.14, g); torso.rotation.x = -0.28;
-    box(0.4, 0.2, 0.3, trouser, 0, 0.12, 0.08, g);
-    [-0.12, 0.13].forEach(function (x, n) { var l = box(0.16, 0.15, 0.86, trouser, x, 0.09, 0.62, g); l.rotation.y = n ? -0.12 : 0.2; box(0.15, 0.24, 0.28, boot, x + (n ? -0.06 : 0.1), 0.12, 1.14, g).rotation.y = n ? -0.3 : 0.5; });
-    [[-0.31, 0.35], [0.31, -0.5]].forEach(function (a) { var arm = box(0.12, 0.56, 0.13, khaki, a[0], 0.36, -0.02, g); arm.rotation.z = a[1] * 0.3; mesh(sphGeo, skin, a[0] * 1.25, 0.08, 0.12, g).scale.set(0.11, 0.08, 0.14); });
-    var head = mesh(new THREE.SphereGeometry(0.115, 12, 10), skin, 0.05, 0.9, -0.2, g); head.rotation.z = 0.5; head.scale.set(1, 1.15, 1);
-    box(0.2, 0.06, 0.2, std(0x2a2318, 1), 0.08, 1.0, -0.21, g).rotation.z = 0.5;                                   // hair
-    cyl(0.2, 0.2, 0.02, khaki, 0.62, 0.02, 0.5, g, 12); cyl(0.1, 0.11, 0.1, khaki, 0.62, 0.07, 0.5, g, 12);          // his hat
-    cyl(0.03, 0.035, 0.24, M.dark, -0.5, 0.035, 0.7, g, 8).rotation.set(0, 0.8, PI / 2);                             // and his torch, long dead
-    var st = mesh(new THREE.CircleGeometry(0.2, 10), M.blood, 0.02, 0.56, 0.0, g); st.rotation.x = -0.28; st.position.z = -0.02; st.userData.noCast = true;
-    var pool = mesh(new THREE.CircleGeometry(0.85, 14), M.blood, 0.1, 0.03, 0.3, g); pool.rotation.x = -PI / 2; pool.scale.set(1, 0.7, 1); pool.userData.noCast = true;
-    mesh(new THREE.TorusGeometry(0.1, 0.008, 5, 14, PI), M.dark, 0.02, 0.72, -0.06, g).rotation.set(1.2, 0, PI);     // lanyard
+    var g = grp(KEEPER[0], KEEPER[1], PI); buildKeeper(g);
     cardMesh = dyn(new THREE.Group()); cardMesh.position.set(KEEPER[0] - 0.02, 0.56, KEEPER[1] - 0.02); scene.add(cardMesh);
     var c = box(0.09, 0.13, 0.012, std(0xe9e6da, 0.4, { emissive: 0x666250, emissiveIntensity: 0.6 }), 0, 0, 0, cardMesh); c.rotation.x = 0.28; box(0.07, 0.03, 0.014, M.red, 0, 0.035, 0, cardMesh).rotation.x = 0.28;
     cardGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex('rgba(255,240,200,.6)', 'rgba(255,220,150,.15)'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 }));

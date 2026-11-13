@@ -67,8 +67,8 @@ function newPuzzles() {
   var ratings = shuffle([5, 10, 15, 20, 25, 30, 40]).slice(0, 5), pick = shuffle([0, 1, 2, 3, 4]).slice(0, 3);
   var ws = { easy: [[7, 3, 2]], normal: [[9, 4, 3], [8, 3, 2]], hard: [[9, 5, 3], [10, 4, 3]] }[diffName], w = ws[(Math.random() * ws.length) | 0];
   return { turn: false, pow0: false, ent: newEntrance(), pen: false, lever: lev.order, clues: lev.clues, pulled: [],
-    fuses: ratings, fuseGot: [false, false, false, false, false], load: ratings[pick[0]] + ratings[pick[1]] + ratings[pick[2]], power: false,
-    winch: { h: w[0], start: w[0], down: w[1], up: w[2] }, gateA: false, gateB: false, box: 0, inv: 0, esc: null, net: newNet() };
+    fuses: ratings, fuseGot: [true, true, true, true, true], load: ratings[pick[0]] + ratings[pick[1]] + ratings[pick[2]], power: false,
+    winch: { h: w[0], start: w[0], down: w[1], up: w[2], stop: [1, 2, 4, 5][(Math.random() * 4) | 0], dir: 1 }, sw: { g: [false, true, false] }, gateA: false, gateB: false, box: 0, inv: 0, esc: null, net: newNet() };
 }
 function refreshClues() {
   var i;
@@ -84,8 +84,8 @@ function refreshClues() {
     g.fillStyle = '#d9534a'; g.font = '28px "Trebuchet MS", Arial, sans-serif'; g.fillText('A wrong lever sounds the alarm', w / 2, 330);
     W.plaque.tex.needsUpdate = true;
   })();
-  plaqueText(W.fusePlaque, 'FUSE BOX', ['Required load: exactly ' + P.load + ' A', 'Three slots. Over or under trips the breaker.', 'Spare fuses were left around this sector.']);
-  plaqueText(W.aviPlaque, 'KEY CAGE WINCHES', ['The cage hangs ' + P.winch.start + ' m above the pedestal.', 'Winch A lowers it ' + P.winch.down + ' m a turn.  Winch B raises it ' + P.winch.up + ' m.',
+  plaqueText(W.fusePlaque, 'SHUTTER SUPPLY', ['Fed from the mill turbine in the', 'wetland behind this building.', 'No water in the race, no power here.']);
+  plaqueText(W.aviPlaque, 'KEY CAGE WINCHES', ['The cage hangs ' + P.winch.start + ' m up, on a trolley. The pedestal is under stop 3.', 'Winch C rolls the trolley one stop a turn — only with the cage right at the top.', 'Winch A lowers it ' + P.winch.down + ' m a turn.  Winch B raises it ' + P.winch.up + ' m.',
     'Land it exactly. Lower it too far and the brake', 'slams it back to the top — and it will hear.']);
   plaqueText(W.winchSigns[0], 'WINCH A', ['▼ ' + P.winch.down + ' m per turn']); plaqueText(W.winchSigns[1], 'WINCH B', ['▲ ' + P.winch.up + ' m per turn']);
   for (i = 0; i < 5; i++) { var c = W.fuseCols[P.fuses[i]]; W.fuseMats[i].color.setHex(c); W.fuseMats[i].emissive.setHex(c); }
@@ -105,7 +105,7 @@ function stepWorld(dt, instant) {
   anim.gate = esc ? esc.gate : 0;
   if (window.Entrance) Entrance.step(dt, instant);
   if (window.Staff && P.net) Staff.step(instant ? 0 : dt);
-  Extras.step(dt, instant);
+  Extras.step(dt, instant); Swamp.step(dt, instant); Keeper.step(dt, instant);
   [['A', 'gA'], ['B', 'gB']].forEach(function (q) {
     var G = W['gate' + q[0]], open = gateOpen(q[0]);
     G.set(anim[q[1]]); G.box.off = anim[q[1]] > 0.8; G.lamp.color.setHex(open ? 0x35ff8a : 0xff3020);
@@ -123,7 +123,7 @@ function stepWorld(dt, instant) {
   W.breaker.rotation.z = P.power ? 0 : 0.9;
   for (i = 0; i < 2; i++) W.cranks[i].rotation.x = holdProg.winchSpin || 0;
   var ch = P.winch.h * 0.8;
-  W.aviCage.position.y = 1.4 + ch; W.aviCage.visible = P.winch.h !== 0 && !keysGot[3]; keyMeshes[3].position.y = W.keyY[3] + ch;
+  W.aviCage.position.y = 1.4 + ch; W.aviCage.visible = (P.winch.h !== 0 || (P.winch.stop || 3) !== 3) && !keysGot[3]; keyMeshes[3].position.y = W.keyY[3] + ch;
   W.boxLid.rotation.x = -anim.box * 1.9; keyMeshes[4].visible = !keysGot[4] && anim.box > 0.5;
   for (i = 0; i < TERMS.length; i++) W.termScr[i].color.setHex(!esc && done(TERMS[i].need) ? 0x35ff8a : 0x551010);
   for (i = 0; i < fuseMeshes.length; i++) fuseMeshes[i].visible = fuseMeshes[i].userData.glowG.visible = !P.fuseGot[i];
@@ -236,11 +236,12 @@ function showMsg(t, secs) { var m = $('msg'); m.textContent = t; m.style.opacity
    `d` is the dinos[] entry for a raptor or the rex; undefined for the plesiosaur and the pterosaur. */
 function die(kind, d) {
   if (state !== 'playing') return;
+  if (kind === 'spino') { closePanel(); Swamp.kill(function () { showDeath(kind); }); return; }
   if (window.Scares && Scares.kill) { closePanel(); Scares.kill(kind, d, function () { showDeath(kind); }); }
   else showDeath(kind);
 }
 function showDeath(kind) {
-  var txt = { raptor: ['YOU WERE DEVOURED', 'The raptors found you.'], rex: ['YOU WERE DEVOURED', 'The Tyrannosaurus found you.'],
+  var txt = { spino: ['YOU WERE DEVOURED', 'The Spinosaurus took you in the shallows.'], raptor: ['YOU WERE DEVOURED', 'The raptors found you.'], rex: ['YOU WERE DEVOURED', 'The Tyrannosaurus found you.'],
     ptero: ['YOU WERE CARRIED OFF', 'The pterosaur took you from above.'], ples: ['YOU WERE DRAGGED UNDER', 'The plesiosaur was waiting in the water.'] }[kind];
   if (kind === 'ptero') Sound.screech(); else if (kind === 'ples') Sound.splash(); else Sound.roar(kind === 'rex');
   Sound.noise(0.6, 3000, 0.5, 0.1);
@@ -297,6 +298,7 @@ function stunBurst() {
     d.state = 'stun'; d.stunT = DIFF.stun * (d.rex ? 0.6 : 1); d.lastX = d.x; d.lastZ = d.z; hit++; Sound.roar(d.rex, 0.5);
   });
   if (plesMesh.visible && inBeam(ples.x + Math.sin(ples.rot) * 3, ples.z + Math.cos(ples.rot) * 3, 24, 5)) { ples.state = 'stun'; ples.stunT = DIFF.stun; hit++; }
+  hit += Swamp.flash(inBeam);
   var cp = Math.cos(player.pitch), ex = ptero.x - player.x, ey = ptero.y - (player.y + player.eye), ez = ptero.z - player.z, ed = Math.hypot(ex, ey, ez);
   if (ed < 40 && (ed < 4 || (ex * fx * cp + ey * Math.sin(player.pitch) + ez * fz * cp) / ed > 0.8)) { ptero.state = 'stun'; ptero.stunT = DIFF.stun * 1.6; hit++; Sound.screech(); }
   if (hit) showMsg(hit > 1 ? hit + ' creatures stunned — move!' : 'Stunned — move!', 2.5);
@@ -335,7 +337,7 @@ function pullLever(i) {
     else showMsg('Lever ' + ROMAN[i] + ' locks into place. (' + P.pulled.length + ' / ' + P.lever.length + ')', 2.5);
   };
 }
-function carried() { var out = []; for (var i = 0; i < 5; i++) if (P.fuseGot[i]) out.push(i); return out; }
+function carried() { return []; }      // the fuse hunt is gone: the shutter now runs off the wetland turbine (wetland.js)
 function openPanel(which) { panel = which; fuseSel = []; renderPanel(); }
 function closePanel() { panel = null; $('panel').style.display = 'none'; }
 function renderPanel() {
@@ -384,7 +386,7 @@ function winchTurn(i) {
     var w = P.winch;
     if (i === 0) {
       if (w.h - w.down < 0) { w.h = w.start; Sound.buzz(); Sound.clunk(); ptero.expo += 1.1; makeNoise(player.x, player.z, 30); showMsg('Too far — the brake slams the cage back to ' + w.start + ' m. Something stirs overhead.', 4.5); }
-      else { w.h -= w.down; Sound.clunk(); if (w.h === 0) { Sound.chime(); showMsg('The cage lands exactly on the pedestal and falls open.', 4.5); } else showMsg('The cage drops to ' + w.h + ' m.', 2.5); }
+      else { w.h -= w.down; Sound.clunk(); if (w.h === 0) { if ((w.stop || 3) === 3) { Sound.chime(); showMsg('The cage lands exactly on the pedestal and falls open.', 4.5); } else { Sound.thud(0.5); showMsg('The cage sets down in the dirt beside the pedestal and stays shut. Raise it to the top and move the trolley.', 5.5); } } else showMsg('The cage drops to ' + w.h + ' m.', 2.5); }
     } else if (w.h >= w.start) showMsg('The cage is already at the top.', 2.5);
     else { w.h = Math.min(w.start, w.h + w.up); Sound.clunk(); showMsg('The cage rises to ' + w.h + ' m.', 2.5); }
   };
@@ -605,10 +607,10 @@ function findInteract() {
   }
   if (!P.pen) for (i = 0; i < P.lever.length; i++) if (dist(px, pz, LEVERS[i][0], LEVERS[i][1]) < 2.3)
     return P.pulled.indexOf(i) >= 0 ? { text: 'Lever ' + ROMAN[i] + ' is already down' } : { text: '[E] Pull lever ' + ROMAN[i], fn: pullLever(i) };
-  if (!P.power && dist(px, pz, -10.8, -16.2) < 2.8) return panel ? { text: '' } : { text: '[E] Open the fuse box', fn: function () { openPanel('fuse'); } };
+  var sx = Swamp.interact(px, pz) || Keeper.interact(px, pz); if (sx) return sx;
   for (i = 0; i < 2; i++) {
     var c = COVERS[WINCH[i]];
-    if (!keysGot[3] && dist(px, pz, c[0], c[1]) < 2.5) return P.winch.h === 0 ? { text: 'The cage is down. Go and take the key piece.' }
+    if (!keysGot[3] && dist(px, pz, c[0], c[1]) < 2.5) return P.winch.h === 0 && (P.winch.stop || 3) === 3 ? { text: 'The cage is down. Go and take the key piece.' }
       : { text: '[Hold E] Turn winch ' + 'AB'[i] + ' — cage at ' + P.winch.h + ' m', prog: holdProg.winch, hold: winchTurn(i) };
   }
   if (!esc && dist(px, pz, 52, -85) < 2.6) return { text: '[E] Sound the feeding call', fn: function () {
@@ -650,7 +652,7 @@ function objective() {
     : P.sawOrder ? 'Raptor Paddock: pull the levers in order — ' + P.lever.map(function (l) { return ROMAN[l]; }).join(' › ') + '.  Next: lever ' + ROMAN[P.lever[P.pulled.length]] + '.'
     : 'Raptor Paddock: the lever order is on the plaque by the holding pen.';
   if (!P.gateA) return 'Open Sector Gate A, north along the main path.';
-  if (!keysGot[2]) return P.power ? 'Take the key piece from the Visitor Center.' : 'Visitor Center: find fuses that add up to the load on the fuse box.';
+  if (!keysGot[2]) return P.power ? 'Take the key piece from the Visitor Center.' : Swamp.objective();
   if (!P.gateB) return 'Open Sector Gate B, further north.';
   if (!keysGot[3] && !P.aviOpen) return P.card ? 'Scan the keeper’s keycard at the aviary gate.' + (keysGot[4] ? '' : '  The T-Rex Kingdom holds the other key piece.') : 'The aviary gate needs a staff keycard. A keeper went to ground near the North Bunker.' + (keysGot[4] ? '' : '  The T-Rex Kingdom holds the other key piece.');
   if (!keysGot[3] && !keysGot[4]) return 'Recover the key pieces in the Aviary and T-Rex Kingdom.';
@@ -762,7 +764,7 @@ function objectiveTarget() {
   function nearest(list) { list.forEach(function (k) { if (keysGot[k]) return; var d = dist(player.x, player.z, ZONES[k].x, ZONES[k].z); if (d < bd) { bd = d; best = [ZONES[k].x, ZONES[k].z]; } }); return best; }
   if (!keysGot[0] || !keysGot[1]) return nearest([0, 1]);
   if (!P.gateA) return [0, FENCE_A + 2];
-  if (!keysGot[2]) return P.power ? [ZONES[2].key[0], ZONES[2].key[1]] : [-10.8, -16.2];
+  if (!keysGot[2]) return P.power ? [ZONES[2].key[0], ZONES[2].key[1]] : Swamp.target();
   if (!P.gateB) return [0, FENCE_B + 2];
   return nearest([3, 4]);
 }
@@ -912,6 +914,7 @@ function update(dt) {
   player.cy += (player.yaw - player.cy) * lk; player.cp += (player.pitch - player.cp) * lk;
   var runK2 = 0.4 + 0.6 * sstep(player.stamina / 55);                       // how much of a full sprint is left in the legs
   var sp = player.water ? 2.6 : sprint ? 4.4 + 4.2 * runK2 : crouch ? 2.2 : exhausted ? 3.6 : 4.4, wx = 0, wz = 0;
+  sp *= Swamp.drag(player.x, player.z);
   if (moving) { var len = Math.hypot(f, r), sy = Math.sin(player.cy), cy = Math.cos(player.cy); wx = ((-sy) * f + cy * r) / len * sp; wz = ((-cy) * f + (-sy) * r) / len * sp; }
   var ak = 1 - Math.exp(-dt * (player.grounded ? (moving ? 10 : 13) : 2.5));
   player.vx += (wx - player.vx) * ak; player.vz += (wz - player.vz) * ak;
@@ -990,7 +993,7 @@ function update(dt) {
   for (i = 0; i < keyMeshes.length; i++) {
     if (keysGot[i]) continue;
     var k = keyMeshes[i]; k.userData.glow.material.opacity = 0.42 + 0.22 * Math.sin(playTime * 2.6 + i);
-    if ((i === 3 && P.winch.h !== 0) || (i === 4 && P.box < 1)) continue;
+    if ((i === 3 && (P.winch.h !== 0 || (P.winch.stop || 3) !== 3)) || (i === 4 && P.box < 1)) continue;
     if (dist(player.x, player.z, k.position.x, k.position.z) < 1.75 && Math.abs(player.y) < 1) {
       keysGot[i] = true; k.visible = false; Sound.chime(); updateHud(true);
       var n = countKeys();
@@ -1067,7 +1070,8 @@ function update(dt) {
   if (updatePles(dt)) return;
   if (updatePtero(dt, ctx)) return;
   Scares.update(dt, ctx);
-  Extras.update(dt, ctx, speedNow);
+  Extras.update(dt, ctx, speedNow); Keeper.update(dt, ctx);
+  if (Swamp.update(dt, ctx, speedNow)) return;
   var chasing = aiChasing + (ptero.state === 'swoop' ? 1 : 0) + (ples.state === 'chase' ? 1 : 0);
   chaseHold = chasing > 0 ? 4 : Math.max(0, chaseHold - dt);
 

@@ -635,7 +635,7 @@ var WB = { posts: [] };
     W.winchSigns = [livePanel(2.4, 0.8, 384, 128, COVERS[WINCH[0]][0] + 2.78, 3.5, COVERS[WINCH[0]][1], PI / 2), livePanel(2.4, 0.8, 384, 128, COVERS[WINCH[1]][0] + 2.78, 3.5, COVERS[WINCH[1]][1], PI / 2)];
     W.aviPlaque = livePanel(5.4, 2.1, 640, 250, -65.9, 2.2, -84.6, PI / 2);
     box(0.1, 2.3, 5.6, M.wood, -66, 2.2, -84.6); [-87.2, -82].forEach(function (z) { box(0.18, 3.4, 0.18, M.wood, -66.05, 1.7, z); });
-    cyl(0.8, 0.95, 0.5, M.concrete, AV.x, 0.25, AV.z, null, 14); cyl(0.025, 0.025, AV.h, M.metal, AV.x, AV.h / 2 + 2.2, AV.z, null, 5);
+    cyl(0.8, 0.95, 0.5, M.concrete, AV.x, 0.25, AV.z, null, 14);
     W.aviCage = dyn(new THREE.Group());
     mesh(new THREE.BoxGeometry(1.1, 1.5, 1.1), basic(0xc8c8c8, { wireframe: true }), 0, 0, 0, W.aviCage); box(1.2, 0.08, 1.2, M.metal, 0, 0.78, 0, W.aviCage); box(1.2, 0.08, 1.2, M.metal, 0, -0.78, 0, W.aviCage);
     W.aviCage.position.set(AV.x, 1.4, AV.z); scene.add(W.aviCage);

@@ -11,7 +11,7 @@ var Scares = (function () {
   function seg(t, a, b) { return sstep((t - a) / (b - a)); }
   function crunch(v) { Sound.noise(0.16, 1800, 0.5 * v); Sound.tone(150, 50, 0.22, 0.4 * v, 'sawtooth'); Sound.noise(0.1, 6000, 0.25 * v, 0.03); }
   function sting(v) { v = v === undefined ? 1 : v; Sound.tone(62, 31, 1.6, 0.55 * v, 'sine'); Sound.tone(1900, 2300, 0.5, 0.13 * v, 'sawtooth'); Sound.tone(2011, 2390, 0.5, 0.13 * v, 'sawtooth', 0.01); Sound.tone(2840, 3100, 0.35, 0.07 * v, 'square'); Sound.noise(0.5, 7000, 0.32 * v); }
-  S.sting = sting;
+  S.sting = sting; S.maw = function (k) { setMaw(k); }; S.crunch = function (v) { crunch(v); };
 
   /* Rules every kill keeps, so the animal always looks right:
        - it starts where the animal really is and turns it smoothly: nothing snaps or slides;

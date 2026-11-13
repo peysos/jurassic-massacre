@@ -128,35 +128,61 @@ function buildPlesiosaur() {
 
 // ---------- pterosaur ----------
 function buildPterosaur() {
-  var g = new THREE.Group();
-  tube([[0, -0.02, -1.0, 0.03, 0.03], [0, 0, -0.6, 0.2, 0.18], [0, 0, 0, 0.28, 0.26], [0, 0.03, 0.45, 0.2, 0.2], [0, 0.18, 0.8, 0.1, 0.11], [0, 0.38, 1.05, 0.08, 0.085]], wingSkin, g, 12, 4);
-  var head = new THREE.Group(); head.position.set(0, 0.42, 1.1); head.userData.skin = wingSkin; g.add(head);
-  tube([[0, 0.02, -0.18, 0.05, 0.05], [0, 0.03, 0, 0.14, 0.13], [0, 0.01, 0.25, 0.1, 0.09], [0, -0.02, 0.8, 0.05, 0.045], [0, -0.04, 1.45, 0.012, 0.012]], hornMat, head, 10, 4);
-  var jaw = new THREE.Group(); jaw.position.set(0, -0.07, 0.05); head.add(jaw);
-  tube([[0, 0, 0, 0.08, 0.035], [0, -0.02, 0.6, 0.045, 0.028], [0, -0.03, 1.32, 0.01, 0.01]], hornMat, jaw, 8, 3);
-  tube([[0, 0.1, 0.05, 0.03, 0.07], [0, 0.26, -0.35, 0.025, 0.11], [0, 0.4, -0.85, 0.012, 0.03]], std(0x8a2a22, 0.55), head, 8, 4);       // crest
-  eyeballs(head, 0.11, 0.07, 0.08, 0.034);
+  // a Pteranodon: pale furred body, long toothless beak, the blade of a crest, and wings of skin stretched on one enormous finger
+  var fur = std(0xffffff, 0.9, { map: canvasTex(128, function (c, s) {
+    c.fillStyle = '#8f8676'; c.fillRect(0, 0, s, s); blotch(c, s, ['rgba(60,50,40,.5)', 'rgba(190,180,160,.35)', 'rgba(40,32,26,.4)'], 40, 6, 22, 0.5);
+    for (var i = 0; i < 900; i++) { var x = Math.random() * s, y = Math.random() * s; c.strokeStyle = Math.random() < 0.5 ? 'rgba(30,24,18,.35)' : 'rgba(220,210,190,.25)'; c.lineWidth = 0.7; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (Math.random() - 0.5) * 2, y + 3 + Math.random() * 4); c.stroke(); }
+  }, 2, 3), bumpMap: bump(9), bumpScale: 0.03 });
+  var memb = std(0xffffff, 0.62, { side: THREE.DoubleSide, bumpMap: bump(5), bumpScale: 0.012, map: canvasTex(256, function (c, s) {
+    var gr = c.createLinearGradient(0, 0, 0, s); gr.addColorStop(0, '#4a3830'); gr.addColorStop(0.35, '#5e463a'); gr.addColorStop(1, '#2a1d18'); c.fillStyle = gr; c.fillRect(0, 0, s, s);
+    blotch(c, s, ['rgba(20,12,10,.5)', 'rgba(120,84,66,.3)', 'rgba(90,40,34,.25)'], 50, 8, 34, 0.5);
+    for (var i = 0; i < 150; i++) { var x = Math.random() * s; c.strokeStyle = 'rgba(18,10,8,' + (0.1 + Math.random() * 0.2) + ')'; c.lineWidth = 0.6 + Math.random(); c.beginPath(); c.moveTo(x, 0); c.bezierCurveTo(x + 6, s * 0.3, x - 8, s * 0.7, x + (Math.random() - 0.5) * 30, s); c.stroke(); }     // the stiffening fibres
+    c.strokeStyle = 'rgba(110,40,36,.3)'; for (i = 0; i < 9; i++) { var vx = Math.random() * s, vy = 0; c.lineWidth = 1.6; c.beginPath(); c.moveTo(vx, vy); for (var q = 0; q < 7; q++) { vx += (Math.random() - 0.5) * 34; vy += s / 7; c.lineTo(vx, vy); } c.stroke(); }                          // veins
+    var e = c.createLinearGradient(0, s * 0.8, 0, s); e.addColorStop(0, 'rgba(10,6,5,0)'); e.addColorStop(1, 'rgba(10,6,5,.75)'); c.fillStyle = e; c.fillRect(0, s * 0.8, s, s * 0.2);
+  }) });
+  var beakM = std(0xffffff, 0.38, { map: canvasTex(64, function (c, s) { var gr = c.createLinearGradient(0, 0, 0, s); gr.addColorStop(0, '#6e6248'); gr.addColorStop(0.3, '#b29a5c'); gr.addColorStop(0.8, '#8a6a34'); gr.addColorStop(1, '#1e1710'); c.fillStyle = gr; c.fillRect(0, 0, s, s); blotch(c, s, ['rgba(40,30,16,.4)'], 14, 2, 8, 0.5); }), bumpMap: bump(3, 8), bumpScale: 0.008 });
+  var crestM = std(0xffffff, 0.5, { map: canvasTex(64, function (c, s) { var gr = c.createLinearGradient(0, 0, 0, s); gr.addColorStop(0, '#8f8676'); gr.addColorStop(0.25, '#9a4a2c'); gr.addColorStop(0.7, '#8a1e18'); gr.addColorStop(1, '#3a0c0c'); c.fillStyle = gr; c.fillRect(0, 0, s, s); c.fillStyle = 'rgba(20,8,6,.3)'; for (var i = 0; i < 7; i++) c.fillRect(0, i * 9 + 4, s, 2); }) });
+  var boneM = std(0x4a3a30, 0.6, { bumpMap: bump(4), bumpScale: 0.01 });
+  var g = new THREE.Group(), k;
+  tube([[0, -0.03, -0.92, 0.02, 0.025], [0, -0.01, -0.7, 0.1, 0.1], [0, 0, -0.4, 0.2, 0.19], [0, -0.03, 0.05, 0.27, 0.3], [0, 0.0, 0.36, 0.21, 0.23], [0, 0.06, 0.52, 0.12, 0.13]], fur, g, 16, 5);        // body, with the deep keel of the flight muscles
+  tube([[0, 0.05, 0.46, 0.115, 0.125], [0, 0.17, 0.72, 0.085, 0.1], [0, 0.31, 0.93, 0.07, 0.08], [0, 0.4, 1.08, 0.068, 0.075]], fur, g, 12, 4);                                                    // neck
+  for (k = 0; k < 9; k++) { var ra = k / 9 * 6.283; cone(0.03, 0.2, fur, Math.sin(ra) * 0.1, 0.07 + Math.cos(ra) * 0.11, 0.5, g, 1.95 + Math.cos(ra) * 0.3, -Math.sin(ra) * 0.5); }                    // a ruff where the neck leaves the shoulders
+  var head = new THREE.Group(); head.position.set(0, 0.42, 1.1); head.userData.skin = fur; g.add(head);
+  tube([[0, 0.02, -0.2, 0.045, 0.05], [0, 0.04, -0.04, 0.11, 0.115], [0, 0.03, 0.14, 0.1, 0.105], [0, 0.015, 0.3, 0.075, 0.08]], fur, head, 14, 4);                                                // skull
+  tube([[0, 0.02, 0.24, 0.07, 0.07], [0, 0.005, 0.55, 0.05, 0.055], [0, -0.015, 1.0, 0.03, 0.036], [0, -0.035, 1.4, 0.014, 0.018], [0, -0.045, 1.6, 0.003, 0.004]], beakM, head, 12, 5);            // the upper beak, a metre of it
+  tube([[0, 0.085, 0.3, 0.012, 0.02], [0, 0.065, 0.7, 0.008, 0.012], [0, 0.03, 1.1, 0.004, 0.006]], beakM, head, 6, 4);                                                                            // the ridge along it
+  var jaw = new THREE.Group(); jaw.position.set(0, -0.055, 0.02); head.add(jaw);
+  tube([[0, 0, -0.02, 0.07, 0.03], [0, -0.012, 0.3, 0.056, 0.03], [0, -0.022, 0.85, 0.028, 0.024], [0, -0.03, 1.3, 0.012, 0.014], [0, -0.035, 1.5, 0.003, 0.004]], beakM, jaw, 10, 5);
+  part(new THREE.BoxGeometry(0.07, 0.008, 0.9), mouthMat, 0, 0.012, 0.5, jaw); tube([[0, -0.02, 0.0, 0.05, 0.02], [0, -0.07, 0.16, 0.045, 0.04], [0, -0.03, 0.4, 0.03, 0.015]], fur, jaw, 8, 3);    // the dark of the gape, and a throat pouch
+  tube([[0, 0.1, 0.1, 0.03, 0.05], [0, 0.2, -0.14, 0.022, 0.1], [0, 0.34, -0.5, 0.016, 0.105], [0, 0.47, -0.88, 0.011, 0.07], [0, 0.55, -1.15, 0.004, 0.012]], crestM, head, 10, 6);                 // the crest
+  [-1, 1].forEach(function (sd) { part(sphGeo, std(0x1a120e, 0.6), sd * 0.062, 0.035, 0.36, head, 0.02, 0.03, 0.09); tube([[sd * 0.085, 0.1, -0.02, 0.02, 0.012], [sd * 0.1, 0.11, 0.1, 0.022, 0.014], [sd * 0.08, 0.09, 0.2, 0.014, 0.01]], fur, head, 6, 3); });   // nostril openings; brow ridges
+  eyeballs(head, 0.094, 0.062, 0.1, 0.03);
+  function sheet(lead, trail, nT, nS, camber, parent, flip) {                // a membrane stretched between a leading and a trailing edge, slightly bellied
+    var pos = [], uv = [], idx = [], i, j, a, b;
+    for (i = 0; i <= nT; i++) { a = lead(i / nT); b = trail(i / nT); for (j = 0; j <= nS; j++) { var s = j / nS, sag = Math.sin(s * PI) * camber * Math.sin(Math.min(1, i / nT * 1.2 + 0.12) * PI); pos.push(a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s + sag, a[2] + (b[2] - a[2]) * s); uv.push(i / nT, s); } }
+    for (i = 0; i < nT; i++) for (j = 0; j < nS; j++) { var p = i * (nS + 1) + j, q = p + nS + 1; if (flip) idx.push(p, p + 1, q, q, p + 1, q + 1); else idx.push(p, q, p + 1, q, q + 1, p + 1); }
+    var geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
+    var m = mesh(geo, memb, 0, 0, 0, parent); m.castShadow = true; return m;
+  }
   var wings = [-1, 1].map(function (sd) {
     var inner = new THREE.Group(); inner.position.set(sd * 0.2, 0.06, 0.25); g.add(inner);
-    function membrane(pts, idx, parent) {
-      var geo = new THREE.BufferGeometry(), uv = [];
-      for (var i = 0; i < pts.length; i += 3) uv.push(Math.abs(pts[i]) / 4, (pts[i + 2] + 1) / 2);
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-      geo.setIndex(idx); geo.computeVertexNormals();
-      var m = mesh(geo, wingSkin, 0, 0, 0, parent); m.castShadow = true; return m;
-    }
-    membrane([0, 0, 0.2, sd * 1.75, 0, 0.3, sd * 1.7, 0, -0.75, 0, 0, -1.0, sd * 0.9, 0, -0.95], [0, 1, 4, 1, 2, 4, 0, 4, 3], inner);
-    tube([[0, 0, 0.2, 0.05, 0.05], [sd * 0.9, 0.02, 0.36, 0.04, 0.04], [sd * 1.75, 0, 0.3, 0.03, 0.03]], wingSkin, inner, 6, 3);
+    sheet(function (t) { return [sd * 1.75 * t, 0.01, 0.2 + 0.1 * t + Math.sin(t * PI) * 0.1]; }, function (t) { return [sd * 1.7 * t, 0, -1.0 + 0.25 * t + Math.sin(t * PI) * 0.13]; }, 8, 6, 0.07, inner, sd > 0);
+    tube([[0, 0, 0.2, 0.06, 0.06], [sd * 0.36, 0.03, 0.1, 0.055, 0.05], [sd * 0.72, 0.035, 0.02, 0.04, 0.04]], fur, inner, 8, 3);                                              // upper arm, still furred
+    tube([[sd * 0.72, 0.035, 0.02, 0.042, 0.042], [sd * 1.2, 0.03, 0.14, 0.032, 0.032], [sd * 1.75, 0.012, 0.3, 0.036, 0.034]], boneM, inner, 8, 3);                           // forearm
+    tube([[sd * 1.7, 0.01, 0.31, 0.012, 0.012], [sd * 1.35, 0.012, 0.42, 0.008, 0.008], [sd * 1.05, 0.012, 0.42, 0.004, 0.004]], boneM, inner, 5, 3);                          // the pteroid, propping the leading edge
     var outer = new THREE.Group(); outer.position.set(sd * 1.75, 0, 0.3); inner.add(outer);
-    membrane([0, 0, 0, sd * 2.5, 0, -0.25, sd * 1.3, 0, -0.8, -sd * 0.05, 0, -1.05], [0, 1, 2, 0, 2, 3], outer);
-    tube([[0, 0, 0, 0.03, 0.03], [sd * 1.3, 0.01, -0.06, 0.02, 0.02], [sd * 2.5, 0, -0.25, 0.008, 0.008]], wingSkin, outer, 6, 3);
-    for (var c = 0; c < 3; c++) cone(0.012, 0.12, clawMat, sd * 0.02, 0, 0.1 + c * 0.03, outer, 1.3);
+    sheet(function (t) { return [sd * 2.5 * t, 0.006, -0.25 * Math.pow(t, 1.5)]; }, function (t) { return [sd * (-0.05 + 2.55 * t), 0, -1.05 + 0.8 * Math.pow(t, 1.7) + Math.sin(t * PI) * 0.16 * (1 - t)]; }, 10, 5, 0.05, outer, sd > 0);
+    [[0, 0, 0.034, 0.9, -0.054, 0.024], [0.9, -0.054, 0.026, 1.6, -0.128, 0.018], [1.6, -0.128, 0.02, 2.12, -0.195, 0.012], [2.12, -0.195, 0.013, 2.5, -0.25, 0.004]].forEach(function (b) {     // the four bones of the wing finger
+      tube([[sd * b[0], 0.006, b[1], b[2], b[2]], [sd * (b[0] + b[3]) / 2, 0.01, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2 * 0.86, (b[2] + b[5]) / 2 * 0.86], [sd * b[3], 0.006, b[4], b[5] * 1.15, b[5] * 1.15]], boneM, outer, 6, 3); });
+    for (var c = 0; c < 3; c++) { tube([[sd * 0.01, 0.005, 0.02, 0.012, 0.012], [sd * (0.03 + c * 0.03), 0.0, 0.11 + c * 0.012, 0.009, 0.009], [sd * (0.04 + c * 0.045), -0.02, 0.17 + c * 0.015, 0.006, 0.006]], boneM, outer, 5, 2); cone(0.01, 0.07, clawMat, sd * (0.045 + c * 0.05), -0.045, 0.2 + c * 0.016, outer, 2.3); }   // three free fingers at the wrist
     inner.userData = { sd: sd, outer: outer }; return inner;
   });
-  [-1, 1].forEach(function (sd) {
-    tube([[sd * 0.12, -0.05, -0.6, 0.05, 0.05], [sd * 0.16, -0.3, -0.85, 0.03, 0.03], [sd * 0.16, -0.5, -0.75, 0.02, 0.02]], wingSkin, g, 6, 3);
-    for (var c = -1; c <= 1; c++) cone(0.012, 0.1, clawMat, sd * 0.16 + c * 0.025, -0.55, -0.72, g, PI);
+  [-1, 1].forEach(function (sd) {                                             // hind legs trailing, toes spread
+    tube([[sd * 0.12, -0.04, -0.52, 0.065, 0.07], [sd * 0.17, -0.16, -0.72, 0.045, 0.05], [sd * 0.19, -0.26, -0.9, 0.03, 0.032]], fur, g, 8, 3);
+    tube([[sd * 0.19, -0.26, -0.9, 0.03, 0.03], [sd * 0.2, -0.4, -0.86, 0.02, 0.02], [sd * 0.2, -0.52, -0.76, 0.017, 0.017]], boneM, g, 6, 3);
+    for (var c = -1.5; c <= 1.5; c++) { tube([[sd * 0.2, -0.52, -0.76, 0.014, 0.012], [sd * 0.2 + c * 0.028, -0.6, -0.71, 0.01, 0.009], [sd * 0.2 + c * 0.045, -0.66, -0.66, 0.007, 0.007]], boneM, g, 5, 2); cone(0.011, 0.09, clawMat, sd * 0.2 + c * 0.05, -0.705, -0.635, g, PI - 0.5); }
   });
+  sheet(function (t) { return [lerp(-0.18, 0.18, t), -0.2, -0.8]; }, function (t) { return [lerp(-0.19, 0.19, t), -0.3, -0.98 + Math.sin(t * PI) * 0.1]; }, 4, 2, 0.0, g, true);      // the skin between the legs
   g.scale.setScalar(1.35); g.rotation.order = 'YXZ';
   g.userData = { wings: wings, head: head, jaw: jaw };
   scene.add(g);
@@ -358,7 +384,7 @@ var dinos = DINO_DEFS.map(function (d) {
 });
 var rexDino = dinos[dinos.length - 1];
 var ples = { x: 109, z: 62, rot: 0, state: 'patrol', ang: 0, notice: 0, stunT: 0, t: 0 }, plesMesh = buildPlesiosaur();
-var ptero = { x: AV.x, y: 13, z: AV.z, state: 'perch', perch: 0, expo: 0, t: 0, stunT: 0, rot: 0, pitch: 0, warned: false }, pteroMesh = buildPterosaur();
+var ptero = { x: PERCHES[0][0], y: 13, z: PERCHES[0][1], state: 'perch', perch: 0, expo: 0, t: 0, stunT: 0, rot: 0, pitch: 0, warned: false }, pteroMesh = buildPterosaur();
 var aiNearest = 999, aiChasing = 0, aiAlert = 0, shake = 0, sirenT = -99, pingT = 0, pingX = 0, pingZ = 0;
 
 function domeY(x, z) { var d = dist(x, z, AV.x, AV.z) / AV.r; return AV.h * Math.sqrt(Math.max(0, 1 - d * d)); }
