@@ -274,11 +274,11 @@ var gfxName = 'high';
 // ---------- collision world ----------
 var boxes = [];    // {x1,x2,z1,z2,off,solid}   solid = blocks line of sight (walls, buildings);  y1,y2 (optional): only between these heights
 var circles = [];  // {x,z,r,top}               top: only blocks things standing lower than this
-function resolve(p, r, y) {
+function resolve(p, r, y, mode) {      // mode 1: walls, fences and buildings only (no trunks, no park edge); 2: only what is tall enough to block a view
   var i, b, c, cx, cz, dx, dz, d;
   for (i = 0; i < boxes.length; i++) {
     b = boxes[i];
-    if (b.off || p.x < b.x1 - r || p.x > b.x2 + r || p.z < b.z1 - r || p.z > b.z2 + r) continue;
+    if (b.off || (mode === 2 && !b.solid) || p.x < b.x1 - r || p.x > b.x2 + r || p.z < b.z1 - r || p.z > b.z2 + r) continue;
     if (b.y1 !== undefined && (y + 1.6 < b.y1 || y + 0.35 > b.y2)) continue;          // on another floor (y is where the feet are)
     cx = clamp(p.x, b.x1, b.x2); cz = clamp(p.z, b.z1, b.z2);
     dx = p.x - cx; dz = p.z - cz; d = dx * dx + dz * dz;
@@ -289,6 +289,7 @@ function resolve(p, r, y) {
       if (m === l) p.x = b.x1 - r; else if (m === rr) p.x = b.x2 + r; else if (m === t) p.z = b.z1 - r; else p.z = b.z2 + r;
     }
   }
+  if (mode) return;
   for (i = 0; i < circles.length; i++) {
     c = circles[i];
     if (c.top !== undefined && y >= c.top - 0.05) continue;
@@ -319,9 +320,11 @@ function onPath(x, z, m) {
   return false;
 }
 function inBox(x, z, m, y) {        // y (optional): where the feet are; boxes that belong to one floor only count from that floor
-  for (var k = 0; k < boxes.length; k++) { var b = boxes[k]; if (b.y1 !== undefined && (y === undefined || y + 1.6 < b.y1 || y + 0.35 > b.y2)) continue; if (x > b.x1 - m && x < b.x2 + m && z > b.z1 - m && z < b.z2 + m) return true; }
+  for (var k = 0; k < boxes.length; k++) { var b = boxes[k]; if (b.off) continue; if (b.y1 !== undefined && (y === undefined || y + 1.6 < b.y1 || y + 0.35 > b.y2)) continue; if (x > b.x1 - m && x < b.x2 + m && z > b.z1 - m && z < b.z2 + m) return true; }
   return false;
 }
+// how far from (x, z) along (dx, dz), up to max, something r wide can be put without standing in a wall, fence or building
+function freeReach(x, z, dx, dz, max, r) { for (var t = 0.6; t <= max; t += 0.3) if (inBox(x + dx * t, z + dz * t, r)) return t - 0.3; return max; }
 // inside a safe room (optionally grown by `extra` metres all round)
 function nearSafe(x, z, extra) {
   for (var i = 0; i < SAFE.length; i++) if (inRect(x, z, SAFE[i].rect, extra || 0)) return true;

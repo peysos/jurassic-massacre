@@ -319,6 +319,13 @@
     U.head.rotation.set(clamp(-pitT * 0.25, -0.5, 0.5), clamp(yawT * 0.2, -0.5, 0.5), 0);
   }
   function headPos(out) { U.head.updateWorldMatrix(true, false); return (out || headW).set(0, 0, 0.75).applyMatrix4(U.head.matrixWorld); }
+  function keepTailIn() {                              // nor her tail: it bends along the wall instead
+    for (var it = 0; it < 6; it++) {
+      U.tail2.updateWorldMatrix(true, false); tmpV2.set(0, 0, -1.25).applyMatrix4(U.tail2.matrixWorld); if (tmpV2.y > T.rim) return;
+      var ox = tmpV2.x < T.x1 + 0.7 ? 1 : tmpV2.x > T.x2 - 0.7 ? -1 : 0, oz = tmpV2.z < T.z1 + 0.7 ? 1 : tmpV2.z > T.z2 - 0.7 ? -1 : 0; if (!ox && !oz) return;
+      var side = (ox * Math.cos(B.rot) - oz * Math.sin(B.rot)) >= 0 ? -1 : 1; U.tail1.rotation.y = clamp(U.tail1.rotation.y + side * 0.16, -1.2, 1.2); U.tail2.rotation.y = clamp(U.tail2.rotation.y + side * 0.2, -1.3, 1.3);
+    }
+  }
   function keepNeckIn() {                              // never let her head go through the glass: curl the neck until it is inside
     for (var it = 0; it < 8; it++) {
       headPos(tmpV2); if (tmpV2.y > T.rim + 0.2) return;
@@ -390,9 +397,9 @@
         }
         if (B.sT > 0.75) { B.state = 'sink'; sinkT = 1.3; B.hit = false; lashT = (diffName === 'easy' ? 8 : diffName === 'hard' ? 4.2 : 5.6) + Math.random() * 2.4; siegeT = 3.2 + Math.random() * 1.4; }
       }
-      keepNeckIn(); poseBeast(dt, 2); return false;
+      poseBeast(dt, 2); keepNeckIn(); keepTailIn(); return false;
     }
-    if (B.state === 'sink') { sinkT -= dt; B.pitch = damp(B.pitch || 0, -0.2, 2, dt); swimTo(B.x + Math.sin(B.rot) * 4, 1.6, B.z + Math.cos(B.rot) * 4, 2.6, dt, 0.5); neckPose(0, 0.2, 0.2, 0.06); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.08, 3, dt); if (sinkT <= 0) B.state = 'patrol'; keepNeckIn(); poseBeast(dt, 1.4); return false; }
+    if (B.state === 'sink') { sinkT -= dt; B.pitch = damp(B.pitch || 0, -0.2, 2, dt); swimTo(B.x + Math.sin(B.rot) * 4, 1.6, B.z + Math.cos(B.rot) * 4, 2.6, dt, 0.5); neckPose(0, 0.2, 0.2, 0.06); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.08, 3, dt); if (sinkT <= 0) B.state = 'patrol'; poseBeast(dt, 1.4); keepNeckIn(); keepTailIn(); return false; }
     B.pitch = damp(B.pitch || 0, 0, 1.5, dt);
     if (inWater && st.fell) {
       // --- in the water with her ---
@@ -424,7 +431,7 @@
       if (look) neckAim(px, 1.6, pz, 0.03, 0.4, 1.0); else { neckPose(-clamp(B.turn || 0, -0.8, 0.8) * 2.2 + Math.sin(B.t * 0.5) * 0.3, 0.25 + Math.sin(B.t * 0.37) * 0.2, 0.5, 0.03); U.head.rotation.set(0.06, 0, 0); }
       U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.06 + Math.max(0, Math.sin(B.t * 0.3) - 0.9) * 2, 2, dt);
     }
-    keepNeckIn(); poseBeast(dt, speedK);
+    poseBeast(dt, speedK); keepNeckIn(); keepTailIn();
     if (B.state === 'chase' || B.state === 'siege') chaseHold = 4;
     return false;
   };
@@ -440,7 +447,7 @@
     A.wu.uTime.value = playTime; B.pitch = damp(B.pitch || 0, up ? 0.2 * seg(trav, 0.6, 1) : 0, 2, dt);
     swimTo(128.6, up ? lerp(0.6, T.water - 0.9, seg(trav, 0.25, 0.9)) : 1.2, 54.2 + Math.sin(B.t * 0.6) * 1.2, 2.6, dt, 1.3);
     if (up && trav > 0.55) { neckAim(camera.position.x, camera.position.y - 0.4, camera.position.z, 0.05, 1.3, 1.25); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.3, 2, dt); } else neckPose(0.2, 0.3, 0.5, 0.03);
-    keepNeckIn(); poseBeast(dt, 1.3);
+    poseBeast(dt, 1.3); keepNeckIn(); keepTailIn();
   };
   /* What you see when she gets you: the head, the open mouth, and then you are going over the rail and down with her. */
   A.kill = function (done) {
@@ -454,20 +461,21 @@
       var cx = c0.x + dx * drag * 3.4, cz = c0.z + dz * drag * 3.4, cy = lerp(c0.y, T.water - 2.2, drag * drag) + Math.sin(drag * PI) * (wet ? 0 : 0.5);
       // her body off where it was, the neck brought round so the mouth stops just short of the lens
       B.x = clamp(c0.x + dx * lerp(6.2, 5.2, loom), T.x1 + 3.3, T.x2 - 3.3); B.z = clamp(c0.z + dz * lerp(6.2, 5.2, loom), T.z1 + 3.3, T.z2 - 3.3); B.rot = Math.atan2(c0.x - B.x, c0.z - B.z); B.y = lerp(T.water - 0.8, T.water - 2.6, drag); B.pitch = 0.25 * (1 - drag);
-      poseBeast(dt, 2); var want = lerp(3.2, 1.25, loom) - bite * 0.2;
+      var lg = Scares.lunge(T2, DUR); sh += lg * 0.9;
+      poseBeast(dt, 2); var want = Math.max(0.55, lerp(3.2, 1.25, loom) - bite * 0.2 - lg * 0.6);
       for (var it = 0; it < 14; it++) { neckAim(cx - dx * want, cy - 0.1, cz - dz * want, 1, 1.2 * (1 - loom), 1.3 + it * 0.05); headPos(hp); if (hp.distanceTo(tmpV2.set(cx, cy, cz)) < want + 0.25) break; }
       U.jaw.rotation.x = Math.max(lerp(0.3, 0.85, loom) - bite * 0.6 + Math.sin(T2 * 11) * 0.08 * drag, fin * 0.85); U.head.rotation.z = Math.sin(T2 * 9) * 0.2 * drag * (1 - fin);
       camera.position.set(cx + Math.sin(T2 * 41) * sh * 0.04, cy + Math.sin(T2 * 53) * sh * 0.04, cz + Math.sin(T2 * 37) * sh * 0.03);
       headPos(hp); var pit = Math.atan2(hp.y - cy, Math.max(0.6, Math.hypot(hp.x - cx, hp.z - cz)));
       camera.rotation.set(lerp(pitch0, clamp(pit, -0.9, 1.0), seg(T2, 0.04, 0.4)) + Math.sin(T2 * 47) * sh * 0.02, lerp(yaw0, yaw1, whip) + Math.sin(T2 * 7) * 0.06 * drag, Math.sin(T2 * 3.1) * 0.3 * drag);
-      var punch = bite * (1 - seg(T2, 0.75, 1.2)) * 14; if (Math.abs(camera.fov - (fov0 + punch)) > 0.05) { camera.fov = fov0 + punch; camera.updateProjectionMatrix(); }
+      var punch = bite * (1 - seg(T2, 0.75, 1.2)) * 14 + lg * 9; if (Math.abs(camera.fov - (fov0 + punch)) > 0.05) { camera.fov = fov0 + punch; camera.updateProjectionMatrix(); }
       flashlight.intensity = 1.2; Hands.fill.intensity = 0.6; Hands.aim = [0.03, 0.04, 0.06, 0.12, 0.1, 0.25]; Hands.update(dt, {});
       var uw = seg(cy, T.water + 0.1, T.water - 0.5) > 0 ? clamp((T.water + 0.1 - cy) / 0.6, 0, 1) : 0;
       sc.style.background = T2 < 0.085 ? '#1a0003' : uw > 0 ? 'radial-gradient(ellipse at center, rgba(8,60,70,' + 0.55 * uw + ') 0%, rgba(2,22,30,' + 0.95 * uw + ') 100%)' : 'radial-gradient(ellipse at center, rgba(120,0,8,' + bite * 0.3 + ') 0%, rgba(160,0,10,' + bite * 0.7 + ') 100%)'; sc.style.opacity = 1;
-      if (once('r', 0.02)) { Sound.roar(true, 0.9); Sound.splash(); } if (once('hit', 0.66)) { Scares.crunch(1); Sound.thud(1); } if (once('sp', wet ? 0.7 : 1.5)) Sound.splash(); if (once('b2', 1.9)) Sound.noise(1.0, 320, 0.5); if (once('o', DUR - 0.72)) Sound.roar(true, 0.8); if (once('last', DUR - 0.2)) { Scares.crunch(1); Sound.thud(1); }
-      Scares.maw(seg(T2, DUR - 0.55, DUR - 0.18)); $('fade').style.opacity = seg(T2, DUR - 0.2, DUR - 0.1); CN.pulse = clamp(sh, 0, 1);
+      if (once('r', 0.02)) { Sound.roar(true, 0.9); Sound.splash(); } if (once('hit', 0.66)) { Scares.crunch(1); Sound.thud(1); } if (once('sp', wet ? 0.7 : 1.5)) Sound.splash(); if (once('b2', 1.9)) Sound.noise(1.0, 320, 0.5); if (once('o', DUR - 0.72)) Sound.roar(true, 0.8); if (once('drive', DUR - Scares.CUT - 0.22)) Sound.noise(0.25, 6000, 0.3); if (once('last', DUR - Scares.CUT)) { Scares.crunch(1); Sound.thud(1); }
+      $('fade').style.opacity = T2 >= DUR - Scares.CUT ? 1 : 0; CN.pulse = clamp(sh, 0, 1);
       return T2 >= DUR;
-    }, end: function () { sc.style.background = 'none'; sc.style.opacity = 0; Hands.aim = null; camera.fov = prefs.fov; camera.updateProjectionMatrix(); camera.rotation.z = 0; U.head.rotation.z = 0; $('fade').style.opacity = 1; done(); setTimeout(function () { Scares.maw(0); $('fade').style.opacity = 0; }, 900); } });
+    }, end: function () { sc.style.background = 'none'; sc.style.opacity = 0; Hands.aim = null; camera.fov = prefs.fov; camera.updateProjectionMatrix(); camera.rotation.z = 0; U.head.rotation.z = 0; $('fade').style.opacity = 1; done(); setTimeout(function () { $('fade').style.opacity = 0; }, 900); } });
   };
   A.deathLine = function () { return whereDied === 'water' ? 'She is faster in the water than you are.' : whereDied === 'dive' ? 'She took you off the dive station.' : 'She took you off the walkway.'; };
 
@@ -569,7 +577,7 @@
       A.beastHold(dt); A.step(dt, false, true); return T2 >= DUR;
     }, end: function () { Hands.over = null; player.x = hx; player.z = D.z1 + 0.85; player.y = D.y; player.water = false; player.yaw = player.cy = PI; player.pitch = player.cp = -0.03; siegeT = diffName === 'easy' ? 3.4 : 2.0; setState('playing'); lockPointer(); showMsg('Steel under you, and a rubber mat. The cabinet on the wall is the tank’s main breaker — and its feeder is lying in her water.', 6.5); } });
   }
-  A.beastHold = function (dt) { var st = S(); if (st.dead) { poseDead(dt); return; } swimTo(121 + Math.sin(B.t * 0.5) * 5, T.water - 1.1, 61.5, 3, dt, 1.2); neckAim(camera.position.x, camera.position.y, camera.position.z, 0.05, 0.8, 1.1); keepNeckIn(); poseBeast(dt, 1.6); };
+  A.beastHold = function (dt) { var st = S(); if (st.dead) { poseDead(dt); return; } swimTo(121 + Math.sin(B.t * 0.5) * 5, T.water - 1.1, 61.5, 3, dt, 1.2); neckAim(camera.position.x, camera.position.y, camera.position.z, 0.05, 0.8, 1.1); poseBeast(dt, 1.6); keepNeckIn(); keepTailIn(); };
   /* The kill.  The breaker goes in against its spring; four hundred and eighty volts go down the torn feeder into the water
      she is lying in; and you are standing on a rubber mat. */
   var arcs = [];

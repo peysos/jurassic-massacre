@@ -277,7 +277,7 @@ var Swamp = (function () {
       var loom = seg(T, 0.1, 0.9), strike = seg(T, 0.95, 1.2), shakeK = seg(T, 1.2, 1.9), fin = seg(T, DUR - 0.75, DUR - 0.25), sh = 0.3 + loom * 0.3 + strike * 0.5;
       u.body.rotation.x = lerp(0.05, 0.3, loom) + strike * 0.03; u.head.rotation.set(lerp(0, -0.2, loom) + strike * 0.1, Math.sin(T * 9) * 0.22 * shakeK * (1 - fin), Math.sin(T * 9) * 0.12 * shakeK * (1 - fin));
       u.jaw.rotation.x = Math.max(lerp(0.2, 0.8, seg(T, 0.2, 0.85)) - strike * 0.5 + shakeK * 0.15, fin * 0.85);
-      var want = lerp(7.5, 2.1, loom) - strike * 0.7 - fin * 0.3; D = 16;
+      var lg = Scares.lunge(T, DUR), want = lerp(7.5, 2.1, loom) - strike * 0.7 - fin * 0.3 - lg * 0.75; D = 16; sh += lg * 0.9;
       for (var k = 0; k < 150; k++) {                                   // bring the snout in to arm's length, never through the lens
         spMesh.position.set(c0.x + dx * D, -0.1, c0.z + dz * D); spMesh.rotation.y = face; spMesh.updateMatrixWorld(true);
         tip.set(0, -0.03, 1.43).applyMatrix4(u.head.matrixWorld); if (tip.distanceTo(c0) <= want || Math.hypot(tip.x - c0.x, tip.z - c0.z) < 0.9) break; D -= 0.1;
@@ -285,12 +285,12 @@ var Swamp = (function () {
       var cy = c0.y + shakeK * 0.9 * (1 - fin * 0.4), pitch = lerp(pitch0, clamp(Math.atan2(tip.y - cy, Math.max(0.5, Math.hypot(tip.x - c0.x, tip.z - c0.z))), -0.3, 1.1), seg(T, 0.05, 0.45));
       camera.position.set(c0.x + Math.sin(T * 41) * sh * 0.04, cy + Math.sin(T * 53) * sh * 0.04, c0.z + Math.sin(T * 37) * sh * 0.03);
       camera.rotation.set(pitch + Math.sin(T * 47) * sh * 0.02, lerp(yaw0, yaw1, easeOut(clamp(T / 0.18, 0, 1))) + Math.sin(T * 9) * 0.05 * shakeK, shakeK * 0.3 * Math.sin(T * 6));
-      var punch = strike * (1 - seg(T, 1.2, 1.6)) * 14; if (Math.abs(camera.fov - (fov0 + punch)) > 0.05) { camera.fov = fov0 + punch; camera.updateProjectionMatrix(); }
+      var punch = strike * (1 - seg(T, 1.2, 1.6)) * 14 + lg * 9; if (Math.abs(camera.fov - (fov0 + punch)) > 0.05) { camera.fov = fov0 + punch; camera.updateProjectionMatrix(); }
       flashlight.intensity = 1.2; Hands.fill.intensity = 0.6; CN.pulse = clamp(sh, 0, 1);
-      if (once('r', 0.02)) Sound.roar(true, 1); if (once('s', 0.5)) Sound.splash(); if (once('hit', 0.98)) { Scares.crunch(1); Sound.thud(1); } if (once('b2', 1.5)) Scares.crunch(1); if (once('o', DUR - 0.72)) Sound.roar(true, 0.9); if (once('last', DUR - 0.2)) { Scares.crunch(1); Sound.thud(1); }
-      Scares.maw(seg(T, DUR - 0.55, DUR - 0.18)); $('fade').style.opacity = seg(T, DUR - 0.2, DUR - 0.1);
+      if (once('r', 0.02)) Sound.roar(true, 1); if (once('s', 0.5)) Sound.splash(); if (once('hit', 0.98)) { Scares.crunch(1); Sound.thud(1); } if (once('b2', 1.5)) Scares.crunch(1); if (once('o', DUR - 0.72)) Sound.roar(true, 0.9); if (once('drive', DUR - Scares.CUT - 0.22)) Sound.noise(0.25, 6000, 0.3); if (once('last', DUR - Scares.CUT)) { Scares.crunch(1); Sound.thud(1); }
+      $('fade').style.opacity = T >= DUR - Scares.CUT ? 1 : 0;
       return T >= DUR;
-    }, end: function () { camera.fov = 72; camera.updateProjectionMatrix(); camera.rotation.z = 0; u.head.rotation.set(0, 0, 0); $('fade').style.opacity = 1; done(); setTimeout(function () { Scares.maw(0); $('fade').style.opacity = 0; }, 900); } });
+    }, end: function () { camera.fov = 72; camera.updateProjectionMatrix(); camera.rotation.z = 0; u.head.rotation.set(0, 0, 0); $('fade').style.opacity = 1; done(); setTimeout(function () { $('fade').style.opacity = 0; }, 900); } });
   };
   S.sp = sp; S.gates = gates; S.fishPool = fishPool; S.POOLS = POOLS; S.WHEELS = WHEELS; S.CLUTCH = CLUTCH;
   return S;

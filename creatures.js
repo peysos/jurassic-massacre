@@ -438,6 +438,19 @@ function resetDinos() {
 }
 
 // ---------- dinosaurs: movement ----------
+/* An animal is more than the circle it walks on.  Its neck and head reach well ahead of that circle, so left alone a raptor
+   stopped at a fence stands with its head through the mesh and one at a wall with its face in the brickwork.  After every
+   move and every turn the head (and, for the rex, the chest and the high snout) is tried against the walls and fences, and
+   the animal backs off by however far it was in. */
+var headProbe = { x: 0, z: 0 };
+function keepHeadOut(d) {
+  var sn = Math.sin(d.rot), cs = Math.cos(d.rot), P2 = d.rex ? [[3.0, 1.3, 1], [7.0, 0.9, 2]] : [[1.75, 0.42, 1], [1.0, 0.5, 1]], moved = false;
+  for (var q = 0; q < P2.length; q++) {
+    var qx = d.x + sn * P2[q][0], qz = d.z + cs * P2[q][0]; headProbe.x = qx; headProbe.z = qz; resolve(headProbe, P2[q][1], 0, P2[q][2]);
+    var back = (headProbe.x - qx) * sn + (headProbe.z - qz) * cs; if (back < -0.001) { d.x += sn * back; d.z += cs * back; moved = true; }
+  }
+  return moved;
+}
 function moveDino(d, dx, dz, speed, dt) {
   var len = Math.hypot(dx, dz); if (len < 0.001) { d.speedNow = 0; return; }
   dx /= len; dz /= len;
@@ -453,14 +466,14 @@ function moveDino(d, dx, dz, speed, dt) {
   d.rot += clamp(diff, -turn, turn);
   var fwd = Math.max(0.15, Math.cos(Math.min(Math.abs(diff), PI / 2)));       // slow down through tight turns instead of sliding sideways
   d.x += Math.sin(d.rot) * speed * fwd * dt; d.z += Math.cos(d.rot) * speed * fwd * dt;
-  resolve(d, d.r, 0);
+  resolve(d, d.r, 0); if (keepHeadOut(d)) resolve(d, d.r, 0);
   for (var j = 0; j < dinos.length; j++) {                                      // they do not walk through one another
     var o = dinos[j]; if (o === d || !o.active) continue;
     var ox = d.x - o.x, oz = d.z - o.z, od = Math.hypot(ox, oz), need = (d.r + o.r) * 0.9;
     if (od < need && od > 0.001) { var push = (need - od) * (d.rex ? 0.1 : o.rex ? 0.9 : 0.5); d.x += ox / od * push; d.z += oz / od * push; if (!o.rex && o.speedNow < 0.3) { o.x -= ox / od * push; o.z -= oz / od * push; resolve(o, o.r, 0); } }
   }
   if (!(P && P.esc)) pushOutSafe(d, 2.2 + d.r);                                 // they keep clear of the safe rooms (until the lockdown)
-  if (inRect(d.x, d.z, AQ, 1.2 + d.r)) d.x = AQ.x1 - 1.2 - d.r;
+  var am = 1.2 + d.r; if (inRect(d.x, d.z, AQ, am)) { var e1 = d.x - (AQ.x1 - am), e2 = (AQ.x2 + am) - d.x, e3 = d.z - (AQ.z1 - am), e4 = (AQ.z2 + am) - d.z, ek = Math.min(e1, e2, e3, e4); if (ek === e1) d.x = AQ.x1 - am; else if (ek === e2) d.x = AQ.x2 + am; else if (ek === e3) d.z = AQ.z1 - am; else d.z = AQ.z2 + am; }      // kept off the aquarium: out by the nearest side (never carried round to the front)
   d.speedNow = speed * fwd; d.phase += speed * fwd * dt * (d.rex ? 0.72 : 1.85);
 }
 function navigate(d, tx, tz, speed, dt) {
@@ -473,7 +486,7 @@ function navigate(d, tx, tz, speed, dt) {
   while (d.path && d.path.length > 1 && dist(d.x, d.z, d.path[0][0], d.path[0][1]) < 1.5 + d.r * 0.4) d.path.shift();
   var endsShort = d.path && d.path.length === 1 && dist(d.path[0][0], d.path[0][1], tx, tz) > 1.5 && dist(d.x, d.z, d.path[0][0], d.path[0][1]) < 0.7 + d.r * 0.3;
   if (!d.path || !d.path.length || endsShort) {                                 // as near as it can get: stand and watch, never push at a wall
-    diff = angDiff(Math.atan2(tx - d.x, tz - d.z), d.rot); d.rot += clamp(diff, -3 * dt, 3 * dt); d.speedNow = 0; d.stuckT = 0; d.lx = d.x; d.lz = d.z; return;
+    diff = angDiff(Math.atan2(tx - d.x, tz - d.z), d.rot); d.rot += clamp(diff, -3 * dt, 3 * dt); d.speedNow = 0; d.stuckT = 0; keepHeadOut(d); d.lx = d.x; d.lz = d.z; return;
   }
   moveDino(d, d.path[0][0] - d.x, d.path[0][1] - d.z, speed, dt);
   d.stuckT += dt;                                                             // wedged: step out to one side (then the other) and plan again from there
@@ -625,6 +638,7 @@ function updateDinos(dt, c) {
     }
     d.feeding = false;
     u.body.scale.setScalar(1 + Math.sin(playTime * (run ? 5 : 1.6) + i * 2) * 0.008);                              // breathing
+    if (d.speedNow < 0.05 && d.state !== 'stun') keepHeadOut(d);                     // (standing and turning its head about: still not into a wall)
     d.mesh.position.set(d.x, 0, d.z); d.mesh.rotation.y = d.rot;
     if (d.rex && dp < 75 && sp > 0.5) {
       d.stepT = (d.stepT || 0) - dt * (run ? 2.2 : 1);

@@ -383,7 +383,7 @@ var Aqua = (function () {
     A.ports.forEach(function (p) { [[p[0], 1], [p[1], -1]].forEach(function (e) { sheet('z', e[0], e[1], T.x2 - 0.25, T.x2 + 0.5, A.portY[0], A.portY[1], wetConc, 4, 4); }); [A.portY[0], A.portY[1]].forEach(function (y, n) { var fm = mesh(new THREE.PlaneGeometry(0.75, p[1] - p[0]), wetConc, T.x2 + 0.125, y, (p[0] + p[1]) / 2); fm.rotation.x = n ? PI / 2 : -PI / 2; fm.userData.noCast = true; }); });
     // rock, the wreck of a feeding cage, what she has left of twelve years of meals
     var rockG = jitter(new THREE.IcosahedronGeometry(1, 2), 0.28);
-    [[113.5, 52.5, 2.2, 1.6], [115, 54.4, 1.3, 1.0], [130.5, 67, 2.6, 2.1], [128.6, 68.8, 1.5, 1.2], [131.5, 52, 1.9, 2.6], [112.6, 68.4, 1.8, 1.3], [121, 50.6, 1.4, 0.9], [123.5, 69.6, 1.6, 1.1], [118, 61, 0.9, 0.5], [126.5, 57.5, 1.1, 0.6]].forEach(function (r, n) {
+    [[113.5, 52.5, 2.2, 1.6], [115, 54.4, 1.3, 1.0], [125.8, 68.9, 2.2, 1.7], [123.4, 69.6, 1.4, 1.1], [125.4, 51.3, 1.8, 1.9], [112.6, 68.4, 1.8, 1.3], [121, 50.6, 1.4, 0.9], [118.6, 69.7, 1.4, 1.0], [118, 61, 0.9, 0.5], [123.5, 58.5, 1.0, 0.5]].forEach(function (r, n) {
       var rm = mesh(rockG, wetRock, r[0], T.floor + r[3] * 0.45, r[1]); rm.scale.set(r[2], r[3], r[2] * (0.8 + (n % 3) * 0.2)); rm.rotation.set(n * 0.7, n * 1.9, n * 0.4);
     });
     var cage = new THREE.Group(); cage.position.set(125.5, T.floor + 0.55, 63.5); cage.rotation.set(0.35, 0.6, 1.2); scene.add(cage);
@@ -395,7 +395,7 @@ var Aqua = (function () {
     // weed: ribbons of it rooted in the rock, alive with slime
     var weedTex = canvasTex(128, function (g, S, HH2) { g.clearRect(0, 0, S, HH2); for (var w = 0; w < 9; w++) { var x = 10 + w * 13 + Math.random() * 6; g.strokeStyle = ['#3d6a34', '#2f5a2c', '#4a7a3a', '#28502a'][w % 4]; g.lineWidth = 5 + Math.random() * 5; g.beginPath(); g.moveTo(x, HH2); g.bezierCurveTo(x + 18, HH2 * 0.7, x - 18, HH2 * 0.35, x + (Math.random() - 0.5) * 20, 6 + Math.random() * 60); g.stroke(); } }, 1, 1, true, 512);
     var weed = A.wet(std(0xffffff, 0.8, { map: weedTex, alphaTest: 0.45, side: THREE.DoubleSide })), weedG = crossCard(1.5, 3.2);
-    [[113.2, 53.6], [114.6, 51.8], [130, 66.2], [131.6, 68.2], [131, 53.4], [132, 50.6], [112.4, 67.4], [113.8, 69.4], [121.4, 50.4], [124, 70], [128, 69.6], [116.2, 53]].forEach(function (w2, n) { var wm = mesh(weedG, weed, w2[0], T.floor + 0.3, w2[1]); wm.rotation.y = n * 1.1; wm.scale.setScalar(0.8 + (n % 4) * 0.25); wm.userData.noCast = true; });
+    [[113.2, 53.6], [114.6, 51.8], [125, 67.6], [126.8, 69.6], [125.2, 52.8], [126.6, 50.4], [112.4, 67.4], [113.8, 69.4], [121.4, 50.4], [124, 70], [132.6, 70.2], [116.2, 53], [132.8, 49.8]].forEach(function (w2, n) { var wm = mesh(weedG, weed, w2[0], T.floor + 0.3, w2[1]); wm.rotation.y = n * 1.1; wm.scale.setScalar(0.8 + (n % 4) * 0.25); wm.userData.noCast = true; });
     // the kerb the glass stands on, the steel that holds it, and the glass
     wb(T.x1 - 0.3, T.x1 + 0.25, 0, GY1, T.z1 - 0.3, T.z2 + 0.3, M2.conc, 4, 4); box(0.62, 0.06, TD + 0.7, M2.steel, T.x1 - 0.03, GY1 + 0.03, cz);
     var glassTex = canvasTex(1024, function (g, S, HH2) {      // 8 m of glass, 4.5 m high: film, algae from the top and the bottom, a crust at the waterline, scratches, hands
