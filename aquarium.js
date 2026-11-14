@@ -876,10 +876,11 @@ var Aqua = (function () {
     A.LADDERS.forEach(function (L) { ladder2(L.x, L.z, YL, Y, true); });
     // ---- refuges: steel cages opening off the walks, bars too close for her head.  KEEPER REFUGE on the plate over each. ----
     A.REFUGE = [{ x1: 128.9, x2: 130.6, z1: 57.8, z2: 59.3, side: -1, y: Y }, { x1: 116.4, x2: 118.1, z1: 60.7, z2: 62.2, side: 1, y: Y }, { x1: 126.0, x2: 127.7, z1: 64.5, z2: 66.0, side: -1, y: Y },
-      { x1: 118.4, x2: 119.8, z1: 54.0, z2: 55.7, side: 'e', y: YL }, { x1: 114.2, x2: 115.6, z1: 49.6, z2: 50.8, side: 'w', y: YL }];
+      { x1: 118.4, x2: 119.8, z1: 54.0, z2: 55.7, side: 'e', y: YL }, { x1: 114.2, x2: 115.6, z1: 49.6, z2: 50.8, side: 'w', y: YL },
+      { x1: 119.08, x2: 120.3, z1: 69.15, z2: 70.7, side: 'w', y: T.water + 0.16, noHang: true, dive: true }];          // (the last: the divers' cage at the west end of the dive station)
     var bars = [];
     A.REFUGE.forEach(function (R) {
-      var y = R.y; deckAt(R.x1, R.x2, R.z1, R.z2, y, plate, 1, 'grate'); hangerAt(R.x1, R.z1, y); hangerAt(R.x2, R.z2, y);
+      var y = R.y; if (!R.dive) deckAt(R.x1, R.x2, R.z1, R.z2, y, plate, 1, 'grate'); if (!R.noHang) { hangerAt(R.x1, R.z1, y); hangerAt(R.x2, R.z2, y); }
       var sides = R.side === 'e' ? ['e', 'n', 's'] : R.side === 'w' ? ['w', 'n', 's'] : R.side < 0 ? ['n', 'w', 'e'] : ['s', 'w', 'e'];       // the three closed sides
       sides.forEach(function (sd) {
         var x, z;
@@ -976,9 +977,37 @@ var Aqua = (function () {
     box(0.9, 1.5, 0.3, std(0x8a8f8c, 0.6, { metalness: 0.4, map: rustTex }), 0, 0.95, 0, cab); box(0.96, 0.05, 0.36, M.dark, 0, 1.72, 0, cab); box(0.06, 0.4, 0.06, M2.steel, -0.3, 0.1, 0, cab); box(0.06, 0.4, 0.06, M2.steel, 0.3, 0.1, 0, cab);
     mesh(new THREE.PlaneGeometry(0.8, 0.26), std(0xffffff, 0.7, { map: textTex(['TANK LIGHTING & PLANT', 'MAIN FEEDER  480 V'], 384, 120, '#e2b93b', '#17140e', '#17140e', false) }), 0, 1.5, -0.152, cab).rotation.y = PI;
     mesh(new THREE.PlaneGeometry(0.8, 0.22), std(0xffffff, 0.7, { map: textTex(['DANGER  ISOLATE BEFORE DIVING', 'A FAULT PUTS THE WATER LIVE'], 384, 104, '#8d1f18', '#f1ecdd', '#f1ecdd', false) }), 0, 0.5, -0.152, cab).rotation.y = PI;
-    A.breaker = dyn(new THREE.Group()); A.breaker.position.set(-0.12, 1.0, -0.16); cab.add(A.breaker); box(0.07, 0.07, 0.34, M.dark, 0, 0, -0.17, A.breaker); box(0.11, 0.11, 0.09, M.red, 0, 0, -0.36, A.breaker);
-    box(0.2, 0.44, 0.03, M.dark, -0.12, 1.0, -0.158, cab); A.brkLamp = basic(0x3a0a06, { fog: false }); mesh(new THREE.SphereGeometry(0.03, 8, 8), A.brkLamp, 0.2, 1.2, -0.16, cab).userData.keep = true; A.ladLamp = basic(0x0a1a0c, { fog: false }); mesh(new THREE.SphereGeometry(0.03, 8, 8), A.ladLamp, 0.2, 0.86, -0.16, cab).userData.keep = true;
-    mesh(new THREE.PlaneGeometry(0.26, 0.07), std(0xffffff, 0.7, { map: textTex(['LIVE'], 128, 36, '#17140e', '#e2b93b', null, false) }), 0.2, 1.3, -0.152, cab).rotation.y = PI; mesh(new THREE.PlaneGeometry(0.26, 0.07), std(0xffffff, 0.7, { map: textTex(['LADDER WINCH'], 128, 36, '#17140e', '#e2b93b', null, false) }), 0.2, 0.96, -0.152, cab).rotation.y = PI;
+    /* The tank's main breaker: a 480 V air circuit breaker of the old kind.  It is closed in three moves, and the plate on the
+       door says so: 1 the feeder isolator (out at the tank wall by the ladder) must be ON; 2 the closing spring must be charged
+       with the pump handle on the cabinet's right side (five strokes; the flag shows CHARGED); 3 the closing lever is hauled
+       down through its quarter turn against the latch.  The lever: a steel arm out of the door on a boss, a rubber-gripped
+       cross bar at its end for two hands. */
+    var steelP = std(0x5a6064, 0.5, { metalness: 0.6, map: metalTex }), grip = std(0x1a1a1a, 0.85, { bumpMap: bump(8), bumpScale: 0.004 }), redP = std(0x8a1f1a, 0.55);
+    cyl(0.09, 0.09, 0.06, steelP, 0, 1.12, -0.18, cab, 16).rotation.x = PI / 2;                                                       // the boss
+    A.breaker = dyn(new THREE.Group()); A.breaker.position.set(0, 1.12, -0.2); cab.add(A.breaker);
+    box(0.05, 0.05, 0.5, redP, 0, 0, -0.25, A.breaker); var cb2 = cyl(0.022, 0.022, 0.42, grip, 0, 0, -0.5, A.breaker, 12); cb2.rotation.z = PI / 2;      // the arm, the cross bar
+    [-1, 1].forEach(function (e) { cyl(0.026, 0.026, 0.02, steelP, e * 0.215, 0, -0.5, A.breaker, 12).rotation.z = PI / 2; });
+    A.BRK_GRIP = { half: 0.17, r: 0.022, z: -0.5 };                                                                                  // (where hands go on the bar, in the lever's frame)
+    // the spring: its pump handle on the right side, and the flag and dial in the door
+    A.pumpH = dyn(new THREE.Group()); A.pumpH.position.set(0.47, 0.82, -0.08); cab.add(A.pumpH);
+    cyl(0.03, 0.03, 0.06, steelP, 0, 0, 0, A.pumpH, 12).rotation.z = PI / 2; box(0.03, 0.62, 0.03, steelP, 0.03, 0.31, 0, A.pumpH); var ph2 = cyl(0.02, 0.02, 0.14, grip, 0.03, 0.62, -0.05, A.pumpH, 10); ph2.rotation.x = PI / 2;
+    A.PUMP_GRIP = new THREE.Vector3(0.03, 0.62, -0.06);
+    var dial = mesh(new THREE.CircleGeometry(0.07, 20), std(0xffffff, 0.5, { map: canvasTex(128, function (g, S) { g.fillStyle = '#e9e6da'; g.fillRect(0, 0, S, S); g.fillStyle = '#8d1f18'; g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 58, PI * 0.75, PI * 1.25); g.fill(); g.fillStyle = '#2f9a5a'; g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 58, PI * 1.85, PI * 2.25); g.fill(); g.fillStyle = '#e9e6da'; g.beginPath(); g.arc(64, 64, 40, 0, 7); g.fill(); g.fillStyle = '#17140e'; g.font = 'bold 15px Arial'; g.textAlign = 'center'; g.fillText('SPRING', 64, 92); }) }), 0.28, 1.36, -0.152, cab); dial.rotation.y = PI;
+    A.springN = dyn(box(0.006, 0.055, 0.004, M.dark, 0.28, 1.36, -0.156, cab)); A.springN.geometry.translate(0, 0.022, 0);
+    A.flag = basic(0x3a0a06, { fog: false }); mesh(new THREE.PlaneGeometry(0.14, 0.05), A.flag, 0.28, 1.25, -0.153, cab).rotation.y = PI;
+    // the order, on a plate on the door, and the lamps: ISOLATOR, SPRING, LIVE
+    mesh(new THREE.PlaneGeometry(0.34, 0.2), std(0xffffff, 0.7, { map: textTex(['TO CLOSE:', '1  ISOLATOR ON (TANK WALL)', '2  CHARGE SPRING  ×5', '3  HAUL LEVER DOWN'], 256, 150, '#e9e2d0', '#17140e', '#17140e', false) }), -0.24, 1.42, -0.152, cab).rotation.y = PI;
+    A.isoLamp = basic(0x3a0a06, { fog: false }); A.brkLamp = basic(0x3a0a06, { fog: false }); A.ladLamp = basic(0x0a1a0c, { fog: false });
+    [[A.isoLamp, -0.33, 'ISOL'], [A.flag, null, null], [A.brkLamp, -0.2, 'LIVE'], [A.ladLamp, -0.07, 'WINCH']].forEach(function (L) { if (L[1] === null) return; mesh(new THREE.SphereGeometry(0.022, 8, 8), L[0], L[1], 1.25, -0.16, cab).userData.keep = true; mesh(new THREE.PlaneGeometry(0.11, 0.035), std(0xffffff, 0.7, { map: textTex([L[2]], 96, 30, '#17140e', '#e2b93b', null, false) }), L[1], 1.205, -0.152, cab).rotation.y = PI; });
+    // the feeder isolator: a grey box on a bracket on the tank's west wall, at the waterline by the ladder, its big rotary handle
+    var iso = new THREE.Group(); iso.position.set(T.x1 + 0.08, T.water + 0.42, 62.6); iso.rotation.y = PI / 2; scene.add(iso); A.iso = iso;
+    box(0.5, 0.06, 0.12, A.wetMats.steel, 0, -0.32, -0.03, iso); box(0.06, 0.7, 0.06, A.wetMats.steel, -0.2, -0.05, -0.04, iso); box(0.06, 0.7, 0.06, A.wetMats.steel, 0.2, -0.05, -0.04, iso);
+    box(0.34, 0.42, 0.16, std(0x9aa0a0, 0.6, { metalness: 0.3, map: rustTex }), 0, 0.04, 0.05, iso); box(0.36, 0.03, 0.18, M.dark, 0, 0.27, 0.05, iso);
+    mesh(new THREE.PlaneGeometry(0.3, 0.09), std(0xffffff, 0.7, { map: textTex(['FEEDER ISOLATOR', 'TANK MAIN  ·  480 V'], 256, 76, '#e2b93b', '#17140e', '#17140e', false) }), 0, 0.19, 0.131, iso);
+    cyl(0.07, 0.07, 0.02, std(0xe2b93b, 0.6), 0, -0.02, 0.135, iso, 20).rotation.x = PI / 2;
+    A.isoH = dyn(new THREE.Group()); A.isoH.position.set(0, -0.02, 0.15); iso.add(A.isoH); box(0.2, 0.045, 0.045, redP, 0, 0, 0.02, A.isoH); cyl(0.03, 0.03, 0.03, redP, 0, 0, 0.0, A.isoH, 12).rotation.x = PI / 2;
+    mesh(new THREE.PlaneGeometry(0.06, 0.03), std(0xffffff, 0.7, { map: textTex(['OFF'], 64, 32, '#17140e', '#f1ecdd', null, false) }), -0.12, 0.08, 0.146, iso); mesh(new THREE.PlaneGeometry(0.06, 0.03), std(0xffffff, 0.7, { map: textTex(['ON'], 64, 32, '#17140e', '#f1ecdd', null, false) }), 0.0, -0.13, 0.146, iso);
+    A.ISO_AT = new THREE.Vector3(T.x1 + 0.28, T.water + 0.4, 62.6);
     solid(D2 - 1.5, D2 - 0.5, T.z2 - 0.62, T.z2 - 0.2, DY - 0.3, DY + 2, true);
     A.beacon = basic(0x402008, { fog: false }); cyl(0.03, 0.03, 0.5, M2.steel, D1 + 0.25, DY + 2.0, T.z2 - 0.4, null, 6); mesh(new THREE.SphereGeometry(0.09, 10, 8), A.beacon, D1 + 0.25, DY + 2.3, T.z2 - 0.4).userData.keep = true; box(0.05, 2.3, 0.05, M2.steel, D1 + 0.25, DY + 1.15, T.z2 - 0.34);
     light('dive', 0xffa030, (D1 + D2) / 2, DY + 1.9, T.z2 - 1.0, 13, 1.4);
