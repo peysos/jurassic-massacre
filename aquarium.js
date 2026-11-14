@@ -796,34 +796,104 @@ var Aqua = (function () {
     wb(H.x2 + 0.5, H.x2 + 0.75, Y - 0.3, H.h, 47.5, H.z2, M2.conc, 4, 4, [Y - 0.5, H.h]); wb(136, H.x2 + 0.75, Y + 2.5, H.h, H.z1, 47.5, M2.conc, 4, 4);
     solid(H.x2, H.x2 + 0.75, H.z1, 47.5, Y - 0.5, H.h, true); solid(136 - 0.1, 136 + 0.1, H.z1, 47.5, Y - 0.5, H.h, true);
     label(['PLANT ROOM', 'NO ENTRY'], 0.8, 0.3, '#8d1f18', '#f1ecdd', H.x2 + 0.48, Y + 1.7, 66, -PI / 2, 256, '#f1ecdd'); box(0.06, 2.1, 1.0, M2.blue, H.x2 + 0.49, Y + 1.05, 66);
-    // the spine: a metre and a half of grating straight across the tank, hung from the trusses, in three lengths with two breaks
-    A.SPINE = { z1: 59.3, z2: 60.7, segs: [[128.6, T.x2], [122.4, 127.0], [113.4, 120.6]], gaps: [[127.0, 128.6], [120.6, 122.4]], last: [T.x1, 113.4] };
-    A.SPINE.segs.forEach(function (sg) {
-      deck(sg[0], sg[1], 59.3, 60.7, M2.grate, 0.3); beam(sg[0], 59.34, sg[1], 59.34); beam(sg[0], 60.66, sg[1], 60.66);
-      for (var x = sg[0] + 0.3; x < sg[1]; x += 2.4) { hanger(x, 59.3); hanger(x, 60.7); beam(x, 59.3, x, 60.7, -0.02, 0.06); }
+    /* ---- the walks: a maze of grating over her water, on two levels ----
+       The upper walks (CW) are the keepers' way across, hung from the trusses; the lower ones (YL, two metres and a bit over
+       the water) are the old feeding walks along the glass, where she can reach far more easily.  Ladders join the levels.
+       Sections have come down: where a walk ends in a gap there is a barrier you cannot get over, and the gap is too wide to
+       jump.  One way through: the spine east to west is broken twice, so you go north along the gantry, down to the feeding
+       walk, west under the dead end, up again onto the last length of the spine — and that ends where the last span fell.
+       A.WALKS: every walk, for the floors, her strikes and the head-room check.  Rails are given per edge: null leaves the edge
+       open (it joins something), [] is a whole rail, [[a, b], ...] leaves gaps in it (along x for the n/s edges, z for w/e). */
+    var YL = A.YL = CW - 1.7, ceilings = A.CEIL = [];
+    function deckAt(x1, x2, z1, z2, y, mat, tile, kind) { var m = mesh(new THREE.PlaneGeometry(x2 - x1, z2 - z1), mat, (x1 + x2) / 2, y, (z1 + z2) / 2); m.rotation.x = -PI / 2; var U = m.geometry.attributes.uv; for (var v = 0; v < U.count; v++) U.setXY(v, U.getX(v) * (x2 - x1) / tile, U.getY(v) * (z2 - z1) / tile); m.userData.noCast = true; return floor(x1, x2, z1, z2, y, null, null, kind || 'grate'); }
+    function beamAt(x1, z1, x2, z2, y, w) { var len = Math.hypot(x2 - x1, z2 - z1), b = box(w || 0.1, 0.2, len, EM.rustSteel, (x1 + x2) / 2, y - 0.11, (z1 + z2) / 2); b.rotation.y = Math.atan2(x2 - x1, z2 - z1); return b; }
+    function hangerAt(x, z, y) { cyl(0.016, 0.016, H.h - y - 1.7, M2.rail, x, (y + H.h - 1.7) / 2, z, null, 5); }
+    function edgeRail(x1, z1, x2, z2, y, gaps) {                       // a rail along one edge, leaving the gaps open
+      var along = Math.abs(x2 - x1) > Math.abs(z2 - z1), a1 = along ? x1 : z1, a2 = along ? x2 : z2, cuts = (gaps || []).slice().sort(function (p2, q2) { return p2[0] - q2[0]; }), a = a1;
+      function seg2(u1, u2) { if (u2 - u1 < 0.15) return; if (along) rail(u1, z1, u2, z1, y, y, { kick: 1 }); else rail(x1, u1, x1, u2, y, y, { kick: 1 }); }
+      cuts.forEach(function (c) { seg2(a, c[0]); a = Math.max(a, c[1]); }); seg2(a, a2);
+    }
+    var W = A.WALKS = [
+      { n: 'S1', x1: 128.6, x2: T.x2, z1: 59.3, z2: 60.7, y: Y, r: { n: [[128.9, 130.6], [131.6, 132.8]], s: [[131.0, 132.2]], w: 'bar', e: null } },
+      { n: 'S2', x1: 122.4, x2: 125.8, z1: 59.3, z2: 60.7, y: Y, r: { n: [], s: [[124.2, 125.4]], w: 'bar', e: 'bar' } },
+      { n: 'S3', x1: 113.4, x2: 120.6, z1: 59.3, z2: 60.7, y: Y, r: { n: [[117.4, 118.2]], s: [[116.4, 118.1]], w: null, e: 'bar' } },
+      { n: 'NW', x1: 131.6, x2: 132.8, z1: 52.8, z2: 59.3, y: Y, r: { n: null, s: null, w: [], e: [] } },
+      { n: 'GN', x1: 121.6, x2: 132.8, z1: 51.4, z2: 52.8, y: Y, r: { n: [[124.6, 125.4]], s: [[131.6, 132.8]], w: 'bar', e: [] } },
+      { n: 'SW', x1: 131.0, x2: 132.2, z1: 60.7, z2: 66.0, y: Y, r: { n: null, s: null, w: [], e: [] } },
+      { n: 'J2', x1: 124.0, x2: 132.2, z1: 66.0, z2: 67.4, y: Y, r: { n: [[124.2, 125.4], [126.0, 127.7], [131.0, 132.2]], s: [[124.6, 125.4]], w: [], e: [] } },
+      { n: 'JN', x1: 124.2, x2: 125.4, z1: 60.7, z2: 66.0, y: Y, r: { n: null, s: null, w: [], e: [] } },
+      { n: 'LN', x1: 114.2, x2: 126.0, z1: 49.6, z2: 50.8, y: YL, r: { n: [[114.2, 115.6]], s: [[114.2, 115.6], [117.2, 118.4], [124.6, 125.4]], w: null, e: [] } },
+      { n: 'LC', x1: 117.2, x2: 118.4, z1: 50.8, z2: 58.7, y: YL, r: { n: null, s: [[117.4, 118.2]], w: [], e: [[54.0, 55.7]] } },
+      { n: 'LS', x1: 124.0, x2: 130.0, z1: 68.0, z2: 69.2, y: YL, r: { n: [[124.6, 125.4]], s: [], w: [], e: [] } }
+    ];
+    A.SPINE = { z1: 59.3, z2: 60.7, last: [T.x1, 113.4] };
+    W.forEach(function (w) {
+      deckAt(w.x1, w.x2, w.z1, w.z2, w.y, M2.grate, 0.3);
+      var lng = w.x2 - w.x1 > w.z2 - w.z1;                           // stringers along the length, cross-members every 2.4 m, hangers up to the trusses
+      if (lng) { beamAt(w.x1, w.z1 + 0.04, w.x2, w.z1 + 0.04, w.y); beamAt(w.x1, w.z2 - 0.04, w.x2, w.z2 - 0.04, w.y); for (var x = w.x1 + 0.3; x < w.x2; x += 2.4) { beamAt(x, w.z1, x, w.z2, w.y - 0.02, 0.06); hangerAt(x, w.z1, w.y); hangerAt(x, w.z2, w.y); } }
+      else { beamAt(w.x1 + 0.04, w.z1, w.x1 + 0.04, w.z2, w.y); beamAt(w.x2 - 0.04, w.z1, w.x2 - 0.04, w.z2, w.y); for (var z = w.z1 + 0.3; z < w.z2; z += 2.4) { beamAt(w.x1, z, w.x2, z, w.y - 0.02, 0.06); hangerAt(w.x1, z, w.y); hangerAt(w.x2, z, w.y); } }
+      ['n', 's', 'w', 'e'].forEach(function (e) {
+        var g2 = w.r[e]; if (g2 === null || g2 === 'bar') return;
+        if (e === 'n') edgeRail(w.x1, w.z1, w.x2, w.z1, w.y, g2); else if (e === 's') edgeRail(w.x1, w.z2, w.x2, w.z2, w.y, g2); else if (e === 'w') edgeRail(w.x1, w.z1, w.x1, w.z2, w.y, g2); else edgeRail(w.x2, w.z1, w.x2, w.z2, w.y, g2);
+      });
     });
-    // rails along it, broken wherever a refuge opens off it
-    A.REFUGE = [{ x1: 130.2, x2: 131.9, z1: 57.8, z2: 59.3, side: -1 }, { x1: 116.4, x2: 118.1, z1: 60.7, z2: 62.2, side: 1 }];
-    [[128.6, T.x2, 59.3, [130.2, 131.9]], [128.6, T.x2, 60.7, null], [122.4, 127.0, 59.3, null], [122.4, 127.0, 60.7, null], [113.4, 120.6, 59.3, null], [113.4, 120.6, 60.7, [116.4, 118.1]]].forEach(function (r) {
-      if (r[3]) { rail(r[0], r[2], r[3][0], r[2], Y, Y, { kick: 1 }); rail(r[3][1], r[2], r[1], r[2], Y, Y, { kick: 1 }); } else rail(r[0], r[2], r[1], r[2], Y, Y, { kick: 1 });
-    });
-    /* A keeper's refuge: a steel cage opening off the walk, bars too close for her head.  KEEPER REFUGE on the plate over it. */
+    /* Where a walk ends at a gap: the grating torn off and hanging, the rails bent down, and across the end a barrier — a striped
+       board on a chain and a DANGER plate — that you cannot climb or jump (its solid stands two metres high). */
+    var stripeM = std(0xffffff, 0.7, { map: canvasTex(128, function (g, S, HH) { g.fillStyle = '#e2b93b'; g.fillRect(0, 0, S, HH); g.fillStyle = '#17140e'; for (var x = -HH; x < S; x += 28) { g.beginPath(); g.moveTo(x, HH); g.lineTo(x + 14, HH); g.lineTo(x + 14 + HH, 0); g.lineTo(x + HH, 0); g.closePath(); g.fill(); } chips(g, S, HH, 10, '#3a3020'); grime(g, S, HH, 1); }, 1, 1, true, 24) });
+    var dangerM = std(0xffffff, 0.7, { map: textTex(['DANGER', 'SPAN DOWN'], 256, 128, '#8d1f18', '#f1ecdd', '#f1ecdd') });
+    function barrier(x, z1, z2, y, dir, alongZ) {                    // across the end of a walk: at x (or z if alongZ), spanning z1..z2 (x1..x2); dir: which way the gap is
+      var c = (z1 + z2) / 2, w = z2 - z1, g = new THREE.Group(); scene.add(g);
+      if (alongZ) { g.position.set(c, y, x); } else { g.position.set(x, y, c); g.rotation.y = PI / 2; }
+      [-1, 1].forEach(function (e) { box(0.06, 1.1, 0.06, M2.steel, e * (w / 2 - 0.05), 0.55, 0, g); });
+      box(w - 0.1, 0.14, 0.03, stripeM, 0, 0.92, 0, g); var ch = box(w - 0.12, 0.02, 0.02, M.chain || M2.rail, 0, 0.5, 0, g); ch.scale.y = 1;
+      box(0.42, 0.22, 0.012, dangerM, 0, 0.62, dir * 0.02, g).rotation.y = dir > 0 ? 0 : PI;
+      if (alongZ) solid(z1, z2, x - 0.1, x + 0.1, y - 0.3, y + 2.0, true); else solid(x - 0.1, x + 0.1, z1, z2, y - 0.3, y + 2.0, true);
+      // what is left past it: a length of grating torn down and hanging toward the water, a rail bent after it
+      var hx = alongZ ? c : x + dir * 0.55, hz = alongZ ? x + dir * 0.55 : c, h1 = mesh(new THREE.PlaneGeometry(alongZ ? w * 0.9 : 1.0, alongZ ? 1.0 : w * 0.9), M2.grate, hx, y - 0.4, hz);
+      h1.quaternion.setFromEuler(alongZ ? new THREE.Euler(dir * 0.75, 0, 0) : new THREE.Euler(0, 0, -dir * 0.75)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-PI / 2, 0, 0))); h1.userData.noCast = true;
+      var br = box(0.045, 0.045, 1.2, M2.rail, alongZ ? z1 + 0.05 : x + dir * 0.5, y + 0.5, alongZ ? x + dir * 0.5 : z1 + 0.05); br.rotation.set(alongZ ? 0.9 * dir : 0, alongZ ? 0 : PI / 2, alongZ ? 0 : 0.9 * dir, 'YXZ');
+      return g;
+    }
+    barrier(128.6, 59.3, 60.7, Y, -1); barrier(125.8, 59.3, 60.7, Y, 1); barrier(122.4, 59.3, 60.7, Y, -1); barrier(120.6, 59.3, 60.7, Y, 1); barrier(121.6, 51.4, 52.8, Y, -1);
+    // the west end of the spine: torn off where the last span came down (no barrier: this is where you go over)
+    var lt = mesh(new THREE.PlaneGeometry(1.0, 1.4), M2.grate, 112.98, Y - 0.34, 60); lt.quaternion.setFromEuler(new THREE.Euler(0, 0, 0.72)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-PI / 2, 0, 0))); lt.userData.noCast = true;
+    var lbr = box(0.045, 0.045, 1.3, M2.rail, 112.9, Y + 0.6, 59.3); lbr.rotation.set(0.9, PI / 2, 0, 'YXZ');
+    // the collapsed section past the north gantry: two lengths of it hanging off their last bolts, one of them in the water
+    var c1 = new THREE.Group(); c1.position.set(121.6, Y, 52.1); c1.rotation.z = 0.95; scene.add(c1); var cg = mesh(new THREE.PlaneGeometry(1.4, 1.4), M2.grate, -0.7, 0, 0, c1); cg.rotation.x = -PI / 2; cg.userData.noCast = true; box(1.4, 0.18, 0.08, EM.rustSteel, -0.7, -0.1, -0.66, c1); box(1.4, 0.18, 0.08, EM.rustSteel, -0.7, -0.1, 0.66, c1);
+    var c2 = box(2.2, 0.18, 0.1, EM.rustSteel, 119.4, T.water + 0.4, 52.4); c2.rotation.set(0.2, 0.3, -0.5); var c3 = mesh(new THREE.PlaneGeometry(2.0, 1.3), A.wetMats ? A.wetMats.steel : M2.grate, 119.6, T.water - 0.3, 52.0); c3.rotation.set(-PI / 2 + 0.4, 0, 0.3); c3.userData.noCast = true;
+    // ---- the ladders between the levels: two stiles, rungs every 0.3 m, the top of the stiles bent over into handholds ----
+    function ladder2(x, z, y1, y2, alongX) {                         // rungs along x (you climb facing z) or along z
+      var n = Math.round((y2 - y1) / 0.3), q2; [-0.24, 0.24].forEach(function (o) { box(0.045, y2 - y1 + 1.0, 0.045, M.yellow, x + (alongX ? o : 0), (y1 + y2 + 1.0) / 2, z + (alongX ? 0 : o)); var hh = mesh(new THREE.TorusGeometry(0.16, 0.022, 6, 10, PI), M.yellow, x + (alongX ? o : 0), y2 + 1.0, z + (alongX ? 0.0 : o) - 0.0); hh.rotation.y = alongX ? PI / 2 : 0; });
+      for (q2 = 0; q2 <= n; q2++) { var rg = cyl(0.014, 0.014, 0.48, M2.rail, x, y1 + 0.12 + q2 * (y2 - y1 - 0.2) / n, z, null, 6); if (alongX) rg.rotation.z = PI / 2; else rg.rotation.x = PI / 2; }
+      if (alongX) solid(x - 0.3, x + 0.3, z - 0.05, z + 0.05, y1 - 0.3, y2 + 0.4, true); else solid(x - 0.05, x + 0.05, z - 0.3, z + 0.3, y1 - 0.3, y2 + 0.4, true);
+    }
+    /* fz: which way you face to climb it; foot/top: where you stand on the lower and the upper walk */
+    A.LADDERS = [
+      { x: 125.0, z: 51.1, fx: 0, fz: 1, foot: [125.0, 50.35], top: [125.0, 51.95], name: 'GN' },
+      { x: 117.8, z: 59.0, fx: 0, fz: 1, foot: [117.8, 58.25], top: [117.8, 59.85], name: 'S3' },
+      { x: 125.0, z: 67.7, fx: 0, fz: -1, foot: [125.0, 68.45], top: [125.0, 66.85], name: 'J2' }
+    ];
+    A.LADDERS.forEach(function (L) { ladder2(L.x, L.z, YL, Y, true); });
+    // ---- refuges: steel cages opening off the walks, bars too close for her head.  KEEPER REFUGE on the plate over each. ----
+    A.REFUGE = [{ x1: 128.9, x2: 130.6, z1: 57.8, z2: 59.3, side: -1, y: Y }, { x1: 116.4, x2: 118.1, z1: 60.7, z2: 62.2, side: 1, y: Y }, { x1: 126.0, x2: 127.7, z1: 64.5, z2: 66.0, side: -1, y: Y },
+      { x1: 118.4, x2: 119.8, z1: 54.0, z2: 55.7, side: 'e', y: YL }, { x1: 114.2, x2: 115.6, z1: 49.6, z2: 50.8, side: 'w', y: YL }];
     var bars = [];
     A.REFUGE.forEach(function (R) {
-      deck(R.x1, R.x2, R.z1, R.z2, plate, 1, 'grate'); var zo = R.side < 0 ? R.z1 : R.z2, zi = R.side < 0 ? R.z2 : R.z1;
-      for (var x = R.x1; x <= R.x2 + 0.01; x += 0.17) bars.push([x, Y + 1.1, zo, 1, 2.2, 1]);
-      for (var z = Math.min(zo, zi); z <= Math.max(zo, zi) + 0.01; z += 0.17) { bars.push([R.x1, Y + 1.1, z, 1, 2.2, 1]); bars.push([R.x2, Y + 1.1, z, 1, 2.2, 1]); }
-      box(R.x2 - R.x1 + 0.1, 0.05, R.z2 - R.z1 + 0.1, plate, (R.x1 + R.x2) / 2, Y + 2.22, (R.z1 + R.z2) / 2); box(R.x2 - R.x1 + 0.1, 0.08, 0.08, M.yellow, (R.x1 + R.x2) / 2, Y + 2.2, zi);
-      label(['KEEPER REFUGE'], 1.2, 0.22, '#e2b93b', '#17140e', (R.x1 + R.x2) / 2, Y + 2.38, zi + R.side * -0.02, R.side < 0 ? 0 : PI, 256, '#17140e');
-      solid(R.x1 - 0.06, R.x1 + 0.06, R.z1, R.z2, Y - 0.3, Y + 2.6, true); solid(R.x2 - 0.06, R.x2 + 0.06, R.z1, R.z2, Y - 0.3, Y + 2.6, true); solid(R.x1, R.x2, zo - 0.06, zo + 0.06, Y - 0.3, Y + 2.6, true);
-      hanger(R.x1, zo); hanger(R.x2, zo);
+      var y = R.y; deckAt(R.x1, R.x2, R.z1, R.z2, y, plate, 1, 'grate'); hangerAt(R.x1, R.z1, y); hangerAt(R.x2, R.z2, y);
+      var sides = R.side === 'e' ? ['e', 'n', 's'] : R.side === 'w' ? ['w', 'n', 's'] : R.side < 0 ? ['n', 'w', 'e'] : ['s', 'w', 'e'];       // the three closed sides
+      sides.forEach(function (sd) {
+        var x, z;
+        if (sd === 'n' || sd === 's') { z = sd === 'n' ? R.z1 : R.z2; for (x = R.x1; x <= R.x2 + 0.01; x += 0.17) bars.push([x, y + 1.1, z, 1, 2.2, 1]); solid(R.x1, R.x2, z - 0.06, z + 0.06, y - 0.3, y + 2.6, true); }
+        else { x = sd === 'w' ? R.x1 : R.x2; for (z = R.z1; z <= R.z2 + 0.01; z += 0.17) bars.push([x, y + 1.1, z, 1, 2.2, 1]); solid(x - 0.06, x + 0.06, R.z1, R.z2, y - 0.3, y + 2.6, true); }
+      });
+      box(R.x2 - R.x1 + 0.1, 0.05, R.z2 - R.z1 + 0.1, plate, (R.x1 + R.x2) / 2, y + 2.22, (R.z1 + R.z2) / 2); ceilings.push({ x1: R.x1 - 0.1, x2: R.x2 + 0.1, z1: R.z1 - 0.1, z2: R.z2 + 0.1, y: y + 2.195 });
+      var open = R.side === 'e' ? 'w' : R.side === 'w' ? 'e' : R.side < 0 ? 's' : 'n', lx = open === 'w' ? R.x1 : open === 'e' ? R.x2 : (R.x1 + R.x2) / 2, lz = open === 'n' ? R.z1 : open === 's' ? R.z2 : (R.z1 + R.z2) / 2;
+      box(open === 'n' || open === 's' ? R.x2 - R.x1 + 0.1 : 0.08, 0.08, open === 'n' || open === 's' ? 0.08 : R.z2 - R.z1 + 0.1, M.yellow, lx, y + 2.2, lz);
+      label(['KEEPER REFUGE'], 1.2, 0.22, '#e2b93b', '#17140e', lx + (open === 'w' ? -0.02 : open === 'e' ? 0.02 : 0), y + 2.38, lz + (open === 'n' ? -0.02 : open === 's' ? 0.02 : 0), open === 'n' ? PI : open === 's' ? 0 : open === 'w' ? -PI / 2 : PI / 2, 256, '#17140e');
     });
     WB.inst(new THREE.CylinderGeometry(0.016, 0.016, 1, 5), M2.rail, bars);
-    // the broken ends: grating torn and hanging, a rail bent down toward the water
-    A.SPINE.gaps.concat([[112.2, 113.4]]).forEach(function (g2, n) {
-      var h1 = mesh(new THREE.PlaneGeometry(1.0, 1.4), M2.grate, g2[1] - 0.42, Y - 0.34, 60); h1.quaternion.setFromEuler(new THREE.Euler(0, 0, 0.72)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-PI / 2, 0, 0))); h1.userData.noCast = true;
-      var br = box(0.045, 0.045, 1.3, M2.rail, g2[1] - 0.5, Y + 0.6, 59.3); br.rotation.set(0.9, PI / 2, 0, 'YXZ'); var br2 = box(0.045, 0.045, 1.1, M2.rail, g2[0] + 0.45, Y + 0.3, 60.7); br2.rotation.set(-1.1, PI / 2, 0, 'YXZ');
-    });
+    // things up there that a head can meet: the feeder's tray, the lamp shades (added below), the trusses' bottom chords
+    ceilings.push({ x1: T.x1 - 6, x2: T.x2 + 3, z1: 59.7, z2: 60.3, y: H.h - 1.93 }); [106, 114, 122, 130, 138].forEach(function (x) { ceilings.push({ x1: x - 0.15, x2: x + 0.15, z1: H.z1, z2: H.z2, y: H.h - 1.8 }); });
     // the work platform over the front glass: chequer plate on two columns and brackets off the tank's frame
     var P1 = 105.5, P2 = T.x1, PZ1 = 53, PZ2 = 67; A.PLAT = { x1: P1, x2: P2, z1: PZ1, z2: PZ2 };
     deck(P1, P2, PZ1, PZ2, plate, 1, 'grate'); box(P2 - P1, 0.24, 0.1, EM.rustSteel, (P1 + P2) / 2, Y - 0.13, PZ1 + 0.05); box(P2 - P1, 0.24, 0.1, EM.rustSteel, (P1 + P2) / 2, Y - 0.13, PZ2 - 0.05); box(0.1, 0.24, PZ2 - PZ1, EM.rustSteel, P1 + 0.05, Y - 0.13, 60); box(0.1, 0.24, PZ2 - PZ1, EM.rustSteel, P2 - 0.05, Y - 0.13, 60);
@@ -832,6 +902,8 @@ var Aqua = (function () {
     [PZ1 + 0.4, 60, PZ2 - 0.4].forEach(function (z) { var bk = box(0.1, 0.1, 3.4, EM.rustSteel, T.x1 - 0.9, Y - 1.5, z); bk.rotation.set(0.95, PI / 2, 0, 'YXZ'); });
     rail(P1, PZ1, P2, PZ1, Y, Y, { kick: 1 }); rail(P1, PZ2, P2, PZ2, Y, Y, { kick: 1 }); rail(P1, PZ1, P1, 65.7, Y, Y, { kick: 1 }); rail(P2, PZ1, P2, 59.3, Y, Y, { kick: 1 }); rail(P2, 60.7, P2, 64.1, Y, Y, { kick: 1 }); rail(P2, 65.1, P2, PZ2, Y, Y, { kick: 1 });
     A.platGate = solid(P2 - 0.08, P2 + 0.08, 59.3, 60.7, Y - 0.3, Y + 1.6, true);                                                     // the open end where the walk used to join: you do not walk off it
+    // the tops of the two ladders: a chain across each with a tag on it (you go over by the ladder, [E], not by stepping off)
+    [[P2, 64.1, 65.1, 'TANK LADDER'], [P1, 65.7, PZ2, 'HALL LADDER']].forEach(function (c) { solid(c[0] - 0.08, c[0] + 0.08, c[1], c[2], Y - 0.3, Y + 1.6, true); var ch = box(0.02, 0.02, c[2] - c[1], M.chain || M2.rail, c[0], Y + 0.95, (c[1] + c[2]) / 2); ch.userData.noCast = true; label([c[3]], 0.34, 0.12, '#e2b93b', '#17140e', c[0], Y + 0.85, (c[1] + c[2]) / 2, PI / 2, 128).userData.noCast = true; });
     // the bench: the key piece lies on it (world.js puts it there), under a lamp on a bent arm
     var KX = ZONES[0].key[0], KZ = ZONES[0].key[1];
     wb(KX - 1.2, KX + 1.2, Y + 0.86, Y + 0.92, KZ - 0.4, KZ + 0.4, M2.steel, 1, 1); [[-1.1, -0.32], [1.1, -0.32], [-1.1, 0.32], [1.1, 0.32]].forEach(function (l) { box(0.05, 0.86, 0.05, M2.steel, KX + l[0], Y + 0.43, KZ + l[1]); }); wb(KX - 1.15, KX + 1.15, Y + 0.3, Y + 0.33, KZ - 0.36, KZ + 0.36, M2.steel, 1, 1);
@@ -851,7 +923,29 @@ var Aqua = (function () {
       g.fillStyle = '#a8231c'; g.font = 'bold 26px ' + hand; g.fillText('WEST SPAN IS OUT — DO NOT CROSS', 20, 276); g.fillStyle = '#1a1a1a'; g.font = '20px ' + hand; g.fillText('ladder is winched up. Lower it from the dive station.', 20, 312);
       g.strokeStyle = 'rgba(40,40,40,.25)'; for (var n2 = 0; n2 < 30; n2++) { g.beginPath(); var x = Math.random() * S, y = Math.random() * HH2; g.moveTo(x, y); g.lineTo(x + 30 + Math.random() * 60, y + (Math.random() - 0.5) * 10); g.stroke(); } grime(g, S, HH2, 0.8);
     }, 1, 1, true, 340) }), P1 + 0.03, Y + 1.55, 57.6); wbd.rotation.y = PI / 2; wbd.userData.noCast = true; box(0.03, 1.08, 1.58, M2.rail, P1 + 0.012, Y + 1.55, 57.6); [56.9, 58.3].forEach(function (z) { box(0.04, 1.6, 0.04, M2.rail, P1 + 0.02, Y + 0.8, z); });
-    [[108.9, 54.0], [109.3, 54.5], [108.6, 54.7]].forEach(function (b, n) { cyl(0.15, 0.12, 0.28, std([0x3a5f8a, 0x8a2a22, 0xd8d2c2][n], 0.6), b[0], Y + 0.14, b[1], null, 12); }); circles.push({ x: 109, z: 54.4, r: 0.45, top: Y + 0.6 });
+    /* Paint: three five-litre tins of the aquarium's blue, red and white.  Rolled steel with a rim top and bottom and two
+       swaged rings round the middle, a printed label, a wire handle on two ears, paint run down the outside from under the lid;
+       one lid off and lying by it, the paint in that one skinned over.  They are something to walk round, not to stand on. */
+    function tin(x, z, col, name, open, rot) {
+      var g = new THREE.Group(); g.position.set(x, Y, z); g.rotation.y = rot; scene.add(g);
+      var lab = std(0xffffff, 0.55, { metalness: 0.2, map: canvasTex(256, function (c, S2, HH) {
+        c.fillStyle = '#b8bcbc'; c.fillRect(0, 0, S2, HH); c.fillStyle = col; c.fillRect(0, HH * 0.18, S2, HH * 0.64); c.fillStyle = '#f2efe6'; c.fillRect(S2 * 0.08, HH * 0.3, S2 * 0.4, HH * 0.4);
+        c.fillStyle = '#17140e'; c.font = 'bold 26px Arial, sans-serif'; c.fillText('MARINE', S2 * 0.11, HH * 0.47); c.font = '15px Arial, sans-serif'; c.fillText(name, S2 * 0.11, HH * 0.62); c.fillText('5 LITRES  ·  GLOSS', S2 * 0.6, HH * 0.75);
+        for (var d = 0; d < 9; d++) { var dx = Math.random() * S2, dl = 10 + Math.random() * HH * 0.5; c.fillStyle = col; c.fillRect(dx, 0, 3 + Math.random() * 5, dl); c.beginPath(); c.arc(dx + 3, dl, 4, 0, 7); c.fill(); }      // runs from under the lid
+        streaks(c, S2, HH, 10, 'rgba(90,60,30,.7)', HH); chips(c, S2, HH, 14, '#6a6058'); grime(c, S2, HH, 1.1);
+      }, 1, 1, true, 128) }), tinM = std(0xa4a8a8, 0.38, { metalness: 0.8, map: metalTex });
+      var body = cyl(0.11, 0.11, 0.21, lab, 0, 0.115, 0, g, 20); body.rotation.y = Math.random() * 6;
+      [0.012, 0.222].forEach(function (y) { mesh(new THREE.TorusGeometry(0.11, 0.008, 6, 22), tinM, 0, y, 0, g).rotation.x = PI / 2; });
+      [0.08, 0.15].forEach(function (y) { mesh(new THREE.TorusGeometry(0.111, 0.003, 4, 22), tinM, 0, y, 0, g).rotation.x = PI / 2; });
+      [-1, 1].forEach(function (e) { box(0.012, 0.03, 0.02, tinM, e * 0.11, 0.2, 0, g); });
+      var hd = mesh(new THREE.TorusGeometry(0.108, 0.0035, 5, 16, PI), M2.rail, 0, 0.2, 0, g); hd.rotation.set(0, 0, 0); hd.rotateX(open ? -0.2 : -1.3);
+      if (open) { mesh(new THREE.CircleGeometry(0.098, 20), std(new THREE.Color(col).multiplyScalar(0.7).getHex(), 0.5), 0, 0.205, 0, g).rotation.x = -PI / 2; var ld = cyl(0.106, 0.106, 0.01, tinM, 0.26, 0.005, 0.08, g, 20); ld.rotation.set(0.04, 0, 0.02); }
+      else cyl(0.106, 0.106, 0.012, tinM, 0, 0.222, 0, g, 20);
+      return g;
+    }
+    tin(108.86, 54.02, '#3f7fa8', 'AQUARIUM BLUE  RAL 5012', false, 0.3); tin(109.3, 54.5, '#8d1f18', 'SIGNAL RED', true, 1.9); tin(108.62, 54.72, '#e8e6dc', 'BRILLIANT WHITE', false, -0.7);
+    var spill = mesh(new THREE.CircleGeometry(0.3, 16), std(0x6d1a14, 0.25), 109.45, Y + 0.004, 54.62); spill.rotation.x = -PI / 2; spill.scale.set(1, 0.6, 1); spill.userData.noCast = true;
+    solid(108.4, 109.55, 53.85, 54.9, Y - 0.3, Y + 2.0, true);                                                                           // (a solid that stands too high to get on top of)
     [0, 1, 2].forEach(function (n) { var pl = cyl(0.016, 0.016, 2.6, M.wood, 109.75, Y + 1.25, 55.6 + n * 0.14, null, 5); pl.rotation.z = 0.12; mesh(new THREE.TorusGeometry(0.07, 0.012, 5, 10, 3.6), M2.rail, 109.6, Y + 2.56, 55.6 + n * 0.14).rotation.y = PI / 2; });
     var lr = mesh(new THREE.TorusGeometry(0.3, 0.07, 8, 18), std(0xc8501e, 0.7), P2 - 0.1, Y + 0.72, 57.2); lr.rotation.y = PI / 2;
     label(['TWO KEEPERS ON THE WALKWAY', 'AT ALL TIMES'], 1.3, 0.34, '#e2b93b', '#17140e', P1 + 0.03, Y + 2.3, 60, PI / 2, 384, '#17140e');
@@ -893,11 +987,13 @@ var Aqua = (function () {
     // the feeder: a cable tray under the trusses down the length of the walk, and lamps hung off it
     box(T.x2 - T.x1 + 6, 0.05, 0.3, M2.steel, (T.x1 + T.x2) / 2 - 1, H.h - 1.9, 60.0); var fd = cyl(0.045, 0.045, T.x2 - T.x1 + 6, M.rubber, (T.x1 + T.x2) / 2 - 1, H.h - 1.84, 60.0, null, 8); fd.rotation.z = PI / 2;
     A.lamps = [];
-    [[136.5, 55], [136.5, 68], [130.9, 60], [124.7, 60], [117.5, 60], [108, 57], [108, 64]].forEach(function (lp, n) {
-      cyl(0.008, 0.008, H.h - 2 - (Y + 2.9), M.dark, lp[0], (H.h - 2 + Y + 2.9) / 2, lp[1], null, 4); mesh(new THREE.ConeGeometry(0.28, 0.22, 12, 1, true), std(0x2f5a3a, 0.6, { side: THREE.DoubleSide, metalness: 0.3 }), lp[0], Y + 2.9, lp[1]);
-      var bm = basic(0x1c1508, { fog: false }); mesh(new THREE.SphereGeometry(0.075, 8, 8), bm, lp[0], Y + 2.82, lp[1]).userData.keep = true; A.lamps.push({ mat: bm, x: lp[0], z: lp[1], ph: n * 1.7 });
+    [[136.5, 55, Y], [136.5, 68, Y], [130.9, 60, Y], [124.7, 60, Y], [117.5, 60, Y], [108, 57, Y], [108, 64, Y], [128.2, 52.1, Y], [127.5, 66.7, Y], [120.6, 50.2, YL], [117.8, 53.4, YL], [127.0, 68.6, YL]].forEach(function (lp, n) {
+      var ly = lp[2] + 2.9; cyl(0.008, 0.008, H.h - 2 - ly, M.dark, lp[0], (H.h - 2 + ly) / 2, lp[1], null, 4); mesh(new THREE.ConeGeometry(0.28, 0.22, 12, 1, true), std(0x2f5a3a, 0.6, { side: THREE.DoubleSide, metalness: 0.3 }), lp[0], ly, lp[1]);
+      var bm = basic(0x1c1508, { fog: false }); mesh(new THREE.SphereGeometry(0.075, 8, 8), bm, lp[0], ly - 0.08, lp[1]).userData.keep = true; A.lamps.push({ mat: bm, x: lp[0], z: lp[1], ph: n * 1.7 });
+      ceilings.push({ x1: lp[0] - 0.3, x2: lp[0] + 0.3, z1: lp[1] - 0.3, z2: lp[1] + 0.3, y: ly - 0.12 });
     });
     light('cwE', 0xffd9a0, 136.5, Y + 2.5, 60, 16, 1.4); light('cwM', 0xffd9a0, 124.7, Y + 2.5, 60, 16, 1.4); light('cwW', 0xffd9a0, 108, Y + 2.5, 60, 15, 1.4); light('emerg', 0xff2a1a, 122, Y + 2, 60, 30, 1.2);
+    light('cwN', 0xffd9a0, 124.5, Y + 2.2, 51.5, 14, 1.5); light('cwS', 0xffd9a0, 127.5, Y + 2.2, 67.2, 13, 1.5);
     // the torn end of the feeder, where the last span came down: it hangs to the water (dead, while the breaker is out)
     A.cable = dyn(new THREE.Group()); scene.add(A.cable); A.cable.visible = false; A.cable.userData.keep = true;
     tube([[113.2, H.h - 1.86, 60.0, 0.045, 0.045], [112.6, H.h - 3.2, 60.2, 0.045, 0.045], [112.9, 8.2, 60.5, 0.045, 0.045], [113.4, 5.6, 60.3, 0.045, 0.045], [113.1, T.water - 0.5, 60.6, 0.045, 0.045]], M.rubber, A.cable, 6, 6);

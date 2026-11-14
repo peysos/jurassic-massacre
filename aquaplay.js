@@ -385,17 +385,18 @@
   /* Put her snout at a point and turn her face to another, as nearly as the neck allows: a search over the three numbers
      neckPose takes (total yaw, total pitch, curl), begun from where it ended last time.  Returns how far off she still is.
      (For the moments that have to be exact: the kill, where her mouth must arrive in front of your eyes.) */
-  var NS = [0, 0.8, 0.6], nsT = new V3(), nsL = new V3(), nsV = new V3();
+  var NS = [0, 0.8, 0.6], nsT = new V3(), nsL = new V3(), nsV = new V3(), nsAvoid = false, nsYaw = 0;
   function neckSolve(tx, ty, tz, lx, ly, lz, fresh) {
-    if (fresh) { NS[0] = 0; NS[1] = 0.9; NS[2] = 0.6; }
+    if (fresh) { NS[0] = 0; NS[1] = nsAvoid ? 1.6 : 0.9; NS[2] = nsAvoid ? 1.3 : 0.6; }
     nsT.set(tx, ty, tz); nsL.set(lx, ly, lz); plesMesh.updateMatrixWorld(true);
     function err() {
       neckPose(NS[0], NS[1], NS[2], 1); var par = U.head.parent; par.updateWorldMatrix(true, false); nsV.copy(nsL); par.worldToLocal(nsV); nsV.sub(U.head.position);
       U.head.rotation.set(clamp(-Math.atan2(nsV.y, Math.hypot(nsV.x, nsV.z)), -1.15, 1.15), clamp(Math.atan2(nsV.x, nsV.z), -1.15, 1.15), 0);
-      return headPos(nsV).distanceToSquared(nsT);
+      return headPos(nsV).distanceToSquared(nsT) + (nsAvoid ? neckBlocked(true) * 4 : 0);          // (and, out of the water, never a pose that puts her neck through a walk)
     }
-    var st0 = fresh ? 0.5 : 0.16, step = [st0, st0, st0], lo = [-2.7, -1.6, -0.6], hi = [2.7, 2.4, 3.6], e = err(), pass, i, sgn, v, e2;
-    for (pass = 0; pass < (fresh ? 9 : 5); pass++) for (i = 0; i < 3; i++) { for (sgn = -1; sgn <= 1; sgn += 2) { v = NS[i]; NS[i] = clamp(v + sgn * step[i], lo[i], hi[i]); e2 = err(); if (e2 < e) e = e2; else NS[i] = v; } step[i] *= 0.6; }
+    var st0 = fresh ? 0.5 : 0.16, step = [st0, st0, st0], yl = nsYaw || 2.7, lo = [-yl, -1.6, -0.6], hi = [yl, 2.4, 3.6], e, pass, i, sgn, v, e2;
+    NS[0] = clamp(NS[0], -yl, yl); e = err();
+    for (pass = 0; pass < (fresh ? 9 : nsAvoid ? 7 : 5); pass++) for (i = 0; i < 3; i++) { for (sgn = -1; sgn <= 1; sgn += 2) { v = NS[i]; NS[i] = clamp(v + sgn * step[i], lo[i], hi[i]); e2 = err(); if (e2 < e) e = e2; else NS[i] = v; } step[i] *= 0.6; }
     err(); return Math.sqrt(e);
   }
   function keepTailIn() {                              // nor her tail: it bends along the wall instead
@@ -420,10 +421,104 @@
     U.flips.forEach(function (f, n) { var ph = phT + (n > 1 ? 1.5 : 0); f.rotation.z = f.userData.sd * Math.sin(ph) * 0.42; f.rotation.y = Math.cos(ph) * 0.22 * f.userData.sd; f.rotation.x = Math.cos(ph) * 0.3; });
     U.tail1.rotation.y = Math.sin(phT * 0.9 - 0.7) * 0.16 - clamp(B.turn || 0, -0.8, 0.8) * 0.35; U.tail2.rotation.y = Math.sin(phT * 0.9 - 1.6) * 0.24 - clamp(B.turn || 0, -0.8, 0.8) * 0.3;
   }
-  function onWalk(x, z, y) { return y > CW - 0.6 && x > T.x1 + 0.2 && x < T.x2 - 0.1 && z > T.z1 && z < T.z2; }          // out over her water
-  function inRefuge(x, z) { for (var q = 0; q < A.REFUGE.length; q++) { var R = A.REFUGE[q]; if (x > R.x1 && x < R.x2 && z > R.z1 - 0.1 && z < R.z2 + 0.1) return true; } return false; }
+  function onWalk(x, z, y) { return y > A.YL - 0.6 && y < CW + 1.5 && x > T.x1 + 0.2 && x < T.x2 - 0.1 && z > T.z1 && z < T.z2 && !player.water; }          // out over her water, on either level
+  function inRefuge(x, z, y) { for (var q = 0; q < A.REFUGE.length; q++) { var R = A.REFUGE[q]; if (x > R.x1 && x < R.x2 && z > R.z1 - 0.1 && z < R.z2 + 0.1 && (y === undefined || Math.abs(y - R.y) < 0.9)) return true; } return false; }
+  /* ---- what her neck must never go through: every walk's grating and rails, every refuge, the keepers' platform ---- */
+  var WK = null, nbV = new V3(), nbV2 = new V3();
+  function walkList() {
+    if (!WK) WK = A.WALKS.map(function (w) { return { x1: w.x1, x2: w.x2, z1: w.z1, z2: w.z2, y: w.y }; }).concat(A.REFUGE.map(function (R) { return { x1: R.x1, x2: R.x2, z1: R.z1, z2: R.z2, y: R.y, roof: true }; }))
+      .concat([{ x1: A.PLAT.x1, x2: A.PLAT.x2, z1: A.PLAT.z1, z2: A.PLAT.z2, y: CW }, { x1: T.x2, x2: H.x2 + 0.5, z1: H.z1, z2: H.z2, y: CW }]);
+    return WK;
+  }
+  function underWalk(x, z, m) { var L = walkList(); for (var q = 0; q < L.length; q++) { var w = L[q]; if (x > w.x1 - m && x < w.x2 + m && z > w.z1 - m && z < w.z2 + m) return true; } return false; }
+  function segHits(ax, az, bx, bz, w, m) {                           // does the line a-b (seen from above) pass over the rectangle w, grown by m?
+    var x1 = w.x1 - m, x2 = w.x2 + m, z1 = w.z1 - m, z2 = w.z2 + m, dx = bx - ax, dz = bz - az, t0 = 0, t1 = 1, P = [-dx, dx, -dz, dz], Q = [ax - x1, x2 - ax, az - z1, z2 - az];
+    for (var q = 0; q < 4; q++) { if (Math.abs(P[q]) < 1e-9) { if (Q[q] < 0) return false; } else { var r = Q[q] / P[q]; if (P[q] < 0) t0 = Math.max(t0, r); else t1 = Math.min(t1, r); if (t0 > t1) return false; } }
+    return true;
+  }
+  function inSolid(p) {
+    var L = walkList();
+    for (var q = 0; q < L.length; q++) {
+      var w = L[q]; if (p.x < w.x1 - 0.14 || p.x > w.x2 + 0.14 || p.z < w.z1 - 0.14 || p.z > w.z2 + 0.14) continue;
+      if (p.y > w.y - 0.36 && p.y < w.y + 0.1) return true;                                                                       // the grating and the steel under it
+      if (w.roof) { if (p.y > w.y - 0.36 && p.y < w.y + 2.35) return true; continue; }                                             // a refuge: bars all round, and a roof
+      if ((p.x < w.x1 + 0.16 || p.x > w.x2 - 0.16 || p.z < w.z1 + 0.16 || p.z > w.z2 - 0.16) && p.y > w.y - 0.05 && p.y < w.y + 1.18) return true;   // a rail
+    }
+    return false;
+  }
+  function neckBlocked(count) {                                       // her neck's joints, the points half way along each length, and her head (count: how many of them are in something)
+    plesMesh.updateMatrixWorld(true); var n = 0;
+    for (var q = 0; q < NECK; q++) { U.segs[q].getWorldPosition(nbV); if (inSolid(nbV)) { if (!count) return true; n++; } if (q > 0) { U.segs[q - 1].getWorldPosition(nbV2); nbV2.add(nbV).multiplyScalar(0.5); if (inSolid(nbV2)) { if (!count) return true; n++; } } }
+    headPos(nbV); if (inSolid(nbV)) { if (!count) return true; n++; } U.segs[NECK - 1].getWorldPosition(nbV2); nbV2.add(nbV).multiplyScalar(0.5); if (inSolid(nbV2)) { if (!count) return true; n++; }
+    return count ? n : false;
+  }
+  /* Where to come up for a strike at someone at (px, pz): her body in open water about 5.6 m off, facing them, so that her neck
+     rises out of the water about 2 m from them, under nothing, and the line from there to them passes over no other walk.
+     The nearest such place to where she is.  null: there is none from here (she waits, and tries again). */
+  var frV = new V3();
+  function pathClear(ax, ay, az, bx, by, bz) { var n = Math.max(2, Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) / 0.2)); for (var q = 0; q <= n; q++) { var u = q / n; frV.set(ax + (bx - ax) * u, ay + (by - ay) * u, az + (bz - az) * u); if (inSolid(frV)) return false; } return true; }
+  function findRise(px, pz, py) {
+    var cands = [], low = py < CW - 0.5, ty = py + 1.45, hiY = Math.min(ty + (low ? 0.4 : 0.9), T.water + 6.6);
+    for (var k = 0; k < 48; k++) {
+      var a = k / 48 * PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      for (var rr = low ? 5.0 : 6.0; rr <= (low ? 6.6 : 7.4); rr += 0.4) {
+        var bx = px + ca * rr, bz = pz + sa * rr, nx = px + ca * (rr - 2.7), nz = pz + sa * (rr - 2.7), hx = px + ca * 2.6, hz = pz + sa * 2.6;    // body; where the neck comes out of the water; the head, reared
+        if (bx < T.x1 + 3.3 || bx > T.x2 - 3.3 || bz < T.z1 + 3.3 || bz > T.z2 - 3.3) continue;
+        if (underWalk(nx, nz, 0.7) || underWalk(bx, bz, 0.4)) continue;
+        // the neck's path, roughly: up out of the water, the curve over to the reared head, the strike down to you, and back
+        var mx = (nx + hx) / 2 - ca * 0.4, mz = (nz + hz) / 2 - sa * 0.4, my = (T.water + hiY) / 2 + 0.6;
+        if (!pathClear(nx, T.water - 0.3, nz, mx, my, mz) || !pathClear(mx, my, mz, hx, hiY + 0.3, hz) || !pathClear(hx, hiY + 0.3, hz, px + ca * 0.5, ty - 0.2, pz + sa * 0.5)) continue;
+        cands.push([bx, bz, nx, nz, dist(bx, bz, B.x, B.z) + Math.random() * 0.5]);
+      }
+    }
+    cands.sort(function (p2, q2) { return p2[4] - q2[4]; });
+    return cands.length ? cands.slice(0, A.allCands ? 999 : 24) : null;
+  }
+  /* Try a place out, without showing it: put her there reared, wound back, and at the end of the strike, solve the neck each time,
+     and see that it is clear of every walk.  (One place a frame, while she is still under water swimming there.) */
+  var vSave = { segs: [], head: new THREE.Euler() }, LUNGE = 0.25, LUNGE_P = 0.4, STRIKE_END = [0.8, 0.15];          // (her reach: measured, b13.mjs + A.dbg.rc)
+  function riseClear(c, px, pz, py) {
+    var q, ok = true, ty = py + 1.45, tdx = px - c[2], tdz = pz - c[3], tl = Math.hypot(tdx, tdz) || 1; tdx /= tl; tdz /= tl;
+    var hiY = Math.min(ty + (py < CW - 0.5 ? 0.4 : 0.9), T.water + 6.6), hX = c[2] + tdx * (tl - 2.6), hZ = c[3] + tdz * (tl - 2.6);
+    var sv = [B.x, B.y, B.z, B.rot, B.pitch, NS[0], NS[1], NS[2]]; for (q = 0; q < NECK; q++) (vSave.segs[q] = vSave.segs[q] || new THREE.Euler()).copy(U.segs[q].rotation); vSave.head.copy(U.head.rotation);
+    B.x = c[0]; B.z = c[1]; B.y = T.water - 0.6; B.pitch = 0.55; B.rot = Math.atan2(px - c[0], pz - c[1]); plesMesh.position.set(B.x, B.y, B.z); plesMesh.rotation.set(-B.pitch, B.rot, 0);
+    nsAvoid = true; nsYaw = 0.7;
+    var SS = STRIKE_END, tg = [[hX, hiY, hZ, true], [hX - tdx * 0.5, hiY + 0.3, hZ - tdz * 0.5, false], [px - tdx * SS[0], ty + SS[1], pz - tdz * SS[0], false]];
+    A.rcLog = [];
+    for (q = 0; q < tg.length && ok; q++) {
+      if (q === 2) { B.x += Math.sin(B.rot) * LUNGE; B.z += Math.cos(B.rot) * LUNGE; B.y += 0.3; B.pitch = LUNGE_P; plesMesh.position.set(B.x, B.y, B.z); plesMesh.rotation.set(-B.pitch, B.rot, 0); }     // the strike: she lunges as she strikes
+      var e = neckSolve(tg[q][0], tg[q][1], tg[q][2], px, ty, pz, tg[q][3]), nb = neckBlocked(true); A.rcLog.push([q, +e.toFixed(2), nb]); if (nb || e > (q === 2 ? 0.9 : 1.2)) ok = false;
+    }
+    nsAvoid = false; nsYaw = 0;
+    B.x = sv[0]; B.y = sv[1]; B.z = sv[2]; B.rot = sv[3]; B.pitch = sv[4]; NS[0] = sv[5]; NS[1] = sv[6]; NS[2] = sv[7]; for (q = 0; q < NECK; q++) U.segs[q].rotation.copy(vSave.segs[q]); U.head.rotation.copy(vSave.head);
+    plesMesh.position.set(B.x, B.y, B.z); plesMesh.rotation.set(-(B.pitch || 0), B.rot, B.roll !== undefined ? B.roll : 0);
+    return ok;
+  }
+  var lastClear = null;
+  function guardPose() {                                             // after posing her: if the neck is in a walk, put back the last pose that was clear (she is stopped by it)
+    if (!neckBlocked()) { var c = lastClear || (lastClear = { segs: [], head: new THREE.Euler(), p: new V3(), r: new THREE.Euler() }); c.ok = true; c.b = [B.x, B.y, B.z, B.rot, B.pitch]; c.p.copy(plesMesh.position); c.r.copy(plesMesh.rotation); for (var q = 0; q < NECK; q++) (c.segs[q] = c.segs[q] || new THREE.Euler()).copy(U.segs[q].rotation); c.head.copy(U.head.rotation); return true; }
+    if (!lastClear || !lastClear.ok) return false;
+    var L = lastClear; B.x = L.b[0]; B.y = L.b[1]; B.z = L.b[2]; B.rot = L.b[3]; B.pitch = L.b[4]; plesMesh.position.copy(L.p); plesMesh.rotation.copy(L.r);       // (the whole of her, as she was: the body's roll too)
+    for (var q2 = 0; q2 < NECK; q2++) U.segs[q2].rotation.copy(L.segs[q2]); U.head.rotation.copy(L.head); return false;
+  }
+  function walkAt(x, z, y) { var L = walkList(); for (var q = 0; q < L.length; q++) { var w = L[q]; if (x >= w.x1 - 0.1 && x <= w.x2 + 0.1 && z >= w.z1 - 0.1 && z <= w.z2 + 0.1 && Math.abs(y - w.y) < 0.9) return w; } return null; }
+  A.walkAt = walkAt; A.inSolid = inSolid; A.neckBlocked = function () { return neckBlocked(); };
   function onDive(x, z, y) { var D = A.DIVE; return x > D.x1 - 0.2 && x < D.x2 + 0.2 && z > D.z1 - 0.2 && y > D.y - 0.4 && y < D.y + 1.5; }
-  function startRise(kind) { B.state = 'rise'; B.kind = kind; B.riseT = 0; B.locked = false; B.hit = false; B.side = Math.abs(B.z - 60) < 1.2 ? (Math.random() < 0.5 ? 1 : -1) : B.z > 60 ? 1 : -1; Sound.noise(0.9, 900, 0.3); Sound.noise(1.2, 4200, 0.12, 0.2); Sound.tone(180, 90, 0.9, 0.12, 'sawtooth'); }          // (she comes up beside the walk, never through it)
+  /* The strike, from the start: she finds a place to come up (findRise), and goes there under the surface; the water bulges and
+     breaks (the first tell); her neck comes up out of it coiled, the head high and drawn back, following you (the second); then
+     it stops following and draws back further, the jaws wide (the third: the strike is coming, at where you are now); then the
+     strike, a fifth of a second; then she pulls her head back to where it came up, and goes down there — never across a walk. */
+  function startRise(kind) {
+    var px = player.x, pz = player.z, own = walkAt(px, pz, player.y), sp = own && own.y < CW - 0.5 ? null : findRise(px, pz, player.y);      // (on the low feeding walks the upper walks are in her way: she rams instead)
+    if (!sp) {                                                       // nowhere to rear from: on a low walk she rams it from underneath instead (it shakes; it holds)
+      lashT = 1.2; siegeT = 1.2;
+      if (kind === 'walk' && own && own.y < CW - 0.5) { B.state = 'ram'; B.ramT = 0; B.ramP = [px + player.vx * 0.5, pz + player.vz * 0.5, own.y]; B.hit = false; ripple(B.ramP[0], B.ramP[1]); Sound.tone(70, 40, 1.2, 0.2, 'sine'); Sound.noise(1.0, 600, 0.22); }
+      return false;
+    }
+    B.state = 'rise'; B.kind = kind; B.riseT = 0; B.locked = false; B.hit = false; B.cands = sp; B.ci = 0; B.ok = false; B.rise = sp[0]; B.low = !!own && own.y < CW - 0.5; B.aborted = false; B.hist = []; B.solved = false;
+    Sound.noise(0.9, 900, 0.3); Sound.noise(1.2, 4200, 0.12, 0.2); Sound.tone(180, 90, 0.9, 0.12, 'sawtooth');
+    return true;
+  }
   function headStart() { return diffName === 'easy' ? 5.2 : diffName === 'hard' ? 2.4 : 3.7; }          // how long she thrashes at the far end before she comes for you
   A.resetBeast = function () {
     var st = S(); B.x = 122; B.y = 0.9; B.z = 60; B.rot = 0.6; B.pitch = 0; B.roll = undefined; B.sp = 0; B.turn = 0; B.state = st.dead ? 'dead' : 'patrol'; B.stunT = 0; B.hit = false; way = 0; lashT = 5; portCD = 0; deadT = st.dead ? 99 : 0; hitFx = 0; chaseDelay = 0; plesMesh.visible = true;
@@ -447,40 +542,90 @@
     var TEL = diffName === 'easy' ? 1.9 : diffName === 'hard' ? 1.2 : 1.5, LOCK = 0.46, HITR = diffName === 'hard' ? 1.7 : 1.5;
     hitFx = Math.max(0, hitFx - dt);
     if (B.state === 'stun') {
-      B.stunT -= dt; B.sp = damp(B.sp, 0, 2, dt); B.y = damp(B.y, 1.4, 0.8, dt); neckPose(Math.sin(B.t * 13) * 1.2, -0.6, 0, 0.2); U.head.rotation.z = Math.sin(B.t * 21) * 0.4; U.jaw.rotation.x = 0.5 + Math.sin(B.t * 17) * 0.2;
-      if (B.stunT <= 0) { B.state = inWater ? 'chase' : 'patrol'; lashT = 4 + Math.random() * 2; siegeT = 2.2; U.head.rotation.z = 0; }
-      poseBeast(dt, 2); return false;
+      B.stunT -= dt; B.sp = damp(B.sp, 0, 2, dt); B.y = damp(B.y, 1.4, 0.8, dt); headPos(tmpV2); neckAim(tmpV2.x + Math.sin(B.t * 13) * 0.6, T.water - 1.2, tmpV2.z + Math.cos(B.t * 11) * 0.6, 0.2, 0.4, 1.2); U.head.rotation.z = Math.sin(B.t * 21) * 0.4; U.jaw.rotation.x = 0.5 + Math.sin(B.t * 17) * 0.2;
+      if (B.stunT <= 0) { B.state = inWater ? 'chase' : 'patrol'; lashT = 4 + Math.random() * 2; siegeT = 2.2; U.head.rotation.z = 0; B.broke = B.bulge = B.splashed = false; }
+      poseBeast(dt, 2); if (!inWater) guardPose(); return false;
     }
-    if (B.state === 'rise' || B.state === 'strike') {
-      // --- the strike: rear out of the water on a coiled neck, fix on where you are (or will be), and hit it ---
-      var ty = py + 1.45;
+    if (B.state === 'rise' || B.state === 'strike' || B.state === 'recoil') {
+      /* Her head is placed, every frame, by the same solver the kill uses (neckSolve: the neck's three numbers searched until the
+         snout is where it should be), told to keep the neck out of every walk; she looks at you throughout. */
+      var ty = py + 1.45, R = B.rise, nX = R[2], nZ = R[3], tdx = px - nX, tdz = pz - nZ, tl = Math.hypot(tdx, tdz) || 1, TELk = TEL * (B.low ? 0.85 : 1), ht = tmpV2;
+      tdx /= tl; tdz /= tl;
+      var hiY = Math.min(ty + (py < CW - 0.5 ? 0.4 : 0.9), T.water + 6.6), hX = nX + tdx * (tl - 2.6), hZ = nZ + tdz * (tl - 2.6);          // high, drawn back, two and a half metres off you
       if (B.state === 'rise') {
-        B.riseT += dt; var rk = seg(B.riseT, 0, 0.7);
-        if (B.kind === 'walk') swimTo(clamp(px, T.x1 + 3.3, T.x2 - 3.3), T.water - 0.7, 60 + B.side * 5.7, 3.6, dt, 1.8); else swimTo(clamp(px, T.x1 + 3.3, T.x2 - 3.3), T.water - 0.7, A.DIVE.z1 - 5.6, 3.6, dt, 1.8);
-        B.pitch = damp(B.pitch || 0, 0.28, 2, dt);
-        B.rot += angDiff(Math.atan2(px - B.x, pz - B.z), B.rot) * Math.min(1, dt * 2.4);
+        if (!B.ok) {                                                 // still choosing where to come up (one place tried a frame)
+          if (B.ci >= B.cands.length) { B.state = 'sink'; sinkT = 0.6; B.hist = null; lashT = 1.5 + Math.random(); siegeT = 1.5; return false; }      // nowhere clear: she does not come up at all
+          if (riseClear(B.cands[B.ci], px, pz, py)) { B.ok = true; B.rise = B.cands[B.ci]; R = B.rise; nX = R[2]; nZ = R[3]; tdx = px - nX; tdz = pz - nZ; tl = Math.hypot(tdx, tdz) || 1; tdx /= tl; tdz /= tl; hX = nX + tdx * (tl - 2.6); hZ = nZ + tdz * (tl - 2.6); } else B.ci++;
+        }
+        B.riseT += dt; if (!B.ok) B.riseT = Math.min(B.riseT, 0.44);
+        var app = seg(B.riseT, 0, 0.55), rk = seg(B.riseT, 0.45, 1.1), wind = seg(B.riseT, TELk - LOCK, TELk - LOCK + 0.3);
+        swimTo(R[0], T.water - 0.6, R[1], 4.2, dt, 2.4); B.pitch = damp(B.pitch || 0, 0.15 + 0.4 * rk, 3, dt);
+        B.rot += angDiff(Math.atan2(px - B.x, pz - B.z), B.rot) * Math.min(1, dt * 3);
         if (!B.locked) strikeP.set(px + player.vx * ld * LOCK, ty, pz + player.vz * ld * LOCK);
-        if (B.riseT >= TEL - LOCK && !B.locked) { B.locked = true; if (B.kind === 'walk' && inRefuge(px, pz)) strikeP.set(px, ty, pz); Sound.tone(520, 180, 0.35, 0.16, 'sawtooth'); }
-        neckAim(strikeP.x, strikeP.y + 1.3 + (1 - rk) * -2.0, strikeP.z, 0.12 + rk * 0.2, 1.6 * rk, 1.25); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.62, 5, dt);
-        if (B.riseT >= TEL) { B.state = 'strike'; B.sT = 0; Sound.noise(0.3, 2600, 0.4); }
-        if (B.kind === 'walk' && !onWalk(px, pz, py) && !B.locked) { B.state = 'patrol'; lashT = 2.5; }                    // you got off the walk in time
-        if (B.kind === 'dive' && !dive && !B.locked) { B.state = inWater ? 'chase' : 'patrol'; }
-      } else {
-        B.sT += dt; var sk = clamp(B.sT / 0.2, 0, 1);
-        B.x += Math.sin(B.rot) * dt * 5 * (1 - sk); B.z += Math.cos(B.rot) * dt * 5 * (1 - sk);
-        neckAim(strikeP.x, strikeP.y - 0.5 * sk, strikeP.z, 0.5 + sk * 0.5, 1.6 * (1 - sk), 1.9); U.jaw.rotation.x = B.sT < 0.2 ? 0.8 : damp(U.jaw.rotation.x, 0.1, 22, dt);
+        if (B.riseT >= TELk - LOCK && !B.locked) { B.locked = true; B.hi = [hX, hiY, hZ]; if (inRefuge(px, pz, py)) strikeP.set(px, ty, pz); Sound.tone(520, 180, 0.35, 0.16, 'sawtooth'); Sound.noise(0.25, 3400, 0.18); }
+        if (B.locked) { hX = B.hi[0]; hiY = B.hi[1]; hZ = B.hi[2]; }
+        ht.set(lerp(nX, hX - tdx * 0.5 * wind, rk), lerp(T.water - 0.6, hiY + 0.3 * wind, rk), lerp(nZ, hZ - tdz * 0.5 * wind, rk));
+        nsAvoid = true; nsYaw = 0.7; neckSolve(ht.x, ht.y, ht.z, px, ty, pz, !B.solved); nsAvoid = false; nsYaw = 0; B.solved = true;
+        U.jaw.rotation.x = damp(U.jaw.rotation.x, lerp(0.15, 0.5, rk) + wind * 0.38, 5, dt);
+        if (rk > 0 && !B.broke) { B.broke = true; spray(nX, T.water, nZ, 12, 1.4); ripple(nX, nZ); if (AquaSound.on) AquaSound.slap(nX, nZ, 1.2); Sound.noise(0.8, 1600, 0.3); }
+        if (app > 0 && !B.bulge) { B.bulge = true; ripple(nX, nZ); }
+        if (B.riseT >= TELk) { B.state = 'strike'; B.sT = 0; B.from = [ht.x, ht.y, ht.z]; Sound.noise(0.3, 2600, 0.4); Sound.tone(300, 900, 0.12, 0.12, 'sawtooth'); }
+        if (B.kind === 'walk' && !onWalk(px, pz, py) && !B.locked) { B.state = 'recoil'; B.rcT = 0; B.from = [ht.x, ht.y, ht.z]; lashT = 2.5; }                    // you got off the walk in time
+        if (B.kind === 'dive' && !dive && !B.locked) { B.state = 'recoil'; B.rcT = 0; B.from = [ht.x, ht.y, ht.z]; }
+      } else if (B.state === 'strike') {
+        B.sT += dt; var sk = clamp(B.sT / 0.2, 0, 1), se = sk * sk * (3 - 2 * sk), F = B.from;
+        if (!B.lunge) B.lunge = [B.x, B.y, B.z, B.pitch]; var L0 = B.lunge;                       // the body drives forward and up behind the head
+        B.x = L0[0] + Math.sin(B.rot) * LUNGE * se; B.z = L0[2] + Math.cos(B.rot) * LUNGE * se; B.y = L0[1] + 0.3 * se; B.pitch = lerp(L0[3], LUNGE_P, se);
+        ht.set(lerp(F[0], strikeP.x - tdx * STRIKE_END[0], se), lerp(F[1], strikeP.y + STRIKE_END[1], se), lerp(F[2], strikeP.z - tdz * STRIKE_END[0], se));
+        nsAvoid = true; nsYaw = 0.7; neckSolve(ht.x, ht.y, ht.z, strikeP.x + tdx, strikeP.y - 0.4, strikeP.z + tdz, false); nsAvoid = false; nsYaw = 0;
+        U.jaw.rotation.x = B.sT < 0.18 ? 0.88 : damp(U.jaw.rotation.x, 0.1, 22, dt);
         if (B.sT >= 0.2 && !B.hit) {
-          B.hit = true; var miss = dist(px, pz, strikeP.x, strikeP.z), safe = B.kind === 'walk' ? (!onWalk(px, pz, py) || inRefuge(px, pz)) : !dive;
+          B.hit = true; var miss = dist(px, pz, strikeP.x, strikeP.z), safe = B.kind === 'walk' ? (!onWalk(px, pz, py) || inRefuge(px, pz, py)) : !dive;
           if (miss < HITR && !safe && Math.abs(py + 1.45 - strikeP.y) < 2) { whereDied = B.kind; die('ples'); return true; }
           Sound.clang(); Sound.thud(0.9); Sound.noise(0.4, 3000, 0.5); shake = Math.max(shake, 1.1); hitFx = 0.5; makeNoise(px, pz, 20);
-          puff(strikeP.x, strikeP.y - 1.3, strikeP.z, 6, 0.9, 0.3);
-          if (miss < HITR + 2.2) showMsg(B.kind === 'walk' && inRefuge(px, pz) ? 'She hits the bars a hand from your face and the whole walk rings.' : 'Her head goes through the place you were standing.', 3);
+          spray(strikeP.x, strikeP.y - 1.2, strikeP.z, 6, 0.8);
+          if (miss < HITR + 2.2) showMsg(B.kind === 'walk' && inRefuge(px, pz, py) ? 'She hits the bars a hand from your face and the whole walk rings.' : 'Her head goes through the place you were standing.', 3);
         }
-        if (B.sT > 0.75) { B.state = 'sink'; sinkT = 1.3; B.hit = false; lashT = (diffName === 'easy' ? 8 : diffName === 'hard' ? 4.2 : 5.6) + Math.random() * 2.4; siegeT = 3.2 + Math.random() * 1.4; }
+        if (B.sT > 0.5) { B.state = 'recoil'; B.rcT = 0; B.from = [ht.x, ht.y, ht.z]; B.lunge = null; }
+      } else {
+        /* back down the way she came: every clear pose of the rise and the strike, played backwards (her head goes back over the
+           same air it came through, and into the water where it came out) */
+        B.rcT += dt; var Hh = B.hist || [], idx = Hh.length - 1 - Math.floor(B.rcT * 60 * 1.3);
+        if (idx >= 0) {
+          var hp2 = Hh[idx]; B.x = hp2[0]; B.y = hp2[1]; B.z = hp2[2]; B.rot = hp2[3]; B.pitch = hp2[4]; NS[0] = hp2[5]; NS[1] = hp2[6]; NS[2] = hp2[7];
+          poseBeast(dt, 2); plesMesh.position.y = hp2[10]; plesMesh.rotation.z = hp2[11]; neckPose(NS[0], NS[1], NS[2], 1); U.head.rotation.set(hp2[8], hp2[9], 0); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.12, 4, dt);
+          if (idx < 30 && !B.splashed) { B.splashed = true; spray(nX, T.water, nZ, 8, 1.1); ripple(nX, nZ); Sound.noise(0.7, 1200, 0.28); }
+          keepTailIn(); return false;
+        }
+        B.state = 'sink'; sinkT = 1.0; B.hit = false; B.hi = null; B.hist = null; B.solved = B.broke = B.bulge = B.splashed = false; lashT = (diffName === 'easy' ? 8 : diffName === 'hard' ? 4.2 : 5.6) * (B.low ? 0.75 : 1) + Math.random() * 2.4; siegeT = 3.2 + Math.random() * 1.4;
       }
-      poseBeast(dt, 2); keepNeckIn(); keepTailIn(); return false;
+      poseBeast(dt, 2); keepTailIn();
+      if (B.state === 'strike') guardPose();
+      if (B.state === 'rise' || B.state === 'strike') {
+        if (!neckBlocked()) { (B.hist = B.hist || []).push([B.x, B.y, B.z, B.rot, B.pitch, NS[0], NS[1], NS[2], U.head.rotation.x, U.head.rotation.y, plesMesh.position.y, plesMesh.rotation.z]); guardPose(); }
+        else if (B.state === 'rise') { B.state = 'recoil'; B.rcT = 0; var Hb = B.hist; if (Hb && Hb.length) { var lp = Hb[Hb.length - 1]; B.x = lp[0]; B.y = lp[1]; B.z = lp[2]; B.rot = lp[3]; B.pitch = lp[4]; NS[0] = lp[5]; NS[1] = lp[6]; NS[2] = lp[7]; poseBeast(0, 2); plesMesh.position.y = lp[10]; plesMesh.rotation.z = lp[11]; neckPose(NS[0], NS[1], NS[2], 1); U.head.rotation.set(lp[8], lp[9], 0); } }      // (no clear pose from here: she gives the strike up, from the last clear one)
+      }
+      return false;
     }
-    if (B.state === 'sink') { sinkT -= dt; B.pitch = damp(B.pitch || 0, -0.2, 2, dt); swimTo(B.x + Math.sin(B.rot) * 4, 1.6, B.z + Math.cos(B.rot) * 4, 2.6, dt, 0.5); neckPose(0, 0.2, 0.2, 0.06); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.08, 3, dt); if (sinkT <= 0) B.state = 'patrol'; poseBeast(dt, 1.4); keepNeckIn(); keepTailIn(); return false; }
+    if (B.state === 'ram') {
+      /* Under the low walk: the water bulges where you are standing; she comes in fast under it, her head comes up and hits the
+         grating from below (never through it), the walk jumps; and she drops away.  It does not kill: it knocks you off your feet. */
+      B.ramT += dt; var Rp = B.ramP, up = seg(B.ramT, 0.85, 1.1), dn = seg(B.ramT, 1.25, 2.0);
+      swimTo(Rp[0] - Math.sin(B.rot) * 3.2, T.water - 1.0 - dn, Rp[1] - Math.cos(B.rot) * 3.2, 4.6 * (1 - dn) + 1, dt, 2.2); B.pitch = damp(B.pitch || 0, 0.35 * (1 - dn), 3, dt);
+      var hy = lerp(T.water - 0.9, Rp[2] - 0.72, up * (1 - dn)); nsAvoid = true; nsYaw = 0.6; neckSolve(Rp[0], hy, Rp[1], Rp[0], Rp[2] + 1, Rp[1], B.ramT < 0.05); nsAvoid = false; nsYaw = 0;
+      U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.15, 4, dt);
+      if (B.ramT >= 1.1 && !B.hit) {
+        B.hit = true; Sound.thud(1); Sound.clang(); Sound.noise(0.5, 1400, 0.45); shake = Math.max(shake, 1.6); spray(Rp[0], T.water, Rp[1], 12, 1.4); makeNoise(px, pz, 20);
+        if (dist(px, pz, Rp[0], Rp[1]) < 1.3 && Math.abs(py - Rp[2]) < 0.5) { player.vx += (Math.random() - 0.5) * 6; player.vz += (Math.random() - 0.5) * 6; player.vy = 2.2; player.grounded = false; player.stamina = Math.max(0, player.stamina - 30); showMsg('She hits the walk right under your feet and throws you off them.', 3.5); }
+        else if (!A.ramMsg) { A.ramMsg = 1; showMsg('She hits the walk from underneath. The whole length of it jumps.', 3.5); }
+      }
+      poseBeast(dt, 2); keepTailIn(); guardPose(); if (B.ramT > 2.2) { B.state = 'sink'; sinkT = 0.8; lashT = 3.5 + Math.random() * 2; B.hit = false; }
+      return false;
+    }
+    if (B.state === 'sink') {                                        // down and away from you, the neck folding back as she goes
+      sinkT -= dt; B.pitch = damp(B.pitch || 0, -0.2, 2, dt); var aw = Math.atan2(B.x - px, B.z - pz); swimTo(B.x + Math.sin(aw) * 4, 1.6, B.z + Math.cos(aw) * 4, 2.6, dt, 1.2);
+      neckPose(0, 0.2, 0.2, 0.06); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.08, 3, dt); if (sinkT <= 0) B.state = 'patrol'; poseBeast(dt, 1.4); keepNeckIn(); keepTailIn(); guardPose(); return false;
+    }
     B.pitch = damp(B.pitch || 0, 0, 1.5, dt);
     if (inWater && st.fell) {
       // --- in the water with her ---
@@ -498,9 +643,9 @@
     } else if (onWalk(px, pz, py)) {
       // --- you are on the catwalk: she keeps under you ---
       B.state = 'stalk'; exposedT += dt; speedK = 1.4;
-      swimTo(px + Math.sin(B.t * 0.5) * 3, T.water - 1.5, 60 + (B.z > 60 ? 1 : -1) * (4.6 + Math.cos(B.t * 0.4) * 1.2), 2.9, dt, 1.1); neckAim(px, T.water - 0.3, pz, 0.04, 0.3, 1.0); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.12, 3, dt);
-      if (exposed) lashT -= dt; else lashT = Math.max(lashT, 1.6);
-      if (lashT <= 0 && dp < 11 && !st.fell) startRise('walk');
+      swimTo(px + Math.sin(B.t * 0.5) * 3, T.water - 1.5, pz + (B.z > pz ? 1 : -1) * (3.6 + Math.cos(B.t * 0.4) * 1.2), 2.9, dt, 1.1); neckAim(px, T.water - 0.6, pz, 0.04, 0.3, 1.0); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.12, 3, dt);
+      if (exposed) lashT -= dt * (py < CW - 0.8 ? 1.4 : 1); else lashT = Math.max(lashT, 1.6);
+      if (lashT <= 0 && dp < 12 && !st.fell) startRise('walk');
     } else {
       // --- an exhibit: her round of the tank, a look at whoever is at the glass, a pass by the basement ports ---
       B.state = 'patrol'; portCD -= dt;
@@ -512,13 +657,13 @@
       if (look) neckAim(px, 1.6, pz, 0.03, 0.4, 1.0); else { neckPose(-clamp(B.turn || 0, -0.8, 0.8) * 2.2 + Math.sin(B.t * 0.5) * 0.3, 0.25 + Math.sin(B.t * 0.37) * 0.2, 0.5, 0.03); U.head.rotation.set(0.06, 0, 0); }
       U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.06 + Math.max(0, Math.sin(B.t * 0.3) - 0.9) * 2, 2, dt);
     }
-    poseBeast(dt, speedK); keepNeckIn(); keepTailIn();
+    poseBeast(dt, speedK); keepNeckIn(); keepTailIn(); if (!inWater) guardPose();
     if (B.state === 'chase' || B.state === 'siege') chaseHold = 4;
     return false;
   };
   A.flash = function (inBeam) {
     var st = S(); if (st.dead || !inRect(player.x, player.z, AQ)) return 0;
-    if (['rise', 'strike', 'chase', 'siege', 'stalk'].indexOf(B.state) < 0) return 0;
+    if (['rise', 'strike', 'chase', 'siege', 'stalk', 'ram'].indexOf(B.state) < 0) return 0;
     headPos(); if (!inBeam(headW.x, headW.z, 20, 4) && !inBeam(B.x, B.z, 14, 4)) return 0;
     B.state = 'stun'; B.stunT = DIFF.stun * 0.8; B.hit = false; Sound.roar(true, 0.6); Sound.screech(); Sound.noise(1.0, 800, 0.4); return 1;
   };
@@ -548,7 +693,8 @@
       var by = B.y + 0.26 * SC + Math.sin(B.pitch) * 2.42 * SC, dv = cy - 0.1 - by, Rb = pull + want + 1.0 + Math.sqrt(Math.max(0, 23 - dv * dv)) + Math.cos(B.pitch) * 2.42 * SC;       // far enough off that the neck is drawn out, not folded
       B.x = clamp(c0.x + dx * Rb, T.x1 + 3.3, T.x2 - 3.3); B.z = clamp(c0.z + dz * Rb, T.z1 + 3.3, T.z2 - 3.3); B.rot = Math.atan2(cx - B.x, cz - B.z);
       poseBeast(dt, 2);
-      neckSolve(cx + dx * want, cy - 0.1 - (1 - loom) * 0.5, cz + dz * want, cx, cy - 0.05, cz, first); first = false;
+      nsAvoid = !wet; var over = nsAvoid ? 0.42 * (1 - drag) : 0;                // off a walk she comes over the rail at you from above, and bites down
+      neckSolve(cx + dx * want, cy - 0.1 - (1 - loom) * 0.5 * (nsAvoid ? 0 : 1) + over, cz + dz * want, cx, cy - 0.05, cz, first); first = false; nsAvoid = false;
       U.jaw.rotation.x = Math.max(lerp(0.3, 0.85, loom) - bite * 0.6 + Math.sin(T2 * 11) * 0.08 * drag, fin * 0.85); U.head.rotation.z = Math.sin(T2 * 9) * 0.2 * drag * (1 - fin);
       headPos(hp); away.set(cx - hp.x, cy - hp.y, cz - hp.z); var gap = away.length(); if (gap < 0.62) { away.multiplyScalar(0.62 / (gap || 1)); cx = hp.x + away.x; cy = hp.y + away.y; cz = hp.z + away.z; }      // (the lens never goes into her head, whatever the neck did)
       camera.position.set(cx + Math.sin(T2 * 41) * sh * 0.04, cy + Math.sin(T2 * 53) * sh * 0.04, cz + Math.sin(T2 * 37) * sh * 0.03);
@@ -666,6 +812,19 @@
   A.beastHold = function (dt) { var st = S(); if (st.dead) { poseDead(dt); return; } swimTo(121 + Math.sin(B.t * 0.5) * 5, T.water - 1.1, 61.5, 3, dt, 1.2); neckAim(camera.position.x, camera.position.y, camera.position.z, 0.05, 0.8, 1.1); poseBeast(dt, 1.6); keepNeckIn(); keepTailIn(); };
   /* The kill.  The breaker goes in against its spring; four hundred and eighty volts go down the torn feeder into the water
      she is lying in; and you are standing on a rubber mat. */
+  /* Water thrown up (spray), and rings spreading on the surface where something breaks it (ripple): her tells. */
+  var drops = [], rings = [];
+  (function () {
+    var wt = softTex('rgba(232,246,250,.95)', 'rgba(180,215,225,.35)');
+    for (var q = 0; q < 28; q++) { var sp = dyn(new THREE.Sprite(new THREE.SpriteMaterial({ map: wt, transparent: true, depthWrite: false, opacity: 0, fog: false }))); sp.visible = false; scene.add(sp); drops.push({ s: sp, life: 0, max: 1, v: new V3() }); }
+    for (q = 0; q < 4; q++) { var rm = dyn(mesh(new THREE.RingGeometry(0.86, 1.0, 48), new THREE.MeshBasicMaterial({ color: 0xbfe6ee, transparent: true, opacity: 0, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }), 0, T.water + 0.02, 0)); rm.rotation.x = -PI / 2; rm.visible = false; rm.userData.noCast = true; rm.renderOrder = 4; rings.push({ m: rm, t: 9 }); }
+  })();
+  function spray(x, y, z, n, spread) { for (var q = 0; q < n; q++) { var d = null; for (var k2 = 0; k2 < drops.length; k2++) if (drops[k2].life <= 0) { d = drops[k2]; break; } if (!d) return; d.s.position.set(x + (Math.random() - 0.5) * spread, y + Math.random() * 0.3, z + (Math.random() - 0.5) * spread); d.v.set((Math.random() - 0.5) * 2.4, 2.2 + Math.random() * 3.2, (Math.random() - 0.5) * 2.4); d.life = d.max = 0.7 + Math.random() * 0.6; d.s.visible = true; } }
+  function ripple(x, z) { var r = rings[0]; rings.forEach(function (r2) { if (r2.t > r.t) r = r2; }); r.t = 0; r.m.position.set(x, T.water + 0.02, z); r.m.visible = true; }
+  function stepSpray(dt) {
+    drops.forEach(function (d) { if (d.life <= 0) return; d.life -= dt; d.v.y -= 9.8 * dt; d.s.position.addScaledVector(d.v, dt); var k2 = d.life / d.max; d.s.material.opacity = Math.min(1, k2 * 2) * 0.7; var sc = 0.1 + (1 - k2) * 0.25; d.s.scale.set(sc, sc, 1); if (d.life <= 0 || d.s.position.y < T.water - 0.1) { d.life = 0; d.s.visible = false; } });
+    rings.forEach(function (r) { if (r.t > 2) { r.m.visible = false; return; } r.t += dt; var sc = 0.3 + r.t * 1.6; r.m.scale.set(sc, sc, 1); r.m.material.opacity = Math.max(0, 0.5 * (1 - r.t / 2)); });
+  }
   var arcs = [];
   (function () { var at2 = softTex('rgba(215,235,255,1)', 'rgba(120,170,255,.4)'); for (var q = 0; q < 10; q++) { var sp = dyn(new THREE.Sprite(new THREE.SpriteMaterial({ map: at2, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, fog: false }))); sp.visible = false; scene.add(sp); arcs.push(sp); } A.gather('upper'); })();
   function zap() {
@@ -724,6 +883,7 @@
       return T2 >= IN + CL + (o.end ? OUT : 0.1);
     }, end: function () { Hands.over = null; var e2 = o.end || [sx, sz]; player.x = e2[0]; player.z = e2[1]; player.y = o.y1; player.vy = 0; player.yaw = player.cy = camera.rotation.y; player.pitch = player.cp = -0.05; player.water = !!o.toWater; setState('playing'); lockPointer(); if (o.then) o.then(); } });
   }
+  function climbMaze(L, up) { climb({ x: L.x, z: L.z, fx: L.fx, fz: L.fz, y0: up ? A.YL : CW, y1: up ? CW : A.YL, top: CW, end: up ? L.top : L.foot, endYaw: Math.atan2(-L.fx, -L.fz) + (up ? 0 : PI) }); }
   function climbL1(up) { var L = A.L1; climb({ x: L.x, z: L.z, fx: -1, fz: 0, y0: up ? T.swim + 0.35 : CW, y1: up ? CW : T.swim + 0.35, top: CW, wet: up, end: up ? [T.x1 - 0.75, L.z] : null, toWater: !up, then: up ? function () { showMsg('The platform. The bench lamp is still on.', 4); } : function () { player.y = T.swim; } }); }
   function climbL2(up) { var L = A.L2, st = S(); climb({ x: L.x, z: L.z, fx: 1, fz: 0, y0: up ? 0 : CW, y1: up ? CW : 0, top: CW, end: up ? [A.PLAT.x1 + 0.7, L.z] : [L.x - 1.25, L.z], endYaw: up ? -PI / 2 : 0.5,
     tick: function (t, tot) { if (!up && t > tot - 0.75 && !st.gate) { st.gate = true; Sfx.play('door_unlock', { vol: 0.6, fallback: function () { Sound.clunk(); } }); Sound.creak(0.5); } } }); }
@@ -735,7 +895,7 @@
     var nearDoor = doorA > 0.02 && px < G.x1 + 0.5 && px > 44 && Math.abs(pz - 60) < 15;
     groups.gallery.visible = (inAQ && cx < 114) || nearDoor; groups.hall.visible = groups.upper.visible = groups.rails.visible = inAQ && cx > 79; groups.basement.visible = inAQ && cx > 131 && (py < 4.5 || liftBusy);
     plesMesh.visible = inAQ && cx > 79;
-    stepDoors(dt); stepMani(dt, instant); stepLift(dt, instant); if (A.calling) A.calling(dt);
+    stepDoors(dt); stepMani(dt, instant); stepLift(dt, instant); stepSpray(dt); if (A.calling) A.calling(dt);
     // the ladder's lower half on its winch, the cage gate, the stub, the feeder
     var ld = A.ladderDrop, want = st.ladder ? ld.userData.down : ld.userData.up; ld.position.y = instant ? want : ld.position.y + clamp(want - ld.position.y, -dt * 1.3, dt * 1.3);
     A.cageGate.rotation.y = instant ? (st.gate ? -1.45 : 0) : damp(A.cageGate.rotation.y, st.gate ? -1.45 : 0, 3, dt); A.cageBox.off = !!st.gate;
@@ -752,6 +912,7 @@
     var lampK = (1 - out) * (st.power ? 0.72 : 1);
     Lt.cwE.intensity = (on('upper') + on('hall') * 0.5) * 0.95 * lampK * (0.85 + 0.15 * f1); Lt.cwM.intensity = (on('upper') + on('hall') * 0.4) * 0.9 * lampK * (st.power ? f1 : 1); Lt.cwW.intensity = (on('upper') + on('hall') * 0.5) * 0.9 * lampK;
     Lt.emerg.intensity = (on('upper') + on('hall')) * (out > 0.5 && !st.power ? 0.5 + 0.35 * Math.sin(t * 5) : 0); Lt.bench.intensity = (on('upper') + on('hall') * 0.5) * 0.75;
+    Lt.cwN.intensity = (on('upper') + on('hall') * 0.3) * 0.85 * lampK * (0.9 + 0.1 * f2); Lt.cwS.intensity = (on('upper') + on('hall') * 0.3) * 0.75 * lampK;
     var bl = Math.sin(t * 3.6) > 0 ? 1 : 0.1; Lt.dive.intensity = (on('upper') + on('hall')) * (st.fell && !st.dead ? 1.3 : 0.5) * bl; A.beacon.color.setHex(bl > 0.5 ? 0xffa030 : 0x402008);
     Lt.stair.intensity = on('base') * 0.6 * (0.7 + 0.3 * f1); Lt.stairLow.intensity = on('base') * 0.45; A.stairLamp.color.setHex(f1 > 0.5 ? 0xffb060 : 0x6a4018);
     Lt.baseN.intensity = on('base') * 0.5 * f1; Lt.baseS.intensity = on('base') * 0.44; Lt.basePump.intensity = on('base') * (st.pump ? 0.62 : 0.24); Lt.baseFeed.intensity = on('base') * 0.34 * f2; Lt.port.intensity = on('base') * 0.85 * tankL; Lt.lift.intensity = (on('base') + on('upper')) * (A.ready() ? 0.6 : 0.14);
@@ -777,11 +938,18 @@
     A.step(0, true);
   };
   A.checkpoint = false;
-  A.dbg = { delay: function (v) { chaseDelay = v; }, siege: function (v) { siegeT = v; }, lash: function (v) { lashT = v; }, flow: function () { return maniFlow; }, turn: function (q) { turnTile(q); } };      // (for the frame checks in .dev)
+  A.dbg = { rc: function () { var px = player.x, pz = player.z, py = player.y, c = findRise(px, pz, py), o = []; (c || []).forEach(function (cc) { var ok = riseClear(cc, px, pz, py); o.push(cc.slice(0, 4).map(function (v) { return +v.toFixed(1); }).join(',') + ' ' + ok + ' ' + JSON.stringify(A.rcLog)); }); return o; }, delay: function (v) { chaseDelay = v; }, siege: function (v) { siegeT = v; }, lash: function (v) { lashT = v; }, flow: function () { return maniFlow; }, turn: function (q) { turnTile(q); } };      // (for the frame checks in .dev)
   A.inside = function (x, z) { return inRect(x, z, AQ, -1.3); };
   A.overWater = function (x, z, y) { if (x < T.x1 || x > T.x2 || z < T.z1 || z > T.z2) return false; var f = A.floorAt(x, z, y); return !!f && f.kind === 'water'; };
   A.surface = function (x, z) { if (!inRect(x, z, AQ)) return null; var f = A.floorAt(x, z, player.y); return f && f.kind !== 'water' ? f.kind : null; };
   A.keyFree = function () { return true; };
+  /* The lowest thing over a head at (x, z) for someone whose feet are at `feet`: a refuge's roof, a lamp, the feeder's tray, a
+     truss.  (game.js stops a jump there.) */
+  A.ceiling = function (x, z, feet) {
+    if (!inRect(x, z, AQ)) return 1e9; var c = 1e9, L = A.CEIL;
+    for (var q = 0; q < L.length; q++) { var b = L[q]; if (x > b.x1 && x < b.x2 && z > b.z1 && z < b.z2 && b.y > feet + 1.0 && b.y < c) c = b.y; }
+    return c;
+  };
 
   // ================= what E does here =================
   A.interact = function (px, pz) {
@@ -802,7 +970,9 @@
       if (!st.fell && px < 115.2 && px > T.x1 && Math.abs(pz - 60) < 0.9) return { text: 'The last span is down. The stub of it on the platform is a long jump away —  [Space] go for it' };
       if (dist(px, pz, T.x1 - 0.6, A.L1.z) < 1.25) return st.dead && st.ladder ? { text: '[E] Climb down to the water', fn: function () { climbL1(false); } } : { text: 'The tank ladder. Its lower half is winched up out of the water: the winch is run from the dive station.' };
       if (dist(px, pz, A.PLAT.x1 + 0.6, A.L2.z) < 1.3) return { text: '[E] Climb down to the hall', fn: function () { climbL2(false); } };
+      for (q = 0; q < A.LADDERS.length; q++) { var LD = A.LADDERS[q]; if (dist(px, pz, LD.top[0], LD.top[1]) < 1.0) return { text: '[E] Climb down to the feeding walk', fn: (function (L3) { return function () { climbMaze(L3, false); }; })(LD) }; }
     }
+    if (py > A.YL - 0.6 && py < A.YL + 0.8) for (q = 0; q < A.LADDERS.length; q++) { var LU = A.LADDERS[q]; if (dist(px, pz, LU.foot[0], LU.foot[1]) < 1.0) return { text: '[E] Climb up', fn: (function (L3) { return function () { climbMaze(L3, true); }; })(LU) }; }
     if (player.water && st.fell) {
       if (pz > D.z1 - 1.5 && px > D.x1 - 0.5 && px < D.x2 + 0.5) return { text: '[E] Haul yourself out onto the dive station', fn: haul };
       if (dist(px, pz, A.L1.x + 0.6, A.L1.z) < 1.7) return st.ladder ? { text: '[E] Climb the ladder', fn: function () { climbL1(true); } } : { text: st.dead ? 'The ladder is still coming down.' : 'The keepers’ ladder: its bottom rung is a body’s length over your head. It is winched down from the dive station.' };
@@ -831,7 +1001,7 @@
     if (!st.seen.hall && px > H.x1 + 0.6 && py < 2) { st.seen.hall = 1; A.showT = 10; A.showP = [113.9, clamp(pz, 54, 66), 1.25, -1]; if (!st.dead) { B.x = 126; B.z = clamp(pz, 54, 66) + 7; B.y = 1.6; B.rot = -2.2; } Sound.tone(52, 36, 2.6, 0.2, 'sine'); Sound.tone(78, 50, 2.0, 0.08, 'triangle', 0.3); showMsg('The whole end of the hall is water. Something in it turns, and goes on turning.', 6); }
     if (!st.seen.staff && py > 2.4 && px > T.x2 + 0.6 && Math.abs(pz - 59.4) < 5 && st.staff < 3) { st.seen.staff = 1; showMsg('STAFF ONLY. The door stands a hand’s width open on a padlocked hasp.', 5); }
     if (!st.seen.base && py < -3 && px < 139.5) { st.seen.base = 1; showMsg('The basement. Pipes, the smell of old fish — and windows into the bottom of her tank.', 6); }
-    if (!st.seen.walk && onWalk(px, pz, py) && !st.fell) { st.seen.walk = 1; showMsg('Open grating, and her water under it. The cages off the walk are KEEPER REFUGES.', 6); tip('aqwalk', 'When she rears, do not stand still: she strikes where you are. A [LMB] flash in her face stops her; a refuge cage stops her too.', 10); }
+    if (!st.seen.walk && onWalk(px, pz, py) && !st.fell) { st.seen.walk = 1; showMsg('Open grating, and her water under it. Whole lengths of the walk have come down. The cages off it are KEEPER REFUGES.', 6.5); tip('aqwalk', 'When the water bulges and she rears, do not stand still: she strikes where you are. A [LMB] flash in her face stops her; a refuge cage stops her too.', 10); }
     // the last span: however you leave the end of the walk, you are jumping for the platform
     if (!st.fell && py > CW - 1.6 && px < 113.36 && px > T.x1 + 0.9 && Math.abs(pz - 60) < 1.2 && !st.dead) { fall(true); return true; }
     // sounds of the place
@@ -849,7 +1019,7 @@
       if (!A.ready()) return 'Pump room: re-plumb the manifold on the back wall, from FROM PUMP through to TO LIFT RAM. The oil sprays from wherever the run is broken.';
       return 'The lift has pressure. Take it up to the catwalks.';
     }
-    if (!st.fell) return 'Cross the catwalk to the keepers’ platform. When she rears, keep moving — or be in a refuge cage.';
+    if (!st.fell) return py < CW - 0.8 && py > A.YL - 0.8 ? 'The old feeding walk: low over her water. Keep moving — and find a ladder back up.' : 'The catwalks are down in places: find a way across to the keepers’ platform, on the far (west) side. When she rears, move — or get into a refuge cage.';
     if (!st.dead) return onDive(player.x, player.z, py) ? 'The torn feeder is lying in her water, and you are on a rubber mat. Force the main breaker in — between her strikes.' : 'SWIM for the dive station: the amber light on the south side of the tank.';
     if (py < CW - 1 && (player.water || onDive(player.x, player.z, py))) return 'She is dead. Swim to the keepers’ ladder on the west wall and climb out.';
     return 'Take the key piece from the keepers’ bench.';

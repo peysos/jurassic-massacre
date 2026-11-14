@@ -322,7 +322,7 @@ function loadBattery() {
 }
 function jump() {
   if (!player.grounded || player.water) return;
-  player.vy = 7; player.grounded = false; player.crouch = false; Sound.step(0.1, 500);
+  player.vy = inRect(player.x, player.z, AQ) ? 4.8 : 7; player.grounded = false; player.crouch = false; Sound.step(0.1, 500);      // (indoors, in the aquarium, a person's jump: a hand's breadth over half a metre)
 }
 
 // ---------- interaction ----------
@@ -932,8 +932,12 @@ function update(dt) {
   player.x += player.vx * dt; player.z += player.vz * dt;
   var inLanes = Math.abs(player.z - TURN_Z) < 1.9 && Math.abs(player.x) > 1.6 && Math.abs(player.x) < 4.0;      // single file between the turnstile cabinets: shoulders, not arms out
   resolve(player, inLanes ? 0.27 : 0.45, player.y);
+  if (!player.grounded && player.y + 1.86 > Aqua.ceiling(player.x, player.z, player.y)) { player.x = ox; player.z = oz; }      // in the air, a head does not go in under something lower than it (a cage's roof)
   Entrance.pushLane(player.x, oz, player.z);
-  if (dt > 0) { player.vx = (player.x - ox) / dt; player.vz = (player.z - oz) / dt; }
+  if (dt > 0) {                                     // what you actually moved is your speed now (sliding along a wall) — but being pushed out of something never adds speed
+    var v0 = Math.hypot(player.vx, player.vz); player.vx = (player.x - ox) / dt; player.vz = (player.z - oz) / dt;
+    var v1 = Math.hypot(player.vx, player.vz); if (v1 > v0 + 1e-6) { var kv = v0 / v1; player.vx *= kv; player.vz *= kv; }
+  }
   var speedNow = Math.hypot(player.vx, player.vz);
   if (speedNow < 0.02) { player.vx = player.vz = 0; speedNow = 0; }
 
@@ -941,6 +945,7 @@ function update(dt) {
   var gh = groundAt(player.x, player.z, player.y), landed = false;
   if (player.vy > 0 || player.y > gh + 0.02) {
     player.vy -= 20 * dt; player.y += player.vy * dt; player.grounded = false;
+    if (player.vy > 0 && Aqua.ceiling) { var ceil = Aqua.ceiling(player.x, player.z, player.y); if (player.y + 1.86 > ceil) { player.y = ceil - 1.86; player.vy = 0; } }      // a head meets what is over it
     if (player.y <= gh) { if (player.vy < -3 && !Aqua.overWater(player.x, player.z, gh)) { Sound.step(0.2, 500); landed = true; } player.y = gh; player.vy = 0; player.grounded = true; }
   } else { player.y += (gh - player.y) * (1 - Math.exp(-dt * 16)); player.vy = 0; player.grounded = true; }
   var wasWater = player.water;

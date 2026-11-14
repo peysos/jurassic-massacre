@@ -317,8 +317,10 @@ function boxesNear(x, z, reach) {      // indices of the boxes that could be wit
   var cx = Math.floor((x - BG.x0) / BG.cs), cz = Math.floor((z - BG.z0) / BG.cs);
   return cx < 0 || cz < 0 || cx >= BG.w || cz >= BG.h ? BG_NONE : BG.cells[cz * BG.w + cx] || BG_NONE;
 }
-function resolve(p, r, y, mode) {      // mode 1: walls, fences and buildings only (no trunks, no park edge); 2: only what is tall enough to block a view
-  var i, b, c, cx, cz, dx, dz, d, q, sx = p.x, sz = p.z, L = boxesNear(sx, sz, r), lim = BG.m - r, X1 = BG.X1, X2 = BG.X2, Z1 = BG.Z1, Z2 = BG.Z2;
+function resolve(p, r, y, mode, again) {      // mode 1: walls, fences and buildings only (no trunks, no park edge); 2: only what is tall enough to block a view
+  var i, b, c, cx, cz, dx, dz, d, q, sx = p.x, sz = p.z, L = boxesNear(sx, sz, r), lim = BG.m - r, X1 = BG.X1, X2 = BG.X2, Z1 = BG.Z1, Z2 = BG.Z2, pushed = false, bpush = 0, pass;
+  for (pass = 0; pass < 3; pass++) {                 // (again if anything pushed: being pushed out of one thing can put you into one checked before it)
+  bpush = 0;
   for (q = 0; q < L.length; q++) {
     i = L[q];
     if (p.x < X1[i] - r || p.x > X2[i] + r || p.z < Z1[i] - r || p.z > Z2[i] + r) continue;
@@ -333,7 +335,10 @@ function resolve(p, r, y, mode) {      // mode 1: walls, fences and buildings on
       var l = p.x - b.x1, rr = b.x2 - p.x, t = p.z - b.z1, bt = b.z2 - p.z, m = Math.min(l, rr, t, bt);
       if (m === l) p.x = b.x1 - r; else if (m === rr) p.x = b.x2 + r; else if (m === t) p.z = b.z1 - r; else p.z = b.z2 + r;
     }
+    bpush++;
     if (L !== BG.all && (Math.abs(p.x - sx) > lim || Math.abs(p.z - sz) > lim)) { p.x = sx; p.z = sz; L = BG.all; q = -1; }      // thrown out of what its square covers (it began deep in something): do it the long way
+  }
+  if (bpush < 1 || (pass === 0 && bpush < 2)) break;
   }
   if (mode) return;
   if (CG.n !== circles.length) circleGrid();
@@ -343,9 +348,10 @@ function resolve(p, r, y, mode) {      // mode 1: walls, fences and buildings on
     i = L[q]; dx = p.x - CX[i]; dz = p.z - CZ[i]; d = dx * dx + dz * dz; rs = r + CR[i];
     if (d >= rs * rs) continue;
     c = circles[i]; if (c.top !== undefined && y >= c.top - 0.05) continue;
-    d = Math.sqrt(d) || 0.001; p.x = c.x + dx / d * rs; p.z = c.z + dz / d * rs;
+    d = Math.sqrt(d) || 0.001; p.x = c.x + dx / d * rs; p.z = c.z + dz / d * rs; pushed = true;
     if (L !== CG.all && (Math.abs(p.x - sx) > lim || Math.abs(p.z - sz) > lim)) { p.x = sx; p.z = sz; L = CG.all; q = -1; }
   }
+  if (pushed && !again) { resolve(p, r, y, 1, true); }          // a round thing pushed: make sure it has not pushed you into (or through) a wall or a rail
   p.x = clamp(p.x, -WORLD + 1.5, WORLD - 1.5);
   p.z = clamp(p.z, -WORLD + 1.5, WORLD - 1.5);
 }
