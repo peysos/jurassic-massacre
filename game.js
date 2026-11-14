@@ -14,7 +14,7 @@ var heldIt = null, holdVis = 0, holdShown = 0, staDelay = 0, fatigue = 0, breath
 function countKeys() { var n = 0; for (var i = 0; i < keysGot.length; i++) if (keysGot[i]) n++; return n; }
 function done(need) {
   if (!P) return false;
-  return need === 'pow0' ? P.pow0 : need === 'turn' ? P.turn : need === 'pen' ? P.pen : need === 'power' ? P.power : need === 'aqua' ? !!keysGot[0] : !!(keysGot[3] || keysGot[4]);
+  return need === 'pow0' ? P.pow0 : need === 'turn' ? P.turn : need === 'pen' ? P.pen : need === 'power' ? P.power : need === 'aqua' ? !!(P.aq && P.aq.door) : !!(keysGot[3] || keysGot[4]);
 }
 function gateOpen(which) { return P.esc ? P.esc['rel' + which] >= 1 : P['gate' + which]; }
 function turnOpen() { return P.turn && (!P.esc || P.esc.turn >= 1); }
@@ -68,7 +68,7 @@ function newPuzzles() {
   var ws = { easy: [[7, 3, 2]], normal: [[9, 4, 3], [8, 3, 2]], hard: [[9, 5, 3], [10, 4, 3]] }[diffName], w = ws[(Math.random() * ws.length) | 0];
   return { turn: false, pow0: false, ent: newEntrance(), pen: false, lever: lev.order, clues: lev.clues, pulled: [],
     fuses: ratings, fuseGot: [true, true, true, true, true], load: ratings[pick[0]] + ratings[pick[1]] + ratings[pick[2]], power: false,
-    winch: { h: w[0], start: w[0], down: w[1], up: w[2], stop: [1, 2, 4, 5][(Math.random() * 4) | 0], dir: 1 }, sw: { g: [false, true, false] }, gateA: false, gateB: false, box: 0, inv: 0, esc: null, net: newNet() };
+    winch: { h: w[0], start: w[0], down: w[1], up: w[2], stop: [1, 2, 4, 5][(Math.random() * 4) | 0], dir: 1 }, sw: { g: [false, true, false] }, gateA: false, gateB: false, box: 0, inv: 0, esc: null, net: newNet(), aq: Aqua.newState() };
 }
 function refreshClues() {
   var i;
@@ -101,11 +101,11 @@ function stepWorld(dt, instant) {
   function go(k, target, rate) { anim[k] = instant ? target : anim[k] + clamp(target - anim[k], -dt * rate, dt * rate); }
   var esc = P.esc, i, blink = Math.sin(playTime * 9) > 0;
   go('turn', turnOpen() ? 1 : 0, 0.8); go('gA', gateOpen('A') ? 1 : 0, esc ? 0.3 : 0.45); go('gB', gateOpen('B') ? 1 : 0, esc ? 0.3 : 0.45);
-  go('pen', P.pen ? 1 : 0, 0.9); go('cage', P.power ? 1 : 0, 0.5); go('cover', keysGot[0] && DIFF.cover ? 1 : 0, 0.3); go('box', P.box >= 1 ? 1 : 0, 1.2);
+  go('pen', P.pen ? 1 : 0, 0.9); go('cage', P.power ? 1 : 0, 0.5); go('box', P.box >= 1 ? 1 : 0, 1.2);
   anim.gate = esc ? esc.gate : 0;
   if (window.Entrance) Entrance.step(dt, instant);
   if (window.Staff && P.net) Staff.step(instant ? 0 : dt);
-  Extras.step(dt, instant); Swamp.step(dt, instant); Keeper.step(dt, instant);
+  Extras.step(dt, instant); Swamp.step(dt, instant); Keeper.step(dt, instant); Aqua.step(dt, instant);
   [['A', 'gA'], ['B', 'gB']].forEach(function (q) {
     var G = W['gate' + q[0]], open = gateOpen(q[0]);
     G.set(anim[q[1]]); G.box.off = anim[q[1]] > 0.8; G.lamp.color.setHex(open ? 0x35ff8a : 0xff3020);
@@ -133,21 +133,21 @@ function stepWorld(dt, instant) {
 /* The height of whatever a small thing set down at x, z would rest on: the first upward-facing solid surface under 1.5 m
    (a counter, a desk, a table, a step, the floor), found once by a ray straight down through the scenery and kept. */
 var restCache = {}, restRay = new THREE.Raycaster(), restSkip = null;
-function restY(x, z) {
-  var key = x.toFixed(2) + ',' + z.toFixed(2); if (restCache[key] !== undefined) return restCache[key];
+function restY(x, z, y0) {          // y0 (optional): the floor the thing is on, for spots that are not at ground level
+  y0 = y0 || 0; var key = x.toFixed(2) + ',' + z.toFixed(2) + ',' + y0; if (restCache[key] !== undefined) return restCache[key];
   if (!restSkip) { restSkip = new Set(); [batMeshes, keyMeshes, fuseMeshes, [camera]].forEach(function (L) { L.forEach(function (o) { restSkip.add(o); }); }); }
-  restRay.set(new THREE.Vector3(x, 1.5, z), new THREE.Vector3(0, -1, 0)); restRay.far = 3; restRay.camera = camera;      // (sprites need a camera to be tested at all)
+  restRay.set(new THREE.Vector3(x, y0 + 1.5, z), new THREE.Vector3(0, -1, 0)); restRay.far = 1.9; restRay.camera = camera;      // (sprites need a camera to be tested at all)
   scene.updateMatrixWorld(true);
   var hits = restRay.intersectObjects(scene.children, true), y = null, nm = new THREE.Matrix3(), n = new THREE.Vector3();
   for (var h = 0; h < hits.length && y === null; h++) {
     var o = hits[h].object, ok = o.isMesh && !o.isInstancedMesh, p;
-    for (p = o; ok && p; p = p.parent) if (restSkip.has(p) || (!p.visible && p !== Staff.wing)) ok = false;
+    for (p = o; ok && p; p = p.parent) if (restSkip.has(p) || (!p.visible && !(p.userData && p.userData.batchInside))) ok = false;      // (rooms that are only drawn when you are in them still count)
     var mt = ok && (Array.isArray(o.material) ? o.material[hits[h].face.materialIndex] : o.material);
     if (!mt || mt.visible === false || mt.transparent || mt.alphaTest > 0 || mt.wireframe) continue;
     n.copy(hits[h].face.normal).applyMatrix3(nm.getNormalMatrix(o.matrixWorld)).normalize();
     if (n.y > 0.75) y = hits[h].point.y + 0.002;
   }
-  if (y === null) y = groundAt(x, z, 0);
+  if (y === null) y = groundAt(x, z, y0);
   return (restCache[key] = y);
 }
 function placeItems() {
@@ -155,16 +155,16 @@ function placeItems() {
   for (i = 0; i < ZONES.length; i++) keyMeshes[i].visible = !keysGot[i];
   for (i = 0; i < batMeshes.length; i++) {
     batMeshes[i].visible = i < batPos.length && !batGot[i];
-    if (i < batPos.length) batMeshes[i].position.set(batPos[i][0], restY(batPos[i][0], batPos[i][1]), batPos[i][1]);
+    if (i < batPos.length) batMeshes[i].position.set(batPos[i][0], restY(batPos[i][0], batPos[i][1], batPos[i][2]), batPos[i][1]);
   }
   refreshClues(); stepWorld(0, true);
 }
 function resetPlayer() {
   player.pitch = 0; player.stamina = 100; player.light = false; player.crouch = false; player.eye = 1.7;
-  exhausted = false; burst = 0; stunCD = 0; flashA = 0; closePanel(); uiOpen = false; Scares.reset(); Hands.setVisible(true); Hands.hold = null; approach = null; Entrance.pouring = false; Entrance.emptyInHand = false; Entrance.capOpen = false; if (P) setCarry(P.ent.fuel === 1 ? 'can' : null);
+  exhausted = false; burst = 0; stunCD = 0; flashA = 0; closePanel(); uiOpen = false; Scares.reset(); Hands.setVisible(true); Hands.hold = null; Hands.over = null; Body.show(false); approach = null; Entrance.pouring = false; Entrance.emptyInHand = false; Entrance.capOpen = false; if (P) setCarry(P.ent.fuel === 1 ? 'can' : null);
   player.vx = player.vz = 0; player.vy = 0; player.y = 0; player.roll = 0; player.cy = player.yaw; player.cp = 0; player.water = false; player.grounded = true;
   camera.fov = prefs.fov; camera.updateProjectionMatrix(); invText = objText = promptText = escText = ''; holdProg = { winch: 0 }; heldIt = null; holdVis = holdShown = 0; staDelay = 0; fatigue = 0;
-  uiK = 0; if (P) { Staff.reset(); ZooNet.reset(); P.ent.crank = 0; if (P.esc) { P.esc.lock = Math.floor(P.esc.lock); if (P.esc.turn < 1) P.esc.turn = 0; } }          // half-done holds are let go of, never saved
+  uiK = 0; if (P) { Staff.reset(); ZooNet.reset(); Aqua.reset(); P.ent.crank = 0; if (P.esc) { P.esc.lock = Math.floor(P.esc.lock); if (P.esc.turn < 1) P.esc.turn = 0; } }          // half-done holds are let go of, never saved
   $('escape').classList.remove('big'); escBigT = 0;
 }
 function newGame(playIntro) {
@@ -182,7 +182,7 @@ function newGame(playIntro) {
 function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
 function saveGame(zoneName, quiet) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ x: player.x, z: player.z, yaw: player.yaw, battery: player.battery, keysGot: keysGot,
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ x: player.x, z: player.z, y: player.y, yaw: player.yaw, battery: player.battery, keysGot: keysGot,
       batPos: batPos, batGot: batGot, diff: diffName, time: playTime, where: zoneName, P: P }));
     if (!quiet) { showMsg('Game saved — ' + zoneName, 3); Sound.save(); }
   } catch (e) { if (!quiet) showMsg('Could not save (browser storage is blocked).', 4); }
@@ -192,12 +192,13 @@ function loadGame() {
   var s; try { s = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { s = null; }
   if (!s || !s.keysGot || s.keysGot.length !== ZONES.length || !s.batPos || !s.P || !s.P.ent || !s.P.winch) return false;
   if (!s.P.net) { s.P.net = newNet(); if (s.P.turn) { s.P.net.key = true; s.P.net.door = 2; s.P.net.ups = true; s.P.net.a = s.P.net.A; s.P.net.b = s.P.net.B; s.P.net.heard = true; } }     // a save from before the staff wing
+  if (!s.P.aq) s.P.aq = Aqua.newState(s.keysGot[0]);                 // a save from before the aquarium was rebuilt
   setDifficulty(s.diff);
   keysGot = s.keysGot; batPos = s.batPos; batGot = s.batGot || batPos.map(function () { return false; });
   P = s.P; Entrance.breach = P.esc && P.esc.lock >= 5 ? 1 : 0; breachT = 0;
   player.x = s.x; player.z = s.z; player.yaw = s.yaw || 0;
   player.battery = s.battery === undefined ? 100 : s.battery; playTime = s.time || 0;
-  resetPlayer(); placeItems(); resetDinos(); beginPlay();
+  resetPlayer(); player.y = s.y || 0; if (!s.y && inRect(player.x, player.z, AQ)) player.y = groundAt(player.x, player.z, 0); placeItems(); resetDinos(); beginPlay();
   showMsg(P.esc ? 'Back to the start of the lockdown.' : 'Loaded — ' + (s.where || 'last save') + ' (' + DIFF.label + ')', 3);
   return true;
 }
@@ -237,17 +238,18 @@ function showMsg(t, secs) { var m = $('msg'); m.textContent = t; m.style.opacity
 function die(kind, d) {
   if (state !== 'playing') return;
   if (kind === 'spino') { closePanel(); Swamp.kill(function () { showDeath(kind); }); return; }
+  if (kind === 'ples') { closePanel(); Aqua.kill(function () { showDeath(kind); }); return; }
   if (window.Scares && Scares.kill) { closePanel(); Scares.kill(kind, d, function () { showDeath(kind); }); }
   else showDeath(kind);
 }
 function showDeath(kind) {
   var txt = { spino: ['YOU WERE DEVOURED', 'The Spinosaurus took you in the shallows.'], raptor: ['YOU WERE DEVOURED', 'The raptors found you.'], rex: ['YOU WERE DEVOURED', 'The Tyrannosaurus found you.'],
-    ptero: ['YOU WERE CARRIED OFF', 'The pterosaur took you from above.'], ples: ['YOU WERE DRAGGED UNDER', 'The plesiosaur was waiting in the water.'] }[kind];
+    ptero: ['YOU WERE CARRIED OFF', 'The pterosaur took you from above.'], ples: ['YOU WERE DRAGGED UNDER', Aqua.deathLine()] }[kind];
   if (kind === 'ptero') Sound.screech(); else if (kind === 'ples') Sound.splash(); else Sound.roar(kind === 'rex');
   Sound.noise(0.6, 3000, 0.5, 0.1);
   $('deadTitle').textContent = txt[0];
   $('deadSub').textContent = txt[1] + ' Key pieces recovered: ' + countKeys() + ' / ' + ZONES.length + '.' + (hasSave() ? (P.esc ? ' You can retry the escape from the start of the lockdown.' : '') : ' You had no save.');
-  $('btnLoad').textContent = P.esc ? 'Retry the Escape' : 'Load Last Save';
+  $('btnLoad').textContent = P.esc ? 'Retry the Escape' : kind === 'ples' && Aqua.checkpoint ? 'Try Again from the Lift' : 'Load Last Save';
   refreshMenu(); setState('dead');
 }
 function win() { Sound.klaxonSet(0); Cutscene.ending(showWin); }
@@ -297,7 +299,7 @@ function stunBurst() {
     if (!d.active || !inBeam(d.x, d.z, d.rex ? 30 : 24, d.r + 1.5)) return;
     d.state = 'stun'; d.stunT = DIFF.stun * (d.rex ? 0.6 : 1); d.lastX = d.x; d.lastZ = d.z; hit++; Sound.roar(d.rex, 0.5);
   });
-  if (plesMesh.visible && inBeam(ples.x + Math.sin(ples.rot) * 3, ples.z + Math.cos(ples.rot) * 3, 24, 5)) { ples.state = 'stun'; ples.stunT = DIFF.stun; hit++; }
+  hit += Aqua.flash(inBeam);
   hit += Swamp.flash(inBeam);
   var cp = Math.cos(player.pitch), ex = ptero.x - player.x, ey = ptero.y - (player.y + player.eye), ez = ptero.z - player.z, ed = Math.hypot(ex, ey, ez);
   if (ed < 40 && (ed < 4 || (ex * fx * cp + ey * Math.sin(player.pitch) + ez * fz * cp) / ed > 0.8)) { ptero.state = 'stun'; ptero.stunT = DIFF.stun * 1.6; hit++; Sound.screech(); }
@@ -525,7 +527,7 @@ ZooNet.onUnlock = function () { showMsg('Somewhere outside, four turnstiles unla
 
 function findInteract() {
   var px = player.x, pz = player.z, i, t, n = countKeys(), esc = P.esc, N = P.ent, En = Entrance;
-  var ex = Extras.interact(px, pz); if (ex) return ex;
+  var ex = Extras.interact(px, pz) || Aqua.interact(px, pz); if (ex) return ex;
   var st = Staff.interact(px, pz); if (st) return st;
   if (!N.door && dist(px, pz, -15.5, 127) < 1.6) return { text: '[E] Open the shed door', fn: function () {
     function open() { N.door = true; Sound.grind(); Sound.noise(0.9, 700, 0.18); }
@@ -646,8 +648,8 @@ function objective() {
     return 'Open Entry Control on the staff computer and release the ticket lanes.';
   }
   var lev = P.sawOrder && !P.pen ? '  Paddock levers: ' + P.lever.map(function (l) { return ROMAN[l]; }).join(' › ') + ' (next: ' + ROMAN[P.lever[P.pulled.length]] + ').' : '';
+  if (!keysGot[0] && (keysGot[1] || Aqua.started())) return Aqua.objective();
   if (!keysGot[0] && !keysGot[1]) return 'Recover the key pieces in the Aquarium and the Raptor Paddock.' + lev;
-  if (!keysGot[0]) return 'Recover the key piece in the Aquarium.';
   if (!keysGot[1]) return P.pen ? 'Take the key piece from the holding pen.'
     : P.sawOrder ? 'Raptor Paddock: pull the levers in order — ' + P.lever.map(function (l) { return ROMAN[l]; }).join(' › ') + '.  Next: lever ' + ROMAN[P.lever[P.pulled.length]] + '.'
     : 'Raptor Paddock: the lever order is on the plaque by the holding pen.';
@@ -762,6 +764,7 @@ function objectiveTarget() {
     return [En.pc.x, En.pc.z];
   }
   function nearest(list) { list.forEach(function (k) { if (keysGot[k]) return; var d = dist(player.x, player.z, ZONES[k].x, ZONES[k].z); if (d < bd) { bd = d; best = [ZONES[k].x, ZONES[k].z]; } }); return best; }
+  if (!keysGot[0] && (keysGot[1] || Aqua.started())) return Aqua.target();
   if (!keysGot[0] || !keysGot[1]) return nearest([0, 1]);
   if (!P.gateA) return [0, FENCE_A + 2];
   if (!keysGot[2]) return P.power ? [ZONES[2].key[0], ZONES[2].key[1]] : Swamp.target();
@@ -855,12 +858,14 @@ function stopBreath() { if (breathLoop) { breathLoop.stop(0.3); breathLoop = nul
 /* Footsteps: recorded takes for hard floors (vinyl tiles indoors, concrete and paving outside), the synthesized step on
    grass and earth.  Each take is pitched a little differently so no two in a row sound the same. */
 function surfaceAt(x, z) {
+  var aq = Aqua.surface(x, z); if (aq) return aq;
   if ((x > 11 && x < 25 && z > 121 && z < 135) || inRect(x, z, STAFF_WING) || (x > 24.6 && x < 27.2 && z > 131.4 && z < 133)) return 'tile';
   if (inRect(x, z, ENTR) || onPath(x, z, 0) || (x > -22 && x < -16 && z > 124 && z < 130)) return 'hard';
   return 'soft';
 }
 function footstep(sprint, crouch) {
   var sf = surfaceAt(player.x, player.z), v = sprint ? 0.42 : crouch ? 0.1 : 0.26, r = 0.92 + Math.random() * 0.16;
+  if (sf === 'grate') { Sfx.play(sprint ? 'run_concrete' : 'step_concrete', { vol: v * 0.7, rate: r * 1.25 }); Sound.tone(1900 + Math.random() * 500, 900, 0.07, v * 0.1, 'triangle'); Sound.noise(0.05, 5200, v * 0.22); return; }      // steel grating rings
   var name = sf === 'tile' ? 'step_tile' : sf === 'hard' ? (sprint ? 'run_concrete' : 'step_concrete') : null;
   if (name) Sfx.play(name, { vol: v * (sf === 'tile' ? 1.1 : 1), rate: r, fallback: function () { Sound.step(sprint ? 0.22 : crouch ? 0.04 : 0.12, sprint ? 900 : 600); } });
   else Sound.step(sprint ? 0.22 : crouch ? 0.04 : 0.12, sprint ? 900 : 600);
@@ -869,7 +874,7 @@ function footstep(sprint, crouch) {
 // ---------- update ----------
 function update(dt) {
   playTime += dt;
-  var esc = P.esc, i, inAq = inRect(player.x, player.z, AQ), inZone = inSafe(player.x, player.z);
+  var esc = P.esc, i, inAq = Aqua.inside(player.x, player.z), inZone = inSafe(player.x, player.z);
   var hidden = (inZone && !esc) || inAq;
   stepWorld(dt, false);
 
@@ -923,7 +928,6 @@ function update(dt) {
   var inLanes = Math.abs(player.z - TURN_Z) < 1.9 && Math.abs(player.x) > 1.6 && Math.abs(player.x) < 4.0;      // single file between the turnstile cabinets: shoulders, not arms out
   resolve(player, inLanes ? 0.27 : 0.45, player.y);
   Entrance.pushLane(player.x, oz, player.z);
-  if (player.y < -0.3 && inRect(ox, oz, POOL)) { player.x = clamp(player.x, POOL.x1 + 0.45, POOL.x2 - 0.45); player.z = clamp(player.z, POOL.z1 + 0.45, POOL.z2 - 0.45); }
   if (dt > 0) { player.vx = (player.x - ox) / dt; player.vz = (player.z - oz) / dt; }
   var speedNow = Math.hypot(player.vx, player.vz);
   if (speedNow < 0.02) { player.vx = player.vz = 0; speedNow = 0; }
@@ -932,11 +936,11 @@ function update(dt) {
   var gh = groundAt(player.x, player.z, player.y), landed = false;
   if (player.vy > 0 || player.y > gh + 0.02) {
     player.vy -= 20 * dt; player.y += player.vy * dt; player.grounded = false;
-    if (player.y <= gh) { if (player.vy < -3 && gh > POOL.swim + 0.3) { Sound.step(0.2, 500); landed = true; } player.y = gh; player.vy = 0; player.grounded = true; }
+    if (player.y <= gh) { if (player.vy < -3 && !Aqua.overWater(player.x, player.z, gh)) { Sound.step(0.2, 500); landed = true; } player.y = gh; player.vy = 0; player.grounded = true; }
   } else { player.y += (gh - player.y) * (1 - Math.exp(-dt * 16)); player.vy = 0; player.grounded = true; }
   var wasWater = player.water;
-  player.water = inRect(player.x, player.z, POOL) && player.y < POOL.water - 0.5;
-  if (player.water && !wasWater) { Sound.splash(); showMsg('You are in the water. Swim for a ramp in the corner!', 3); }
+  player.water = Aqua.overWater(player.x, player.z, player.y) && player.y < POOL.swim + 0.4;
+  if (player.water && !wasWater) Aqua.splashIn();
   /* The stride: player.phase advances PI per step (stride length grows with speed); a footfall sounds as each step lands. */
   var stride = sprint && speedNow > 5 ? 2.35 : crouch ? 0.85 : 1.45;
   if (player.grounded && !player.water && speedNow > 0.05) {
@@ -960,7 +964,7 @@ function update(dt) {
   var flick = (player.battery < 15 && Math.random() < 0.12) ? 0.25 : 1, relo = Hands.reloading();
   // the eye adjusts: when the beam lands on something close (a wall ahead, the ground at your feet) it is not left blown out
   var bfx = -Math.sin(player.cy), bfz = -Math.cos(player.cy), bHit = player.cp < -0.06 ? player.eye / Math.sin(-player.cp) : 9, bt, bi;
-  for (bt = 0.7; bt < Math.min(bHit, 7.5); bt += 0.55) { var bx2 = player.x + bfx * bt, bz2 = player.z + bfz * bt; for (bi = 0; bi < boxes.length; bi++) { var bb = boxes[bi]; if (!bb.off && bx2 > bb.x1 && bx2 < bb.x2 && bz2 > bb.z1 && bz2 < bb.z2) { bHit = bt; break; } } if (bHit === bt) break; }
+  for (bt = 0.7; bt < Math.min(bHit, 7.5); bt += 0.55) { var bx2 = player.x + bfx * bt, bz2 = player.z + bfz * bt; for (bi = 0; bi < boxes.length; bi++) { var bb = boxes[bi]; if (!bb.off && (bb.y1 === undefined || (player.y + 1.6 > bb.y1 && player.y + 0.35 < bb.y2)) && bx2 > bb.x1 && bx2 < bb.x2 && bz2 > bb.z1 && bz2 < bb.z2) { bHit = bt; break; } } if (bHit === bt) break; }
   beamNear = damp(beamNear, clamp((7.5 - bHit) / 6.8, 0, 1), 4, dt);
   flashlight.intensity = ((player.light && !relo ? 2.3 * flick * (1 - 0.6 * beamNear) : 0) + burst * 14) * (1 - uiK); flashlight.angle = 0.6 + burst * 0.3;
   Hands.fill.intensity = relo ? 0.8 : player.light ? 0.42 * flick : 0.1; Hands.setLight(player.light);      // enough to see your own hands by
@@ -987,27 +991,25 @@ function update(dt) {
     var sf = lerp(camera.fov, 55, ek); if (Math.abs(sf - camera.fov) > 0.01) { camera.fov = sf; camera.updateProjectionMatrix(); }
   }
   Hands.setVisible(uiK < 0.35);
-  Hands.update(dt, { speed: speedNow, yaw: player.cy, pitch: player.cp, phase: player.phase, sprint: sprint && moving, crouch: crouch, grounded: player.grounded && !player.water, landed: landed, x: player.x, z: player.z });
+  Hands.update(dt, { speed: speedNow, yaw: player.cy, pitch: player.cp, phase: player.phase, sprint: sprint && moving, crouch: crouch, grounded: player.grounded && !player.water, landed: landed, x: player.x, z: player.z, y: player.y });
 
   // key pieces
   for (i = 0; i < keyMeshes.length; i++) {
     if (keysGot[i]) continue;
     var k = keyMeshes[i]; k.userData.glow.material.opacity = 0.42 + 0.22 * Math.sin(playTime * 2.6 + i);
     if ((i === 3 && (P.winch.h !== 0 || (P.winch.stop || 3) !== 3)) || (i === 4 && P.box < 1)) continue;
-    if (dist(player.x, player.z, k.position.x, k.position.z) < 1.75 && Math.abs(player.y) < 1) {
+    if (dist(player.x, player.z, k.position.x, k.position.z) < 1.75 && Math.abs(player.y + 0.9 - k.position.y) < 1.3 && (i || Aqua.keyFree())) {
       keysGot[i] = true; k.visible = false; Sound.chime(); updateHud(true);
       var n = countKeys();
       if (n >= ZONES.length) { startEscape(); esc = P.esc; }
-      else showMsg(i === 0 ? 'Key piece found (' + n + ' / 5). ' + (DIFF.cover ? 'A feeding gate drops somewhere under the water, and the pool goes still. The lobby terminal is online.' : 'Now get back across the pool. The lobby terminal is online.')
-        : 'Key piece found (' + n + ' / ' + ZONES.length + ') — ' + ZONES[i].name, 5);
-      if (i === 0 && DIFF.cover) Sound.grind();
+      else showMsg(i === 0 ? 'Key piece found (' + n + ' / 5). The keepers’ ladder by the lockers goes down to the hall.' : 'Key piece found (' + n + ' / ' + ZONES.length + ') — ' + ZONES[i].name, 5);
     }
   }
   // batteries and fuses
   for (i = 0; i < batPos.length; i++) {
     if (batGot[i]) continue;
     var b = batMeshes[i], pulse = Math.sin(playTime * 3 + i * 1.7); b.userData.glow.material.opacity = 0.55 + 0.25 * pulse; b.userData.pool.material.opacity = 0.75 + 0.25 * pulse;
-    if (dist(player.x, player.z, batPos[i][0], batPos[i][1]) < 1.7 && Math.abs(player.y) < 1) {
+    if (dist(player.x, player.z, batPos[i][0], batPos[i][1]) < 1.7 && Math.abs(player.y - (batPos[i][2] || 0)) < 1.2) {
       batGot[i] = true; b.visible = false; Sound.pickup();
       if (player.battery <= 100 - DIFF.charge * 0.75) { player.battery = Math.min(100, player.battery + DIFF.charge); showMsg('Battery found  +' + DIFF.charge + '%', 2.5); }
       else { P.inv++; showMsg('Spare battery stowed (' + P.inv + '). Press R to load one.', 3); }
@@ -1068,6 +1070,7 @@ function update(dt) {
   if (landed) ctx.noiseR = Math.max(ctx.noiseR, 12);
   if (updateDinos(dt, ctx)) return;
   if (updatePles(dt)) return;
+  if (Aqua.update(dt, ctx, speedNow)) return;
   if (updatePtero(dt, ctx)) return;
   Scares.update(dt, ctx);
   Extras.update(dt, ctx, speedNow); Keeper.update(dt, ctx);
@@ -1087,7 +1090,6 @@ function update(dt) {
     if (L.dead) continue;
     L.light.intensity = on ? 1.0 : 0.04; L.bulb.visible = on; L.cone.visible = on; L.light.color.setHex(esc ? 0xff5a3a : 0xffc98a);
   }
-  W.waterMat.bumpMap.offset.set(playTime * 0.012, playTime * 0.018);
   for (i = 0; i < W.mist.length; i++) { var ms = W.mist[i], md = ms.userData; ms.position.x = md.bx + Math.sin(playTime * 0.05 + md.ph) * 9; ms.position.z = md.bz + Math.cos(playTime * 0.04 + md.ph) * 9; }
   var dk = W.duck; if (dk.userData.hop > 0) { dk.userData.hop -= dt; dk.position.y = Math.sin((0.5 - dk.userData.hop) * PI * 2) * 0.12; dk.rotation.y += dt * 12; } else dk.position.y = 0;
   if (!prefs.duck && dist(player.x, player.z, DUCK[0], DUCK[1]) < 9) { duckT -= dt; if (duckT <= 0) { duckT = 5 + Math.random() * 4; Sound.squeak(); } }
@@ -1097,7 +1099,7 @@ function update(dt) {
   // HUD
   var sb = $('safe');
   if (inZone && esc) { sb.style.display = 'block'; sb.classList.add('off'); sb.textContent = 'SAFE ROOM OFFLINE'; }
-  else if (hidden && !player.water) { sb.style.display = 'block'; sb.classList.remove('off'); sb.textContent = inAq ? 'OUT OF SIGHT' : 'SAFE ROOM'; }
+  else if (hidden && !player.water && !inAq) { sb.style.display = 'block'; sb.classList.remove('off'); sb.textContent = 'SAFE ROOM'; }
   else sb.style.display = 'none';
   $('hint').style.opacity = playTime > 70 ? 0 : playTime > 30 ? 0.35 : 1;
   tickTips(dt);
@@ -1148,7 +1150,7 @@ Fossils.build();
 placeItems(); resetDinos(); refreshMenu();
 LightPool.collect([]); applyGfx(prefs.gfx, true); Settings.init();
 camera.position.set(1.2, 1.8, WORLD + 13.5); camera.rotation.set(0.24, 0.1, 0); LightPool.snap(); warmShaders(true);
-window.__jm = { player: player, dinos: dinos, ples: ples, ptero: ptero, anim: anim, update: update, music: Music, W: W, NAV: NAV,
+window.__jm = { player: player, dinos: dinos, ples: ples, ptero: ptero, anim: anim, update: update, music: Music, W: W, NAV: NAV, Aqua: Aqua,
   P: function () { return P; }, keys: function () { return keysGot; }, getState: function () { return state; },
   batches: function () { return W.batches; }, batPos: function () { return batPos; }, diff: function () { return diffName; }, info: function () { return renderer.info.render; }, post: function () { return !!composer; } };
 requestAnimationFrame(frame);

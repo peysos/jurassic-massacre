@@ -13,7 +13,7 @@ chainTex.minFilter = THREE.LinearFilter; chainTex.generateMipmaps = false;
 function drawLayout(g) {
   g.fillStyle = '#3d3a31';
   PATHS.forEach(function (p) { g.fillRect(p[0], p[2], p[1] - p[0], p[3] - p[2]); });
-  g.fillStyle = '#1b3944'; g.fillRect(AQ.x1, AQ.z1, AQ.x2 - AQ.x1, AQ.z2 - AQ.z1);
+  g.fillStyle = '#1b3944'; g.fillRect(GAL.x1 - 0.5, GAL.z1 - 0.5, GAL.x2 - GAL.x1 + 1, GAL.z2 - GAL.z1 + 1); g.fillRect(GAL.x2, 58, 5, 4); g.fillRect(HALL.x1 - 0.5, HALL.z1 - 0.5, 146.5 - HALL.x1, HALL.z2 - HALL.z1 + 1);
   g.fillStyle = '#1d5a70'; g.fillRect(POOL.x1, POOL.z1, POOL.x2 - POOL.x1, POOL.z2 - POOL.z1);
   g.fillStyle = '#55534c'; g.fillRect(-32, -29, 20, 14); g.fillRect(17, 96, 10, 8); g.fillRect(-22, -73, 8, 6);
   g.strokeStyle = '#8a4a2a'; g.lineWidth = 1;
@@ -71,9 +71,10 @@ function drawMapBase(S) {
   function zone(x1, z1, x2, z2, fill, edge, r) { rr(X(x1), Y(z1), (x2 - x1) * k, (z2 - z1) * k, (r || 6) * k); g.fillStyle = fill; g.fill(); g.lineWidth = 2 * k; g.strokeStyle = edge; g.stroke(); }
   zone(-112, 53, -58, 107, '#d9c58e', '#8c6a3a');                                   // raptor paddock
   zone(56, -119, 120, -65, '#d8c487', '#8c6a3a');                                   // tyrannosaur kingdom
-  zone(AQ.x1 - 2, AQ.z1 - 2, AQ.x2 + 2, AQ.z2 + 2, '#cfdde0', '#4a7a8a');               // aquarium hall
-  g.fillStyle = '#5aa9c4'; rr(X(POOL.x1), Y(POOL.z1), (POOL.x2 - POOL.x1) * k, (POOL.z2 - POOL.z1) * k, 8 * k); g.fill();
-  g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1.2 * k; for (q = 0; q < 8; q++) { g.beginPath(); var wy = Y(POOL.z1 + 4 + q * 3.4); g.moveTo(X(POOL.x1 + 4), wy); for (var wx = POOL.x1 + 4; wx < POOL.x2 - 4; wx += 3) g.lineTo(X(wx), wy + Math.sin(wx) * 1.2 * k); g.stroke(); }
+  zone(GAL.x1 - 1, GAL.z1 - 1, GAL.x2 + 1, GAL.z2 + 1, '#cfdde0', '#4a7a8a', 3); zone(HALL.x1 - 1, HALL.z1 - 1, 147, HALL.z2 + 1, '#cfdde0', '#4a7a8a', 3); g.fillStyle = '#cfdde0'; g.fillRect(X(GAL.x2), Y(58), 5 * k, 4 * k);   // the aquarium: tank gallery, ocean hall
+  g.fillStyle = '#5aa9c4'; rr(X(POOL.x1), Y(POOL.z1), (POOL.x2 - POOL.x1) * k, (POOL.z2 - POOL.z1) * k, 3 * k); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1.2 * k; for (q = 0; q < 6; q++) { g.beginPath(); var wy = Y(POOL.z1 + 3 + q * 3.2); g.moveTo(X(POOL.x1 + 3), wy); for (var wx = POOL.x1 + 3; wx < POOL.x2 - 3; wx += 3) g.lineTo(X(wx), wy + Math.sin(wx) * 1.2 * k); g.stroke(); }
+  g.fillStyle = '#7fb6c8'; for (q = 0; q < 4; q++) { g.fillRect(X(GAL.x1 + 3 + q * 4.6), Y(GAL.z1 + 0.6), 3 * k, 1.3 * k); g.fillRect(X(GAL.x1 + 3 + q * 4.6), Y(GAL.z2 - 1.9), 3 * k, 1.3 * k); }      // the wall tanks
   g.beginPath(); g.arc(X(AV.x), Y(AV.z), (AV.r + 2) * k, 0, 7); g.fillStyle = '#c9dcc0'; g.fill(); g.lineWidth = 2 * k; g.strokeStyle = '#5a7a6a'; g.stroke();
   g.strokeStyle = 'rgba(90,122,106,.6)'; g.lineWidth = 1 * k; for (q = 0; q < 6; q++) { g.beginPath(); g.ellipse(X(AV.x), Y(AV.z), (AV.r + 2) * k, (AV.r + 2) * k * Math.abs(Math.cos(q / 6 * PI)), 0, 0, 7); g.stroke(); }
   zone(-34, -31, -10, -13, '#e2d6b6', '#7a6a4a', 3);                                  // visitor center
@@ -106,7 +107,7 @@ function drawMapBase(S) {
     if (icon) mapIcon(g, icon, x0 + 12 * k, y0 + h / 2, 0.55 * k, '#f3ecd6');
     g.fillStyle = '#f3ecd6'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(text, x0 + (icon ? 22 * k : 6 * k), y0 + h / 2 + 0.5 * k);
   }
-  tag('RAPTOR PADDOCK', -85, 63, 'raptor', '#8d5a1f'); tag('T-REX KINGDOM', 90, -108, 'rex', '#8d3a1f'); tag('THE AQUARIUM', 103, 86, 'fish', '#1d5a70');
+  tag('RAPTOR PADDOCK', -85, 63, 'raptor', '#8d5a1f'); tag('T-REX KINGDOM', 90, -108, 'rex', '#8d3a1f'); tag('THE AQUARIUM', 108, 85, 'fish', '#1d5a70');
   tag('THE AVIARY', -100, -112, 'bird', '#3a6a5a'); tag('VISITOR CENTER', -22, -6, 'house', '#5a4a2a'); tag('GIFT SHOP', 24, 104, 'shop', '#8d1f18');
   // little legend pictograms dotted where those things are
   [['wc', -4.8, 82], ['food', 10, 60], ['aid', 8, 2], ['info', 0, 141], ['food', -40, 6], ['wc', 40, -6]].forEach(function (p2) { g.beginPath(); g.arc(X(p2[1]), Y(p2[2]), 6.5 * k, 0, 7); g.fillStyle = '#1d4a7a'; g.fill(); mapIcon(g, p2[0], X(p2[1]), Y(p2[2]), 0.36 * k, '#fff'); });
@@ -156,20 +157,8 @@ function drawParkMap(g, S, got, you, yaw, worn) {
   }
   g.strokeStyle = '#254a30'; g.lineWidth = 4 * k; g.strokeRect(0, 0, S, S);
 }
-// height of the floor under a point, for someone whose feet are at `feet`
-function groundAt(x, z, feet) {
-  if (!inRect(x, z, POOL)) return 0;
-  var g = POOL.swim, i, p;
-  if (g < 0) {
-    if (x < POOL.x1 + 4 && z < POOL.z1 + 2.75) g = Math.max(g, POOL.swim * (x - POOL.x1) / 4);
-    if (x > POOL.x2 - 4 && z > POOL.z2 - 2.75) g = Math.max(g, POOL.swim * (POOL.x2 - x) / 4);
-  }
-  for (i = 0; i < PLATFORMS.length; i++) {
-    p = PLATFORMS[i];
-    if (Math.abs(x - p[0]) < p[2] / 2 + 0.2 && Math.abs(z - p[1]) < p[2] / 2 + 0.2 && p[3] <= feet + 0.5) g = Math.max(g, p[3]);
-  }
-  return g;
-}
+// height of the floor under a point, for someone whose feet are at `feet` (the aquarium has floors above and below the ground)
+function groundAt(x, z, feet) { return inRect(x, z, AQ) && window.Aqua ? Aqua.ground(x, z, feet) : 0; }
 function jitter(geo, amt) {       // roughen a shape so it stops looking like a perfect primitive
   var p = geo.attributes.position, i, x, y, z, n, l;
   for (i = 0; i < p.count; i++) {
@@ -211,8 +200,9 @@ var WB = { posts: [] };
     ['map', 'bumpMap'].forEach(function (key) { var t = M.ground[key].clone(); t.needsUpdate = true; t.repeat.set(w / T, d / T); t.offset.set(((x1 + 350) / T) % 1, ((350 - z2) / T) % 1); mat[key] = t; });
     var m = mesh(new THREE.PlaneGeometry(w, d), mat, (x1 + x2) / 2, 0, (z1 + z2) / 2); m.rotation.x = -PI / 2; m.userData.noCast = true;
   }
-  groundPiece(-350, POOL.x1, -350, 350); groundPiece(POOL.x2, 350, -350, 350);
-  groundPiece(POOL.x1, POOL.x2, -350, POOL.z1); groundPiece(POOL.x1, POOL.x2, POOL.z2, 350);
+  var HOLE = { x1: HALL.x1 - 0.5, x2: 147, z1: HALL.z1 - 0.5, z2: HALL.z2 + 0.5 };          // under the ocean hall: its floors, basement and tank are its own
+  groundPiece(-350, HOLE.x1, -350, 350); groundPiece(HOLE.x2, 350, -350, 350);
+  groundPiece(HOLE.x1, HOLE.x2, -350, HOLE.z1); groundPiece(HOLE.x1, HOLE.x2, HOLE.z2, 350);
   var edgeMat = std(0x2a261c, 1, { transparent: true, opacity: 0.55 });
   /* Paths: worn tarmac between stone kerbs, with the park's painted footprint trail down the middle of the two main walks.
      Kerbs stop where another path joins. */
@@ -510,106 +500,7 @@ var WB = { posts: [] };
   pl.rotation.x = -0.5; box(2.4, 0.9, 0.1, M.dark, 0, 0.9, 3.5).rotation.x = -0.5;
   circles.push({ x: 0, z: 0, r: 3.6 });
 
-  // ----- the aquarium -----
-  (function aquarium() {
-    var cz = (AQ.z1 + AQ.z2) / 2, len = AQ.x2 - AQ.x1 + 1.5;
-    addBox((AQ.x1 + AQ.x2) / 2, AQ.z1, len, 1.5, 7, wallMat(len)); addBox((AQ.x1 + AQ.x2) / 2, AQ.z2, len, 1.5, 7, wallMat(len));
-    addBox(AQ.x2, cz, 1.5, 33.5, 7, wallMat(33));
-    [AQ.x1, 88].forEach(function (x) { addBox(x, 51.625, 1.5, 12.75, 7, wallMat(12)); addBox(x, 70.375, 1.5, 16.75, 7, wallMat(16)); addBox(x, 60, 1.5, 4, 3.4, M.concrete, false, 3.6); });
-    box(len + 1, 0.5, 34.5, M.dark, (AQ.x1 + AQ.x2) / 2, 7.25, cz); box(len + 2, 0.3, 35.5, M.roof, (AQ.x1 + AQ.x2) / 2, 7.6, cz);
-    [56.6, 63.4].forEach(function (z) { cyl(0.3, 0.34, 5.5, M.concrete, AQ.x1 - 2.2, 2.75, z, null, 12); circles.push({ x: AQ.x1 - 2.2, z: z, r: 0.4 }); });
-    box(3.4, 0.4, 9, M.dark, AQ.x1 - 1.5, 5.7, 60);                                                 // entrance canopy
-    makeSign('THE AQUARIUM', AQ.x1 - 3.25, 60, -PI / 2, 8, 6.6, '#7fd6e8');
-    makeSign('PLESIOSAUR HALL', 87.2, 60, -PI / 2, 5, 4.6, '#7fd6e8');
-    makeSign('DO NOT ENTER THE WATER', 92.4, 54, -PI / 2, 4, 0, '#d9534a');
-    [[AQ.x1 + 0.75, POOL.x1], [POOL.x2, AQ.x2 - 0.75]].forEach(function (r) {
-      var w = r[1] - r[0], fl2 = mesh(new THREE.PlaneGeometry(w, 30.5), retile(M.tile, w / 4, 30.5 / 4), (r[0] + r[1]) / 2, 0.025, cz); fl2.rotation.x = -PI / 2; fl2.userData.noCast = true;
-    });
-    var pw = POOL.x2 - POOL.x1, pd = POOL.z2 - POOL.z1, px = (POOL.x1 + POOL.x2) / 2, depth = -POOL.floor;
-    mesh(new THREE.PlaneGeometry(pw, pd), retile(M.tile, pw / 4, pd / 4), px, POOL.floor, cz).rotation.x = -PI / 2;
-    mesh(new THREE.PlaneGeometry(pw, depth), retile(M.tile, pw / 4, 0.6), px, POOL.floor / 2, POOL.z1);
-    mesh(new THREE.PlaneGeometry(pw, depth), retile(M.tile, pw / 4, 0.6), px, POOL.floor / 2, POOL.z2).rotation.y = PI;
-    mesh(new THREE.PlaneGeometry(pd, depth), retile(M.tile, pd / 4, 0.6), POOL.x1, POOL.floor / 2, cz).rotation.y = PI / 2;
-    mesh(new THREE.PlaneGeometry(pd, depth), retile(M.tile, pd / 4, 0.6), POOL.x2, POOL.floor / 2, cz).rotation.y = -PI / 2;
-    W.waterMat = std(0x0a4a5c, 0.05, { metalness: 0.75, transparent: true, opacity: 0.84, side: THREE.DoubleSide, bumpMap: bump(3), bumpScale: 0.018 });
-    var wat = mesh(new THREE.PlaneGeometry(pw, pd), W.waterMat, px, POOL.water, cz); wat.rotation.x = -PI / 2; wat.userData.noCast = true;
-    [POOL.x1 - 0.2, POOL.x2 + 0.2].forEach(function (x) { box(0.4, 0.06, pd, M.yellow, x, 0.04, cz); });           // hazard edging
-    var rl = Math.hypot(4, -POOL.swim), ra = Math.atan2(-POOL.swim, 4);
-    box(rl, 0.2, 2.75, M.rust, 95, POOL.swim / 2 - 0.1, 48.1).rotation.z = -ra; box(rl, 0.2, 2.75, M.rust, 123, POOL.swim / 2 - 0.1, 75.9).rotation.z = ra;
-    PLATFORMS.forEach(function (p) {
-      box(p[2], 0.25, p[2], M.concrete, p[0], p[3] - 0.125, p[1]); box(p[2] + 0.08, 0.06, p[2] + 0.08, M.yellow, p[0], p[3] - 0.02, p[1]).userData.noCast = true;
-      cyl(0.22, 0.26, p[3] - 0.25 - POOL.floor, M.rust, p[0], (p[3] - 0.25 + POOL.floor) / 2, p[1]); cyl(0.4, 0.3, 0.2, M.rust, p[0], p[3] - 0.35, p[1]);
-      circles.push({ x: p[0], z: p[1], r: 0.26, top: p[3] - 0.25 });
-    });
-    /* The piers are what is left of the keepers' feeding catwalk: its deck panels have dropped into the pool.  The public
-       never came closer than the rail; the only breaks in it are the catwalk gates and the two slip ramps. */
-    var railPosts = [];
-    [[POOL.x1 - 0.3, [[49.8, 60.3], [63.7, 77.25]]], [POOL.x2 + 0.3, [[46.75, 60.3], [63.7, 74.2]]]].forEach(function (r) {
-      r[1].forEach(function (sg) {
-        var len = sg[1] - sg[0], c = (sg[0] + sg[1]) / 2, n = Math.round(len / 1.5);
-        box(0.05, 0.05, len, M.metal, r[0], 1.06, c); box(0.035, 0.035, len, M.metal, r[0], 0.58, c); box(0.035, 0.035, len, M.metal, r[0], 0.14, c);
-        for (var e = 0; e <= n; e++) railPosts.push([r[0], 0.54, sg[0] + len * e / n, 1, 1.08, 1]);
-        boxes.push({ x1: r[0] - 0.07, x2: r[0] + 0.07, z1: sg[0], z2: sg[1] });
-      });
-      // the catwalk gate: its posts, a staff-only board, and a chain somebody stepped over long ago
-      [60.3, 63.7].forEach(function (z) { box(0.1, 1.3, 0.1, M.yellow, r[0], 0.65, z); });
-      var sgn = mesh(new THREE.PlaneGeometry(0.9, 0.42), std(0xffffff, 0.8, { map: textTex(['KEEPER CATWALK', 'STAFF ONLY'], 256, 120, '#e2b93b', '#17140e', '#17140e') }), r[0] + (r[0] < 110 ? -0.03 : 0.03), 0.9, 60.84); sgn.rotation.y = r[0] < 110 ? -PI / 2 : PI / 2;
-      box(0.02, 0.46, 0.98, M.dark, r[0], 0.9, 60.84);                                                    // bolted to the gate post
-      var ch = box(0.025, 0.025, 2.3, M.rust, r[0], 0.2, 62.75); ch.rotation.x = 0.33;
-    });
-    WB.inst(new THREE.CylinderGeometry(0.03, 0.03, 1, 6), M.metal, railPosts);
-    var grate = std(0x3c4347, 0.5, { metalness: 0.7, bumpMap: bump(8), bumpScale: 0.05 }), stubs = [], fallen = [];
-    box(1.1, 0.06, 1.5, grate, POOL.x1 + 0.45, -0.12, 62).rotation.z = -0.42; box(1.1, 0.06, 1.5, grate, POOL.x2 - 0.45, -0.12, 62).rotation.z = 0.42;      // the first span each side, hanging into the water
-    PLATFORMS.forEach(function (p, n) {
-      stubs.push([p[0] + (n % 2 ? 0.6 : -0.6), p[3] + 0.5, p[1] + p[2] / 2 - 0.12, 1, 1, 1, 0, 0, n % 3 ? 0.12 : -0.3]);                                  // bent rail stanchions
-      if (n < PLATFORMS.length - 1) { var nx = PLATFORMS[n + 1]; fallen.push([(p[0] + nx[0]) / 2, POOL.water - 0.22 - (n % 3) * 0.12, (p[1] + nx[1]) / 2 + (n % 2 ? 0.7 : -0.6), 1.5, 1, 1.2, 0.2 + n * 0.11, n * 0.9, (n % 2 ? 0.5 : -0.38)]); }
-    });
-    WB.inst(new THREE.CylinderGeometry(0.025, 0.025, 1, 6), M.yellow, stubs); WB.inst(new THREE.BoxGeometry(1, 0.05, 1), grate, fallen);
-    function tank(x, z, face, title, lines, fill) {
-      var grp = new THREE.Group();
-      box(3.2, 0.9, 1.3, M.dark, 0, 0.45, 0, grp); box(3.0, 0.12, 1.1, std(0x8a7a52, 1, { bumpMap: bump(2), bumpScale: 0.05 }), 0, 0.96, 0, grp);
-      mesh(new THREE.PlaneGeometry(3.0, 1.5), basic(0x0e4558), 0, 1.65, -0.54, grp); box(3.2, 0.12, 1.3, M.dark, 0, 2.46, 0, grp);
-      [-1.55, 1.55].forEach(function (o) { box(0.08, 1.5, 0.08, M.metal, o, 1.65, 0.6, grp); });
-      if (fill) { box(3.1, 1.5, 1.2, M.glass, 0, 1.65, 0, grp).userData.noCast = true; fill(grp); for (var w2 = 0; w2 < 5; w2++) { var wd = cyl(0.012, 0.03, 0.5 + Math.random() * 0.5, std(0x2f6a3a, 0.8), -1.3 + Math.random() * 2.6, 1.3, -0.3 + Math.random() * 0.3, grp, 5); wd.rotation.z = (Math.random() - 0.5) * 0.3; } }
-      else {
-        for (var s2 = 0; s2 < 7; s2++) { var sh = mesh(new THREE.PlaneGeometry(0.3 + Math.random() * 0.3, 0.2 + Math.random() * 0.3), M.glass, -1.4 + Math.random() * 2.8, 0.03, 0.9 + Math.random(), grp); sh.rotation.set(-PI / 2, 0, Math.random() * 6); sh.userData.noCast = true; }
-        var pud = mesh(new THREE.CircleGeometry(1.3, 16), M.water, 0.3, 0.035, 1.4, grp); pud.rotation.x = -PI / 2; pud.userData.noCast = true;
-      }
-      box(3.0, 1.37, 0.04, M.dark, 0, 3.4, -0.725, grp); mesh(new THREE.PlaneGeometry(2.9, 1.27), std(0xffffff, 0.6, { map: infoTex(title, lines, '#7fd6e8') }), 0, 3.4, -0.7, grp);      // the label is screwed to the wall behind the tank
-      grp.position.set(x, 0, z); grp.rotation.y = face; scene.add(grp);
-      boxes.push({ x1: x - 1.6, x2: x + 1.6, z1: z - 0.65, z2: z + 0.65 });
-    }
-    var shell = std(0x6a5236, 0.5, { bumpMap: bump(3), bumpScale: 0.02 }), amm = std(0xb89a62, 0.4);
-    tank(78.5, 47.5, 0, 'TRILOBITES', ['Armoured arthropods of the sea floor.', 'Lived 521 – 252 million years ago.', 'Among the first animals with complex eyes.'], function (grp) {
-      [[-0.9, 0.2, 0.4], [0.2, -0.1, -0.9], [1.0, 0.25, 2.2]].forEach(function (t) {
-        var tr = new THREE.Group();
-        for (var s2 = 0; s2 < 9; s2++) { var w = 0.2 * Math.sin((s2 + 1.3) / 10.5 * PI) + 0.04; mesh(sphGeo, shell, 0, 0, 0.16 - s2 * 0.042, tr).scale.set(w * 2, 0.075, 0.065); mesh(sphGeo, shell, 0, 0.02, 0.16 - s2 * 0.042, tr).scale.set(w * 0.7, 0.09, 0.065); }
-        mesh(new THREE.SphereGeometry(0.5, 12, 8, 0, PI * 2, 0, PI / 2), shell, 0, 0, 0.2, tr).scale.set(0.4, 0.14, 0.26);
-        tr.position.set(t[0], 1.05, t[1]); tr.rotation.y = t[2]; grp.add(tr);
-      });
-    });
-    tank(84, 47.5, 0, 'AMMONITES', ['Coiled-shell cousins of squid and octopus.', 'Jet-propelled hunters of ancient seas.', 'Vanished 66 million years ago.'], function (grp) {
-      [[-0.8, 1.7, 0], [0.7, 1.5, 0.15]].forEach(function (t) {
-        var am = new THREE.Group();
-        [[0.22, 0.09], [0.11, 0.06], [0.04, 0.035]].forEach(function (r) { mesh(new THREE.TorusGeometry(r[0], r[1], 10, 22), amm, 0, 0, 0, am); });
-        for (var s2 = 0; s2 < 7; s2++) { var tn = mesh(new THREE.ConeGeometry(0.018, 0.24, 5), std(0x8a4a3a, 0.5), 0.3 + (s2 % 2) * 0.03, -0.12 + s2 * 0.028, (s2 - 3) * 0.02, am); tn.rotation.z = -PI / 2 - 0.4 + s2 * 0.1; }
-        am.position.set(t[0], t[1], t[2]); grp.add(am);
-      });
-    });
-    tank(78.5, 76.5, PI, 'HORSESHOE CRABS', ['A true living fossil.', 'Barely changed in 445 million years.', 'Closer kin to spiders than to crabs.'], function (grp) {
-      [[-0.7, 0.1, 0.5], [0.8, -0.1, 2.6]].forEach(function (t) {
-        var hc = new THREE.Group();
-        mesh(new THREE.SphereGeometry(0.5, 14, 8, 0, PI * 2, 0, PI / 2), shell, 0, 0, 0, hc).scale.set(0.5, 0.22, 0.5);
-        mesh(new THREE.ConeGeometry(0.02, 0.4, 5), shell, 0, 0.03, -0.42, hc).rotation.x = -PI / 2;
-        hc.position.set(t[0], 1.03, t[1]); hc.rotation.y = t[2]; grp.add(hc);
-      });
-    });
-    tank(84, 76.5, PI, 'SEA SCORPION', ['Eurypterid. Apex predator, 430 million years ago.', 'Some grew longer than a person.', 'TANK UNDER MAINTENANCE'], null);
-    var l1 = new THREE.PointLight(0x4fc3d8, 0.9, 20, 1.4); l1.position.set(81, 3.2, 62); scene.add(l1);
-    var l2 = new THREE.PointLight(0x2f9fc0, 0.8, 46, 1.2); l2.position.set(109, 5.5, 62); scene.add(l2);
-    [[100, 54], [100, 70], [118, 54], [118, 70]].forEach(function (p) { box(1.6, 0.12, 0.4, glow(0x2f8fa8), p[0], 6.9, p[1]); });
-    mesh(new THREE.PlaneGeometry(4.4, 1.9), std(0xffffff, 0.6, { map: infoTex('PLESIOSAUR', ['Long-necked marine reptile. Not a dinosaur.', 'Hunts by ambush from below.', 'Cross by the maintenance platforms only.'], '#ff8a7a') }), 88.78, 2.6, 68.5).rotation.y = PI / 2;
-  })();
+  // (the aquarium is built by aquarium.js)
 
   // ----- the aviary -----
   (function aviary() {
@@ -900,10 +791,7 @@ function buildWorldLate() {
   var glowGold = softTex('rgba(255,214,110,.75)', 'rgba(255,180,60,.2)'), glowCell = softTex('rgba(255,236,170,.8)', 'rgba(255,196,72,.26)');
   var cellPoolMat = new THREE.MeshBasicMaterial({ map: softTex('rgba(255,214,110,.42)', 'rgba(255,180,60,.12)'), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });   // the cells glow the warm yellow of the flashlight's charge bars
   function glowSprite(tex, size, y, parent) { var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 })); sp.position.y = y; sp.scale.set(size, size, 1); parent.add(sp); return sp; }
-  var KEY_Y = [0.985, 0.725, 0.925, 0.69, 0.47], stand = std(0x8d1f18, 0.6, { bumpMap: bump(2), bumpScale: 0.01 });
-  box(0.5, 0.9, 0.5, stand, ZONES[0].key[0], 0.45, ZONES[0].key[1]); box(0.56, 0.06, 0.56, M.dark, ZONES[0].key[0], 0.93, ZONES[0].key[1]); box(0.56, 0.5, 0.04, stand, ZONES[0].key[0] + 0.3, 1.2, ZONES[0].key[1]).rotation.set(0, PI / 2, 0.25);
-  mesh(new THREE.PlaneGeometry(0.4, 0.16), std(0xffffff, 0.7, { map: textTex(['KEY STAND'], 256, 100, '#17140e', '#e2b93b', null, false) }), ZONES[0].key[0] - 0.252, 0.6, ZONES[0].key[1]).rotation.y = -PI / 2;
-  circles.push({ x: ZONES[0].key[0], z: ZONES[0].key[1], r: 0.42 });
+  var KEY_Y = [CW + 0.945, 0.725, 0.925, 0.69, 0.47];                 // (the first lies on the keepers' workbench over the tank)
   for (i = 0; i < ZONES.length; i++) {
     var kg = dyn(new THREE.Group()), kf = new THREE.Group(); kf.rotation.y = 0.6 + i * 1.3; kg.add(kf);
     mesh(new THREE.TorusGeometry(0.075, 0.02, 8, 18), keyMat, 0, 0, 0, kf).rotation.x = PI / 2;

@@ -30,10 +30,14 @@ var diffName = 'normal', DIFF = DIFFS.normal;
 
 // ---------- layout ----------
 var TURN_Z = 116, FENCE_A = 38, FENCE_B = -45;
-var AQ = { x1: 74, x2: 132, z1: 46, z2: 78 };
-var POOL = { x1: 93, x2: 125, z1: 46.75, z2: 77.25, water: -0.5, swim: -1.9, floor: -2.2 };
-var PLATFORMS = [[96.5, 62, 2.6, 0.4], [100.5, 58.5, 2.2, 0.6], [104.5, 62.5, 2, 0.5], [108, 66.5, 2, 0.8],
-                 [111.5, 63.5, 1.6, 0.6], [115, 60, 2, 0.5], [119, 61.5, 1.8, 0.8], [122.5, 62, 2, 0.4]];
+/* The aquarium (aquarium.js).  AQ is the whole site: nothing is planted in it and nothing that hunts outside comes into it.
+   GAL is the tank gallery you come into, HALL the ocean hall behind it, POOL the great glass tank in the hall (water: its
+   surface; swim: where your feet are when you swim; floor: the sand; rim: the top of the glass; glass: the kerb it stands on).
+   MEZ is the rear viewing gallery the two ramps climb to, CW the keepers' catwalk level, BASE_Y the basement floor. */
+var AQ = { x1: 73, x2: 147.5, z1: 43.5, z2: 76.5 };
+var GAL = { x1: 75, x2: 97, z1: 50, z2: 70, h: 4 }, HALL = { x1: 101.5, x2: 139, z1: 44.5, z2: 75.5, h: 12.5 };
+var POOL = { x1: 110, x2: 134, z1: 49, z2: 71, water: 4.2, swim: 2.75, floor: -3.0, rim: 5.2, glass: 0.7 };
+var MEZ = 3.0, CW = 8.2, BASE_Y = -3.4;
 var AV = { x: -100, z: -95, r: 30, h: 15 };
 var COVERS = [[-76, -90], [-86, -92], [-93, -99], [-107, -91], [-118, -97], [-101, -107], [-97, -118], [-110, -106]];
 var WINCH = [4, 6];
@@ -45,7 +49,7 @@ var RELEASE = { B: [38, -47.8], A: [-38, 35.4] };          // emergency gate rel
 var LOCKBOX = [65, -73];
 var DUCK = [-18.6, -75.2];
 var ZONES = [
-  { name: 'THE AQUARIUM',   x: 103,  z: 62,  key: [128.5, 62] },
+  { name: 'THE AQUARIUM',   x: 88,   z: 60,  key: [107.3, 55.3] },
   { name: 'RAPTOR PADDOCK', x: -85,  z: 80,  key: [-85, 80] },
   { name: 'VISITOR CENTER', x: -22,  z: -22, key: [-10.6, -22] },
   { name: 'THE AVIARY',     x: -100, z: -95, key: [-100, -95] },
@@ -60,16 +64,16 @@ var SAFE = [
   { name: 'East Ranger Post', x: 106,  z: 0,    need: 'power', rect: { x1: 102.4, x2: 109.6, z1: -3, z2: 3 },     tx: 106, tz: 0 },
   { name: 'North Bunker',     x: 0,    z: -124, need: 'north', rect: { x1: -3.6, x2: 3.6, z1: -127, z2: -121 },   tx: 0, tz: -124 }
 ];
-var TERMS = SAFE.concat([{ name: 'Aquarium Lobby', x: 85.5, z: 67, tx: 85.5, tz: 67, need: 'aqua', solo: true }]);
+var TERMS = SAFE.concat([{ name: 'Aquarium Lobby', x: 78.2, z: 66.6, tx: 78.2, tz: 66.6, need: 'aqua', solo: true }]);
 var NEED_HINT = { pow0: 'no power. Restore it from the generator shed across the plaza', turn: 'open the turnstiles first', pen: 'unlock the holding pen in the paddock first', power: 'no power. Fix the fuse box at the Visitor Center',
-  north: 'recover a key piece from the Aviary or T-Rex Kingdom first', aqua: 'recover the key piece across the pool first' };
+  north: 'recover a key piece from the Aviary or T-Rex Kingdom first', aqua: 'it runs off the building: get inside first' };
 var PATHS = [[-4, 4, -118, 113.5], [-100, 100, -4, 4], [-80, 0, 76, 84], [0, 74, 56, 64], [-100, 60, -94, -86]];   // x1, x2, z1, z2
 /* Where spare cells can turn up (a game picks DIFF.batteries of them).  Each lies on whatever is under it (game.js restY): many
    are on counters, desks and tables (the gift shop counter, the shed workbench, the food kiosks, the save-point desks, the
    break room table, picnic tables), the rest where someone dropped them. */
 var BATTERY_SPOTS = [[-8, 96], [26, 93], [-45, 73], [-70, 100], [104, 40], [-14, -8], [-28, -10], [10, -36],
   [60, 20], [-60, 22], [-22, -63], [-80, -62], [-60, -97], [40, -84], [70, -110],
-  [21.45, 130.6], [-17.25, 124.32], [20.35, 49.05], [17.45, 11.35], [25.65, -81.05], [86.5, 67.45], [30.6, 131.0],
+  [21.45, 130.6], [-17.25, 124.32], [20.35, 49.05], [17.45, 11.35], [25.65, -81.05], [79.55, 67.0], [30.6, 131.0],
   [-44.45, 95.3], [-108.3, 0.55], [108.3, -0.55], [-0.55, -126.3], [60.4, 80.1], [-14.56, 12.27], [62.51, 47.95]];
 var ROMAN = ['I', 'II', 'III', 'IV'];
 
@@ -268,13 +272,14 @@ var GFX = {
 var gfxName = 'high';
 
 // ---------- collision world ----------
-var boxes = [];    // {x1,x2,z1,z2,off,solid}   solid = blocks line of sight (walls, buildings)
+var boxes = [];    // {x1,x2,z1,z2,off,solid}   solid = blocks line of sight (walls, buildings);  y1,y2 (optional): only between these heights
 var circles = [];  // {x,z,r,top}               top: only blocks things standing lower than this
 function resolve(p, r, y) {
   var i, b, c, cx, cz, dx, dz, d;
   for (i = 0; i < boxes.length; i++) {
     b = boxes[i];
     if (b.off || p.x < b.x1 - r || p.x > b.x2 + r || p.z < b.z1 - r || p.z > b.z2 + r) continue;
+    if (b.y1 !== undefined && (y + 1.6 < b.y1 || y + 0.35 > b.y2)) continue;          // on another floor (y is where the feet are)
     cx = clamp(p.x, b.x1, b.x2); cz = clamp(p.z, b.z1, b.z2);
     dx = p.x - cx; dz = p.z - cz; d = dx * dx + dz * dz;
     if (d >= r * r) continue;
@@ -299,7 +304,7 @@ function resolve(p, r, y) {
 function losBlocked(x1, z1, x2, z2, any) {
   var dx = x2 - x1, dz = z2 - z1;
   for (var i = 0; i < boxes.length; i++) {
-    var b = boxes[i]; if ((!any && !b.solid) || b.off) continue;
+    var b = boxes[i]; if ((!any && !b.solid) || b.off || b.y1 !== undefined) continue;
     var t0 = 0, t1 = 1, a, c, tmp;
     if (Math.abs(dx) < 1e-9) { if (x1 < b.x1 || x1 > b.x2) continue; }
     else { a = (b.x1 - x1) / dx; c = (b.x2 - x1) / dx; if (a > c) { tmp = a; a = c; c = tmp; } t0 = Math.max(t0, a); t1 = Math.min(t1, c); if (t0 > t1) continue; }
@@ -313,8 +318,8 @@ function onPath(x, z, m) {
   for (var k = 0; k < PATHS.length; k++) { var p = PATHS[k]; if (x > p[0] - m && x < p[1] + m && z > p[2] - m && z < p[3] + m) return true; }
   return false;
 }
-function inBox(x, z, m) {
-  for (var k = 0; k < boxes.length; k++) { var b = boxes[k]; if (x > b.x1 - m && x < b.x2 + m && z > b.z1 - m && z < b.z2 + m) return true; }
+function inBox(x, z, m, y) {        // y (optional): where the feet are; boxes that belong to one floor only count from that floor
+  for (var k = 0; k < boxes.length; k++) { var b = boxes[k]; if (b.y1 !== undefined && (y === undefined || y + 1.6 < b.y1 || y + 0.35 > b.y2)) continue; if (x > b.x1 - m && x < b.x2 + m && z > b.z1 - m && z < b.z2 + m) return true; }
   return false;
 }
 // inside a safe room (optionally grown by `extra` metres all round)

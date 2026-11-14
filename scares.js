@@ -153,12 +153,6 @@ var Scares = (function () {
     }
     // the rex hears you coming, a long way off
     if (!seen.rex && dist(px, pz, 88, -92) < 64 && rexDino.state !== 'chase') { seen.rex = 1; Sound.roar(true, 0.8); shake = Math.max(shake, 0.9); showMsg('Something very large has heard you.', 3.5); }
-    // the plesiosaur comes up beside the first pier you stand on
-    if (!seen.ples && plesMesh.visible && inRect(px, pz, POOL) && player.y > 0.25 && ples.state !== 'chase') {
-      seen.ples = 1; ples.x = clamp(px + 2.2, POOL.x1 + 2.6, POOL.x2 - 2.6); ples.z = clamp(pz - 4.2, POOL.z1 + 2.6, POOL.z2 - 2.6); ples.rot = Math.atan2(px - ples.x, pz - ples.z); rise = 1.6;
-      Sound.splash(); Sound.thud(0.6); shake = Math.max(shake, 0.7); showMsg('The water beside the pier bulges, and something long turns over in it.', 4);
-    }
-    if (rise > 0) { rise -= dt; var r = Math.sin(clamp(1 - rise / 1.6, 0, 1) * PI); plesMesh.position.y += r * 0.95; plesMesh.userData.neck.rotation.x = -0.25 * r; plesMesh.userData.jaw.rotation.x = 0.1 + r * 0.5; }
     // the pterosaur marks you as you come under the dome
     if (!seen.ptero && dist(px, pz, AV.x, AV.z) < AV.r - 1.5 && ptero.state === 'perch') { seen.ptero = 1; Sound.screech(); shake = Math.max(shake, 0.5); ptero.expo = Math.max(ptero.expo, 0.3); showMsg('High in the dome, something unfolds.', 3.5); }
   };

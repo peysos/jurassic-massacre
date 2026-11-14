@@ -573,6 +573,7 @@ var Hands = (function () {
   var aimCur = [0, 0, 0, 0, 0, 0], sway = { x: 0, y: 0, vx: 0, vy: 0 }, lastYaw = null, lastPitch = 0, bobK = 0, runK = 0, block = 0, landT = 0, RQ = new Q(), RP = new V(), tailW = new V();
   var leanW = new V(), leanWant = new V(), lv = new V(), lq = new Q(), carryK = 0, carrySw = 0, carryV = 0, freeK = 0;
   var hQ = new Q(), bQ = new Q(), rootQ = new Q(), wristQ = new Q(), pitchQ = new Q(), XAX = new V(1, 0, 0), WRISTQ = new Q().setFromEuler(WRIST);
+  var ovPose = [];
   var lastHold = null, hM = new THREE.Matrix4(), camInv = new THREE.Matrix4(), MIRX = new THREE.Matrix4().makeScale(-1, 1, 1), hP = new V(), hQ2 = new Q(), hS = new V();
   H.lean = leanW; H.tipCam = new V();
   // where the left hand's working point is right now, in the world (the cinematic wipes dust off exactly where the palm is)
@@ -591,7 +592,7 @@ var Hands = (function () {
     bobK = damp(bobK, c.grounded === false ? 0 : wk, 7, dt); runK = damp(runK, sprinting && c.grounded !== false ? clamp((speed - 4.6) / 3.4, 0, 1) : 0, 6, dt);
     if (c.landed) landT = 0.3; landT = Math.max(0, landT - dt);
     // --- walls: draw the torch in rather than let it poke through ---
-    var bl = 0; if (c.x !== undefined) { var fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw); bl = inBox(c.x + fx * 0.74, c.z + fz * 0.74, 0.02) ? 1 : inBox(c.x + fx * 0.6, c.z + fz * 0.6, 0.02) ? 1 : 0; }
+    var bl = 0; if (c.x !== undefined) { var fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw); bl = inBox(c.x + fx * 0.74, c.z + fz * 0.74, 0.02, c.y || 0) ? 1 : inBox(c.x + fx * 0.6, c.z + fz * 0.6, 0.02, c.y || 0) ? 1 : 0; }
     block = damp(block, bl, 10, dt);
     offBlend = damp(offBlend, lightOn || clipT >= 0 ? 0 : 1, 6, dt);
 
@@ -653,7 +654,12 @@ var Hands = (function () {
       rW.lerp(lv, wR); hQ.copy(bQ).multiply(WRISTQ); hQ.slerp(lqh, wR); bQ.slerp(lq, wR);
       if (u2.leaving && u2.out >= 0.35) useR = null;
     } else hQ.copy(bQ).multiply(WRISTQ);
-    solveArm('R', rW, hQ, bQ, 0.75, rootQ, wristQ);
+    /* A cinematic may take a hand over (H.over.R / .L = { pos, q, pose, k }: where the wrist goes and how the hand is turned, in
+       camera space, blended in by k) and may put the torch away (H.over.noTorch). */
+    var ovR = H.over && H.over.R && H.over.R.k > 0 ? H.over.R : null;
+    if (ovR) { rW.lerp(ovR.pos, ovR.k); hQ.slerp(ovR.q, ovR.k); bQ.slerp(ovR.q, ovR.k); if (ovR.pose) pose = mixPose(pose, ovR.pose, ovR.k, ovPose); }
+    torch.visible = !(H.over && H.over.noTorch);
+    solveArm('R', rW, hQ, bQ, ovR ? lerp(0.75, 1.3, ovR.k) : 0.75, rootQ, wristQ);
     R.root.position.copy(rW); R.root.quaternion.copy(rootQ); R.hand.quaternion.copy(wristQ); applyPose(R, pose);
     // --- the torch itself: lens, flare, the pieces that come apart ---
     var lit = flashlight.intensity > 0.05; H.lensMat.color.setHex(lit ? 0xfff6dd : 0x0a0a0a); H.lensMat.opacity = lit ? 1 : 0.35; H.ledMat.color.setHex(lit ? 0xffffff : 0x6a5a20);
@@ -782,8 +788,10 @@ var Hands = (function () {
       lastHold = { pos: tp.clone(), q: tq.clone(), pose: tPose.slice(), k: Ho.k, ho: Ho };
       if (Ho.k === 0 && Ho.want === 0 && Ho.done) { var dn = Ho.done; H.hold = null; dn(); } else if (Ho.k === 0 && Ho.want === 0) H.hold = null;
     } else lastHold = null;
+    var ovL = H.over && H.over.L && H.over.L.k > 0 ? H.over.L : null;
+    if (ovL) { tp = tp.clone().lerp(ovL.pos, ovL.k); tq = tq.clone().slerp(ovL.q, ovL.k); if (ovL.pose) tPose = mixPose(tPose, ovL.pose, ovL.k, []); }
     Lcur.pos.copy(tp); Lcur.q.copy(tq); Lcur.pose = tPose;
-    solveArm('L', tp, tq, tq, 0.95, rootQ, wristQ);
+    solveArm('L', tp, tq, tq, ovL ? lerp(0.95, 1.3, ovL.k) : 0.95, rootQ, wristQ);
     L.root.position.copy(tp); L.root.quaternion.copy(rootQ); L.hand.quaternion.copy(wristQ); applyPose(L, tPose);
     UA.L.visible = UA.R.visible = true;
     /* A cinematic can take the staff card out of the hand's frame and place it exactly (in the swipe slot): it rides on the
@@ -827,6 +835,7 @@ var Hands = (function () {
         return M;
       } };
   };
+  H.over = null;
   H.setVisible = function (v) { H.visible = v; rig.visible = v; };
   H.update(0, {});
   return H;

@@ -94,14 +94,26 @@ function buildDino(rex) {
 }
 
 // ---------- plesiosaur ----------
+/* The Elasmosaurus in the aquarium's great tank.  The neck is a chain of seven joints (u.segs, each bends in x and y), so it
+   can lie along the water, rear, coil back and strike; the tail has two.  All of it is posed by aquarium.js. */
 function buildPlesiosaur() {
-  var g = new THREE.Group(), k;
-  tube([[0, 0, -4.7, 0.02, 0.02], [0, 0, -3.7, 0.26, 0.2], [0, 0, -2.4, 0.78, 0.5], [0, -0.03, -1, 1.18, 0.74], [0, -0.03, 0.4, 1.18, 0.76], [0, 0.03, 1.6, 0.82, 0.58], [0, 0.18, 2.35, 0.46, 0.42]], seaSkin, g, 22, 6);
-  for (k = 0; k < 9; k++) cone(0.05, 0.16, seaSkin, 0, 0.72 - Math.abs(k - 4) * 0.05, -1.9 + k * 0.42, g);                       // low ridge along the spine
-  var neck = new THREE.Group(); neck.position.set(0, 0.18, 2.3); g.add(neck);
-  tube([[0, 0, -0.1, 0.44, 0.4], [0, 0.22, 0.9, 0.31, 0.29], [0, 0.72, 1.8, 0.24, 0.23], [0, 1.28, 2.6, 0.2, 0.2], [0, 1.62, 3.15, 0.17, 0.17]], seaSkin, neck, 16, 6);
-  var head = new THREE.Group(); head.position.set(0, 1.64, 3.1); head.userData.skin = seaSkin; neck.add(head);
-  tube([[0, 0, -0.2, 0.1, 0.1], [0, 0.03, 0.02, 0.24, 0.19], [0, 0.03, 0.3, 0.23, 0.17], [0, 0, 0.62, 0.15, 0.11], [0, -0.02, 0.92, 0.1, 0.07], [0, -0.03, 1.08, 0.04, 0.035]], seaSkin, head, 14, 4);
+  var g = new THREE.Group(), k, body = new THREE.Group(); g.add(body);
+  tube([[0, 0, -2.5, 0.72, 0.5], [0, -0.03, -1, 1.18, 0.76], [0, -0.03, 0.4, 1.18, 0.78], [0, 0.03, 1.6, 0.82, 0.6], [0, 0.14, 2.3, 0.5, 0.45], [0, 0.18, 2.5, 0.42, 0.4]], seaSkin, body, 22, 6);
+  for (k = 0; k < 9; k++) cone(0.05, 0.16, seaSkin, 0, 0.72 - Math.abs(k - 4) * 0.05, -1.9 + k * 0.42, body);                       // low ridge along the spine
+  var tail1 = new THREE.Group(); tail1.position.set(0, 0, -2.4); body.add(tail1);
+  tube([[0, 0, 0.2, 0.76, 0.52], [0, 0, -0.5, 0.52, 0.38], [0, 0, -1.25, 0.3, 0.24]], seaSkin, tail1, 16, 4);
+  var tail2 = new THREE.Group(); tail2.position.set(0, 0, -1.2); tail1.add(tail2);
+  tube([[0, 0, 0.1, 0.31, 0.25], [0, 0, -0.6, 0.16, 0.14], [0, 0, -1.25, 0.03, 0.03]], seaSkin, tail2, 12, 4);
+  var fin = part(new THREE.ConeGeometry(0.34, 0.9, 4), seaSkin, 0, 0, -0.75, tail2); fin.scale.set(0.12, 1, 1); fin.rotation.x = -PI / 2;       // a small rhomboid fluke
+  // the neck: seven joints, each a short length of tube that overlaps the next, tapering to the head
+  var NS = 7, SL = 0.56, segs = [], par = body, R0 = [0.44, 0.39, 0.34, 0.3, 0.26, 0.225, 0.2, 0.18];
+  for (k = 0; k < NS; k++) {
+    var sg = new THREE.Group(); sg.position.set(0, k ? 0 : 0.18, k ? SL : 2.42); sg.rotation.order = 'YXZ'; par.add(sg);
+    tube([[0, 0, -0.16, R0[k] * 1.02, R0[k] * 0.98], [0, 0, 0.1, R0[k], R0[k] * 0.96], [0, 0, SL * 0.6, (R0[k] + R0[k + 1]) / 2, (R0[k] + R0[k + 1]) / 2 * 0.96], [0, 0, SL + 0.12, R0[k + 1], R0[k + 1] * 0.96]], seaSkin, sg, 14, 3);
+    segs.push(sg); par = sg;
+  }
+  var head = new THREE.Group(); head.position.set(0, 0.0, SL + 0.02); head.rotation.order = 'YXZ'; head.userData.skin = seaSkin; par.add(head);
+  tube([[0, 0, -0.2, 0.15, 0.15], [0, 0.03, 0.02, 0.24, 0.19], [0, 0.03, 0.3, 0.23, 0.17], [0, 0, 0.62, 0.15, 0.11], [0, -0.02, 0.92, 0.1, 0.07], [0, -0.03, 1.08, 0.04, 0.035]], seaSkin, head, 14, 4);
   var jaw = new THREE.Group(); jaw.position.set(0, -0.1, -0.02); head.add(jaw);
   tube([[0, 0, -0.04, 0.17, 0.06], [0, -0.04, 0.35, 0.18, 0.07], [0, -0.04, 0.72, 0.11, 0.05], [0, -0.03, 1.02, 0.04, 0.03]], seaSkin, jaw, 12, 4);
   part(sphGeo, throatMat, 0, -0.02, 0.05, head, 0.3, 0.22, 0.3); tube([[0, -0.09, 0.1, 0.19, 0.01], [0, -0.09, 0.38, 0.18, 0.01], [0, -0.085, 0.68, 0.11, 0.008], [0, -0.075, 0.96, 0.045, 0.006]], palateMat, head, 8, 3);
@@ -116,12 +128,12 @@ function buildPlesiosaur() {
   eyeballs(head, 0.2, 0.1, 0.12, 0.045);
   var xAxis = new THREE.Vector3(0, 0, 1);
   var flips = [[-1, 1.25, 1], [1, 1.25, 1], [-1, -1.3, 0.85], [1, -1.3, 0.85]].map(function (f) {
-    var fl = new THREE.Group(); fl.position.set(f[0] * 0.95, -0.3, f[1]); fl.scale.setScalar(f[2]); g.add(fl);
+    var fl = new THREE.Group(); fl.position.set(f[0] * 0.95, -0.3, f[1]); fl.scale.setScalar(f[2]); body.add(fl);
     var s = f[0];
     tube([[0, 0, 0, 0.3, 0.16], [s * 0.6, -0.04, -0.08, 0.46, 0.12], [s * 1.5, -0.1, -0.3, 0.42, 0.075], [s * 2.3, -0.16, -0.62, 0.2, 0.04], [s * 2.65, -0.18, -0.8, 0.02, 0.02]], seaSkin, fl, 12, 5, xAxis);
     fl.userData.sd = s; return fl;
   });
-  g.userData = { neck: neck, head: head, jaw: jaw, flips: flips };
+  g.userData = { body: body, neck: segs[0], segs: segs, SL: SL, head: head, jaw: jaw, flips: flips, tail1: tail1, tail2: tail2 };
   scene.add(g);
   return g;
 }
@@ -383,7 +395,7 @@ var dinos = DINO_DEFS.map(function (d) {
     x: d.hx, z: d.hz, rot: Math.random() * 6, state: 'patrol', tx: d.hx, tz: d.hz, tT: 0, phase: Math.random() * 6, speedNow: 0 };
 });
 var rexDino = dinos[dinos.length - 1];
-var ples = { x: 109, z: 62, rot: 0, state: 'patrol', ang: 0, notice: 0, stunT: 0, t: 0 }, plesMesh = buildPlesiosaur();
+var ples = { x: 122, y: 0.5, z: 60, rot: 0, state: 'patrol', ang: 0, notice: 0, stunT: 0, t: 0 }, plesMesh = buildPlesiosaur();
 var ptero = { x: PERCHES[0][0], y: 13, z: PERCHES[0][1], state: 'perch', perch: 0, expo: 0, t: 0, stunT: 0, rot: 0, pitch: 0, warned: false }, pteroMesh = buildPterosaur();
 var aiNearest = 999, aiChasing = 0, aiAlert = 0, shake = 0, sirenT = -99, pingT = 0, pingX = 0, pingZ = 0;
 
@@ -420,7 +432,7 @@ function resetDinos() {
     d.lookT = 0; d.pauseT = 0; d.stuckT = 0; d.lx = d.x; d.lz = d.z; d.lured = false; d.headYaw = 0; d.speedNow = 0;
     d.mesh.userData.head.rotation.set(0, 0, 0); pickTarget(d); d.mesh.position.set(d.x, 0, d.z);
   });
-  ples.x = 109; ples.z = 62; ples.state = 'patrol'; ples.notice = 0; ples.stunT = 0;
+  if (window.Aqua) Aqua.resetBeast();
   ptero.state = 'perch'; ptero.perch = 0; ptero.expo = 0; ptero.stunT = 0; perchPtero();
   sirenT = -99; pingT = 0; shake = 0;
 }
@@ -623,49 +635,7 @@ function updateDinos(dt, c) {
 }
 
 // ---------- plesiosaur ----------
-function updatePles(dt) {
-  plesMesh.visible = !(keysGot[0] && anim.cover >= 0.98);
-  if (!plesMesh.visible) return false;
-  ples.t += dt;
-  var tx, tz, sp, u = plesMesh.userData;
-  if (ples.state === 'stun') { ples.stunT -= dt; if (ples.stunT <= 0) ples.state = 'patrol'; }
-  else if (player.water) { ples.notice += dt; if (ples.notice > (DIFF.omni ? 0.35 : DIFF.react + 0.25) && ples.state !== 'chase') { ples.state = 'chase'; Sound.thud(0.4); } }
-  else { ples.notice = 0; if (ples.state === 'chase') ples.state = 'patrol'; }
-  if (ples.state === 'chase') { tx = player.x; tz = player.z; sp = 4.6 * DIFF.speed; }
-  else if (ples.state === 'patrol') {
-    if (DIFF.omni && inRect(player.x, player.z, POOL)) { tx = player.x; tz = player.z; sp = 1.7; }       // hard: it shadows you from below
-    else { ples.ang += dt * 0.2; tx = 109 + Math.cos(ples.ang) * 10.5; tz = 62 + Math.sin(ples.ang) * 9; sp = 2.2; }
-  }
-  if (ples.state !== 'stun') {
-    var dx = tx - ples.x, dz = tz - ples.z, len = Math.hypot(dx, dz);
-    if (len > 0.6) { ples.x += dx / len * sp * dt; ples.z += dz / len * sp * dt; ples.rot += angDiff(Math.atan2(dx, dz), ples.rot) * Math.min(1, dt * 2.5); }
-    // it swims round the pier columns rather than through them
-    // (the whole length of it: shoulders, belly, hips and tail are each kept clear, not just its middle)
-    var BODY = [[-3.7, 0.5], [-2.5, 0.95], [-1.2, 1.4], [0, 1.5], [1.2, 1.3], [2.2, 0.85]], bsn = Math.sin(ples.rot), bcs = Math.cos(ples.rot);
-    for (var pass = 0; pass < 2; pass++) for (var pi = 0; pi < PLATFORMS.length; pi++) for (var bi = 0; bi < BODY.length; bi++) {
-      var pp = PLATFORMS[pi], sxp = ples.x + bsn * BODY[bi][0], szp = ples.z + bcs * BODY[bi][0], pdx = sxp - pp[0], pdz = szp - pp[1], pd = Math.hypot(pdx, pdz) || 0.01, keep = BODY[bi][1] + 0.32;
-      if (pd < keep) { ples.x += pdx / pd * (keep - pd); ples.z += pdz / pd * (keep - pd); }
-    }
-    ples.x = clamp(ples.x, POOL.x1 + 2.4, POOL.x2 - 2.4); ples.z = clamp(ples.z, POOL.z1 + 2.4, POOL.z2 - 2.4);
-    var hx = ples.x + Math.sin(ples.rot) * 5.4, hz = ples.z + Math.cos(ples.rot) * 5.4;
-    if (player.water && (dist(hx, hz, player.x, player.z) < 1.8 || dist(ples.x, ples.z, player.x, player.z) < 2.5)) { die('ples'); return true; }
-  }
-  var hunting = ples.state === 'chase';
-  plesMesh.position.set(ples.x, -1.25 + Math.sin(ples.t * 1.3) * 0.08, ples.z); plesMesh.rotation.y = ples.rot;
-  u.flips.forEach(function (f, i) { f.rotation.z = f.userData.sd * Math.sin(ples.t * (hunting ? 5 : 2) + (i > 1 ? 1.5 : 0)) * 0.42; f.rotation.y = Math.cos(ples.t * (hunting ? 5 : 2) + (i > 1 ? 1.5 : 0)) * 0.15; });
-  u.neck.rotation.y = ples.state === 'stun' ? Math.sin(ples.t * 20) * 0.12 : Math.sin(ples.t * 0.8) * 0.14;
-  // the neck and head ride above the water, so they duck under whenever a pier deck is overhead
-  var under = 0, sn = Math.sin(ples.rot), cs = Math.cos(ples.rot);
-  for (var q = 0; q < 7 && !under; q++) {
-    var nx = ples.x + sn * (1.6 + q * 0.75), nz = ples.z + cs * (1.6 + q * 0.75);
-    for (var pj = 0; pj < PLATFORMS.length; pj++) { var pl = PLATFORMS[pj]; if (Math.abs(nx - pl[0]) < pl[2] / 2 + 1.25 && Math.abs(nz - pl[1]) < pl[2] / 2 + 1.25) { under = 1; break; } }
-  }
-  ples.duck = damp(ples.duck || 0, under, under ? 9 : 2.2, dt);
-  u.neck.rotation.x = (hunting ? 0.28 : Math.sin(ples.t * 0.5) * 0.05) * (1 - ples.duck) + ples.duck * 0.78; u.head.rotation.x = (hunting ? -0.1 : 0.12) - ples.duck * 0.45;
-  plesMesh.position.y -= ples.duck * 0.22;                                 // and it sinks a little as it goes under a deck
-  u.jaw.rotation.x = hunting ? 0.55 : 0.05;
-  return false;
-}
+function updatePles(dt) { return Aqua.updateBeast(dt); }      // it lives in the aquarium's tank: see aquarium.js
 
 // ---------- pterosaur ----------
 function updatePtero(dt, c) {

@@ -41,9 +41,7 @@ var Extras = (function () {
   var P_PLES = posterTex('PLESIOSAUR', 'Elasmosaurus platyurus  ·  Late Cretaceous, 80 million years ago', ['A marine reptile: seventy-two vertebrae in the neck alone.', 'An ambush hunter. She waits below and strikes upward.', 'Fed by keepers from the catwalk, never from the poolside.', 'If you fall in, make for the slip ramps in the corners.'], 'FEEDING 12:00  ·  NEVER LEAN OVER THE RAIL', '#6fd0d8');
   var P_SEA = posterTex('ANCIENT SEAS', 'Life before the dinosaurs  ·  541 to 252 million years ago', ['Trilobites ruled the sea floor for 270 million years.', 'Ammonites swam by jet, like their cousins the squid.', 'Sea scorpions grew longer than a person.', 'Look for all of them in the tanks around this lobby.'], 'THE AQUARIUM  ·  PLESIOSAUR HALL AHEAD', '#6fd0d8');
   infoBoard(-53.5, 90.5, PI / 2, P_RAPTOR); infoBoard(46.5, -80.5, -PI / 2, P_REX); infoBoard(-58.5, -98.6, PI / 2, P_PTERO); infoBoard(69.5, 53.5, -PI / 2, P_PLES);
-  [[87.22, 53, -PI / 2, P_PLES], [87.22, 71, -PI / 2, P_SEA]].forEach(function (p) {           // framed on the lobby wall
-    box(0.06, 2.3, 1.86, M.dark, p[0] + 0.02, 2.2, p[1]); var m = mesh(new THREE.PlaneGeometry(1.72, 2.15), std(0xffffff, 0.5, { map: p[3] }), p[0] - 0.02, 2.2, p[1]); m.rotation.y = p[2]; m.userData.noCast = true;
-  });
+  E.posters = { ples: P_PLES, sea: P_SEA };                               // (the aquarium hangs these two inside: aquarium.js)
 
   // ---------- the aviary: netting all the way round, and a gate that wants a staff card ----------
   (function () {
@@ -246,10 +244,8 @@ var Extras = (function () {
     box(1.5, 0.06, 0.5, M.white, -18, 0.85, -66.72); cyl(0.02, 0.02, 0.24, pipe, -18, 1.0, -66.82, null, 5);                           // an outside wash trough
     label(['BABY CHANGE', 'INSIDE'], 0.6, 0.3, '#2a4f8a', '#ffffff', -18, 2.2, -66.955);
     // gift-shop corner and the aquarium get roof plant; the aquarium a ticket rail and opening times
-    ac(98, 7.75, 52); ac(112, 7.75, 72); ac(120, 7.75, 56);
     for (k = 0; k < 4; k++) { cyl(0.04, 0.04, 1.0, pipe, 70.2 - k * 1.4, 0.5, 57.4, null, 6); cyl(0.04, 0.04, 1.0, pipe, 70.2 - k * 1.4, 0.5, 62.6, null, 6); }
     [57.4, 62.6].forEach(function (z) { box(4.3, 0.04, 0.04, std(0x8f1d18, 0.7), 68.1, 0.95, z); });                                    // queue ropes
-    label(['AQUARIUM', 'OPEN 9:30 — 17:00', 'FEEDING 12:00'], 1.3, 1.0, '#12202a', '#7fd6e8', 73.2, 1.7, 55.6, null, -PI / 2);
     // drinking fountains and a first-aid point on the main path
     [[5.4, 82], [-5.4, -20], [5.4, -62]].forEach(function (p) { cyl(0.16, 0.2, 0.95, M.concrete, p[0], 0.47, p[1], null, 10); cyl(0.24, 0.16, 0.1, steelish(), p[0], 0.99, p[1], null, 12); cyl(0.015, 0.015, 0.12, pipe, p[0] + 0.08, 1.08, p[1], null, 5); circles.push({ x: p[0], z: p[1], r: 0.3 }); });
     function steelish() { return acM; }
