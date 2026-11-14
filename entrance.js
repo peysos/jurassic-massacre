@@ -371,9 +371,26 @@ var Entrance = (function () {
     var bl = cyl(0.11, 0.13, 0.9, EM.cream, b[0], 0.45, WORLD + b[1], null, 10), cap = mesh(new THREE.SphereGeometry(0.115, 10, 6, 0, PI * 2, 0, PI / 2), EM.green, b[0], 0.9, WORLD + b[1]);
     if (n === 2) { bl.rotation.z = PI / 2 - 0.08; bl.position.set(b[0] - 0.5, 0.13, WORLD + b[1]); cap.rotation.z = PI / 2 - 0.08; cap.position.set(b[0] - 0.95, 0.15, WORLD + b[1]); }
   });
-  // a sawhorse barrier dragged aside long ago
-  var saw = new THREE.Group(); box(2.2, 0.2, 0.04, std(0xffffff, 0.8, { map: canvasTex(128, function (g, S, H) { for (var q = 0; q < 8; q++) { g.fillStyle = q % 2 ? '#d8d2c2' : '#b3541c'; g.beginPath(); g.moveTo(q * 20 - 20, H); g.lineTo(q * 20, 0); g.lineTo(q * 20 + 20, 0); g.lineTo(q * 20, H); g.fill(); } grime(g, S, H, 1.4); }, 1, 1, true, 16) }), 0, 0.82, 0, saw);
-  [-0.9, 0.9].forEach(function (x) { box(0.05, 0.95, 0.05, EM.rustSteel, x, 0.45, 0.2, saw).rotation.x = 0.36; box(0.05, 0.95, 0.05, EM.rustSteel, x, 0.45, -0.2, saw).rotation.x = -0.36; });
+  /* A road barricade dragged aside long ago.  It is an A-frame: at each end two steel legs meet at a hinge bolt and spread to
+     stand on four feet (each foot is cut level, so nothing dips into the ground), with the striped board and a lower rail
+     bolted flat against the legs of one side. */
+  var saw = new THREE.Group(), sawStripe = std(0xffffff, 0.8, { map: canvasTex(128, function (g, S, H) { for (var q = 0; q < 8; q++) { g.fillStyle = q % 2 ? '#d8d2c2' : '#b3541c'; g.beginPath(); g.moveTo(q * 20 - 20, H); g.lineTo(q * 20, 0); g.lineTo(q * 20 + 20, 0); g.lineTo(q * 20, H); g.fill(); } grime(g, S, H, 1.4); }, 1, 1, true, 16), bumpMap: bump(2), bumpScale: 0.006 });
+  (function () {
+    var AH = 0.94, SP = 0.29, LEG = Math.hypot(AH, SP), TILT = Math.atan2(SP, AH), T = 0.045;
+    function onLegs(y) { return SP * (1 - y / AH); }                              // how far out from the middle a leg is at height y
+    [-0.92, 0.92].forEach(function (x) {
+      [1, -1].forEach(function (sd) {
+        var leg = box(T, LEG, T, EM.rustSteel, x, AH / 2 + 0.004, sd * SP / 2, saw); leg.rotation.x = -sd * TILT;
+        box(0.09, 0.012, 0.11, EM.rustSteel, x, 0.006, sd * (SP + 0.004), saw);                                   // the foot plate, flat on the ground
+      });
+      cyl(0.016, 0.016, 0.09, EM.steel, x, AH - 0.012, 0, saw, 8).rotation.z = PI / 2;                             // hinge bolt
+      box(0.02, 0.02, onLegs(0.3) * 2, EM.rustSteel, x, 0.3, 0, saw);                                             // the stay that stops the legs spreading
+    });
+    var off = (T / 2 + 0.018) / Math.cos(TILT);
+    var top = box(2.2, 0.2, 0.034, sawStripe, 0, 0.8, onLegs(0.8) + off, saw); top.rotation.x = -TILT;
+    var low = box(2.2, 0.11, 0.03, sawStripe, 0, 0.42, onLegs(0.42) + off, saw); low.rotation.x = -TILT;
+    [-0.92, 0.92].forEach(function (x) { [[0.8, top], [0.42, low]].forEach(function (b) { var bolt = cyl(0.012, 0.012, 0.014, EM.steel, x, b[0], onLegs(b[0]) + off + 0.022, saw, 6); bolt.rotation.x = PI / 2 - TILT; }); });
+  })();
   saw.position.set(-6.4, 0, WORLD + 12.5); saw.rotation.y = 0.9; scene.add(saw);
   // the truck you came in: parked up the road with its lights left on
   (function () {
