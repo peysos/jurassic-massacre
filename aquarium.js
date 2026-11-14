@@ -1006,9 +1006,11 @@ var Aqua = (function () {
     [-1, 1].forEach(function (e) { cyl(0.026, 0.026, 0.02, steelP, e * 0.215, 0, -0.5, A.breaker, 12).rotation.z = PI / 2; });
     A.BRK_GRIP = { half: 0.17, r: 0.022, z: -0.5 };                                                                                  // (where hands go on the bar, in the lever's frame)
     // the spring: its pump handle on the right side, and the flag and dial in the door
-    A.pumpH = dyn(new THREE.Group()); A.pumpH.position.set(0.47, 0.82, -0.08); cab.add(A.pumpH);
-    cyl(0.03, 0.03, 0.06, steelP, 0, 0, 0, A.pumpH, 12).rotation.z = PI / 2; box(0.03, 0.62, 0.03, steelP, 0.03, 0.31, 0, A.pumpH); var ph2 = cyl(0.02, 0.02, 0.14, grip, 0.03, 0.62, -0.05, A.pumpH, 10); ph2.rotation.x = PI / 2;
-    A.PUMP_GRIP = new THREE.Vector3(0.03, 0.62, -0.06);
+    // (the spring's charging lever: out of the door low on the left as you face it, a ratchet boss, an arm toward you with a grip across its end)
+    cyl(0.05, 0.05, 0.05, steelP, 0.3, 0.84, -0.17, cab, 14).rotation.z = PI / 2;
+    A.pumpH = dyn(new THREE.Group()); A.pumpH.position.set(0.3, 0.84, -0.2); A.pumpH.rotation.x = 0.5; cab.add(A.pumpH); A.pumpH.userData.rest = 0.5;
+    box(0.03, 0.03, 0.4, steelP, 0, 0, -0.2, A.pumpH); var ph2 = cyl(0.02, 0.02, 0.15, grip, 0, 0, -0.41, A.pumpH, 10); ph2.rotation.z = PI / 2; [-1, 1].forEach(function (e) { cyl(0.024, 0.024, 0.012, steelP, e * 0.08, 0, -0.41, A.pumpH, 10).rotation.z = PI / 2; });
+    A.PUMP_GRIP = new THREE.Vector3(0, 0, -0.41);
     var dial = mesh(new THREE.CircleGeometry(0.07, 20), std(0xffffff, 0.5, { map: canvasTex(128, function (g, S) { g.fillStyle = '#e9e6da'; g.fillRect(0, 0, S, S); g.fillStyle = '#8d1f18'; g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 58, PI * 0.75, PI * 1.25); g.fill(); g.fillStyle = '#2f9a5a'; g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 58, PI * 1.85, PI * 2.25); g.fill(); g.fillStyle = '#e9e6da'; g.beginPath(); g.arc(64, 64, 40, 0, 7); g.fill(); g.fillStyle = '#17140e'; g.font = 'bold 15px Arial'; g.textAlign = 'center'; g.fillText('SPRING', 64, 92); }) }), 0.28, 1.36, -0.152, cab); dial.rotation.y = PI;
     A.springN = dyn(box(0.006, 0.055, 0.004, M.dark, 0.28, 1.36, -0.156, cab)); A.springN.geometry.translate(0, 0.022, 0);
     A.flag = basic(0x3a0a06, { fog: false }); mesh(new THREE.PlaneGeometry(0.14, 0.05), A.flag, 0.28, 1.25, -0.153, cab).rotation.y = PI;

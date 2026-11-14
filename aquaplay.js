@@ -1093,7 +1093,7 @@
     A.cageGate.rotation.y = instant ? (st.gate ? -1.45 : 0) : damp(A.cageGate.rotation.y, st.gate ? -1.45 : 0, 3, dt); A.cageBox.off = !!st.gate;
     if (!inCine) { A.span.visible = !st.fell; if (!st.fell) { A.span.position.set(T.x1, CW, 60); A.span.rotation.set(0, 0, 0); spanSag = 0; spanGone = false; } A.cable.visible = st.fell && !st.power; blackout = st.fell && !st.power ? 1 : 0; }
     A.breaker.rotation.x = lerp(0.8, -0.7, st.power ? 1 : brkK); A.brkLamp.color.setHex(st.power ? 0xff3a1a : 0x3a0a06); A.ladLamp.color.setHex(st.ladder ? 0x35ff8a : 0x0a1a0c);
-    if (A.pumpAnim) A.pumpAnim(dt); A.springN.rotation.z = -(st.spring / 5) * 2.6 + 1.3; A.flag.color.setHex(st.spring >= 5 ? 0x2f9a5a : 0x5a1a10); A.isoLamp.color.setHex(st.iso ? 0x35ff8a : 0x3a0a06);
+    if (A.pumpAnim) A.pumpAnim(dt); else if (!instant) A.pumpH.rotation.x = A.pumpH.userData.rest; A.springN.rotation.z = -(st.spring / 5) * 2.6 + 1.3; A.flag.color.setHex(st.spring >= 5 ? 0x2f9a5a : 0x5a1a10); A.isoLamp.color.setHex(st.iso ? 0x35ff8a : 0x3a0a06);
     isoT -= dt; if (isoT <= 0 && !st.iso) isoK = Math.max(0, isoK - dt * 1.5); A.isoH.rotation.z = -(st.iso ? 1 : isoK) * PI / 2;
     // light
     var zone = !inAQ ? 'out' : py < -0.6 || (cx > 139.4 && py < 2.6) ? 'base' : cx < 99.5 ? 'gal' : py > 6 ? 'upper' : 'hall', on = function (z2) { return zone === z2 ? 1 : 0; };
@@ -1128,7 +1128,7 @@
     if (window.AquaSound && !instant) AquaSound.step(dt, inCine);                // the soundscape (aquasound.js)
   };
   A.reset = function () {
-    var st = S(); seq = []; liftBusy = false; A.calling = null; pumping = false; A.pumpAnim = null; isoK = 0; if (st.spring === undefined) { st.spring = st.power ? 5 : 0; st.iso = !!st.power; } if (turning) { tiles[turning.q].turn = null; turning = null; if (Hands.hold && Hands.hold.kind === 'bar') Hands.hold = null; } A.showT = 0; A.liftNow = null; Hands.over = null; Body.show(false); doorA = st.door ? 1 : 0; doorJ = 0; sdDown = st.staff >= 3 ? 1 : 0; sdFall.userData.hit = st.staff >= 3; sdJ = sdJv = 0; brkK = 0; zapK = 0; chaseDelay = 0; whereDied = ''; tint('none', 0);
+    var st = S(); seq = []; liftBusy = false; A.calling = null; pumping = false; A.pumpAnim = null; if (Hands.hold && Hands.hold.kind === 'bar') Hands.hold = null; isoK = 0; if (st.spring === undefined) { st.spring = st.power ? 5 : 0; st.iso = !!st.power; } if (turning) { tiles[turning.q].turn = null; turning = null; if (Hands.hold && Hands.hold.kind === 'bar') Hands.hold = null; } A.showT = 0; A.liftNow = null; Hands.over = null; Body.show(false); doorA = st.door ? 1 : 0; doorJ = 0; sdDown = st.staff >= 3 ? 1 : 0; sdFall.userData.hit = st.staff >= 3; sdJ = sdJv = 0; brkK = 0; zapK = 0; chaseDelay = 0; whereDied = ''; tint('none', 0);
     arcs.forEach(function (sp) { sp.visible = false; }); dust.forEach(function (d) { d.life = 0; d.s.visible = false; }); wetK = 0; if (wetEl) wetEl.style.opacity = 0; bubbles.forEach(function (b) { b.life = 0; b.s.visible = false; }); Sound.drone('aqlift', 0, liftDrone); Sound.drone('aqpump', 0, liftDrone);
     A.step(0, true);
   };
@@ -1175,7 +1175,7 @@
     if (onDive(px, pz, py) && dist(px, pz, D.x2 - 1.0, POOL.z2 - 1.15) < 1.25) {
       if (st.power) return { text: 'MAIN FEEDER — LIVE.   LADDER WINCH — DOWN.' };
       if (!st.iso) return { text: 'MAIN BREAKER — it will not close: the plate says 1 ISOLATOR ON. The feeder isolator is on the tank’s west wall, by the ladder, at the waterline.', fn: function () { Sound.deny(); Sound.clunk(); } };
-      if (st.spring < 5) return pumping ? { text: '' } : { text: '[E] Charge the closing spring — stroke ' + (st.spring + 1) + ' of 5', fn: pumpStroke };
+      if (st.spring < 5) return pumping ? { text: '' } : { text: '[E] Charge the closing spring — stroke ' + (st.spring + 1) + ' of 5', fn: pumpStroke, outline: null };
       return { text: '[E] Haul the closing lever down', fn: leverPull };
     }
     if (player.water && st.fell && !st.iso && dist(px, pz, A.ISO_AT.x, A.ISO_AT.z) < 1.4) return { text: '[Hold E] Turn the feeder isolator ON', prog: isoK, hold: function (dt) {
@@ -1191,14 +1191,22 @@
   /* Step 2: the closing spring.  Five strokes of the pump handle: the hand takes the grip, pushes it down through its arc (the
      ratchet clicking), lets it ride back up.  The dial climbs; on the fifth the flag drops to CHARGED. */
   var pumping = false, isoK = 0, isoT = 0;
+  var pgP = new V3(), pgA = new V3();
   function pumpStroke() {
-    var st = S(); if (pumping) return; pumping = true; var t0 = 0, done = false;
-    Hands.use('aqPumpH' + st.spring, { point: function () { A.pumpH.updateWorldMatrix(true, false); return tmpV2.copy(A.PUMP_GRIP).applyMatrix4(A.pumpH.matrixWorld); }, pose: 'fist', tip: 'fist', rot: [0.6, -0.4, 1.2], dur: 0.95, reach: 0.3 });
+    var st = S(); if (pumping || Hands.hold) return; pumping = true; var ts = -1, done = false, stand = new V3(player.x, 0, player.z), REST = A.pumpH.userData.rest;
+    var H = Hands.barGrip({ at: function () { A.pumpH.updateWorldMatrix(true, false); return pgP.copy(A.PUMP_GRIP).applyMatrix4(A.pumpH.matrixWorld); }, axis: function () { A.pumpH.updateWorldMatrix(true, false); return pgA.set(1, 0, 0).transformDirection(A.pumpH.matrixWorld); }, from: function () { return camera.position; }, r: 0.02, dur: 0.32, leanMax: 0.16 });
+    Hands.hold = H; H.done = function () { pumping = false; A.pumpAnim = null; A.pumpH.rotation.x = REST; };
     A.pumpAnim = function (dt) {
-      t0 += dt; var down = seg(t0, 0.3, 0.55), up = seg(t0, 0.62, 0.95); A.pumpH.rotation.x = -1.0 * down * (1 - up);
-      if (t0 > 0.32 && t0 < 0.55 && Math.random() < dt * 22) Sound.tone(2200 + Math.random() * 400, 1800, 0.02, 0.05, 'square');
-      if (t0 >= 0.55 && !done) { done = true; st.spring = Math.min(5, st.spring + 1); Sound.clunk(); makeNoise(player.x, player.z, 10); if (st.spring >= 5) { Sound.tone(880, 880, 0.08, 0.1, 'square'); showMsg('CHARGED.  The flag drops.  Now the lever — between her strikes.', 4); } }
-      if (t0 >= 0.95) { pumping = false; A.pumpAnim = null; A.pumpH.rotation.x = 0; }
+      if (dist(player.x, player.z, stand.x, stand.z) > 1.0 || state !== 'playing' && state !== 'cine') { H.want = 0; }                                // walked off: let go
+      var gp = H.reach ? H.reach() : null;                                                                // the eyes go to the grip (the view eases onto what the hand is working)
+      if (gp && H.want > 0) { var ly = Math.atan2(-(gp.x - player.x), -(gp.z - player.z)), lp = clamp(Math.atan2(gp.y - (player.y + 1.66), Math.hypot(gp.x - player.x, gp.z - player.z)) + 0.12, -1.1, 0.5), kk = 1 - Math.exp(-dt * 5);
+        player.yaw += angDiff(ly, player.yaw) * kk; player.cy = player.yaw; player.pitch += (lp - player.pitch) * kk; player.cp = player.pitch; }
+      if (ts < 0 && (H.k || 0) >= 0.999) ts = 0;
+      if (ts < 0) return;
+      ts += dt; var down = seg(ts, 0.05, 0.36), up = seg(ts, 0.46, 0.85); A.pumpH.rotation.x = REST - 1.05 * down * (1 - up);
+      if (ts > 0.06 && ts < 0.36 && Math.random() < dt * 24) Sound.tone(2200 + Math.random() * 400, 1800, 0.02, 0.05, 'square');          // the ratchet
+      if (ts >= 0.36 && !done) { done = true; st.spring = Math.min(5, st.spring + 1); Sound.clunk(); Sfx.play('grunt', { vol: 0.18, rate: 1.1 }); makeNoise(player.x, player.z, 10); if (st.spring >= 5) { Sound.tone(880, 880, 0.08, 0.1, 'square'); showMsg('CHARGED.  The flag drops.  Now the lever — between her strikes.', 4); } }
+      if (ts >= 0.85) H.want = 0;
     };
   }
   function sendLift(to) { var st = S(), y0 = liftY, y1 = to ? CW : BASE_Y, t0 = playTime; liftBusy = true; Sound.clunk(); A.calling = function (dt) { var u = clamp((playTime - t0) / 6.5, 0, 1); liftY = lerp(y0, y1, easeIO(u)); gateK = u < 0.9 ? Math.max(0, gateK - dt * 2) : Math.min(1, gateK + dt * 2); Sound.drone('aqlift', u < 1 ? 0.07 : 0, liftDrone); if (u >= 1 && gateK >= 1) { st.lift = to; liftBusy = false; A.calling = null; Sound.clunk(); } }; }
