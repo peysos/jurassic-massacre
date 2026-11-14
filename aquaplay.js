@@ -719,76 +719,140 @@
   function toCam(pw, qw, o) { o.pos.copy(pw); camera.worldToLocal(o.pos); o.q.copy(camQ.copy(camera.quaternion).invert()).multiply(qw); }
   function newOver() { return { R: { pos: new V3(), q: new Q4(), pose: Hands.POSE.hook, k: 0 }, L: { pos: new V3(), q: new Q4(), pose: Hands.POSE.hook, k: 0 }, noTorch: false }; }
   function setCam(x, y, z, pit, yaw, roll) { camera.position.set(x, y, z); camera.rotation.set(pit, yaw, roll || 0); if (camera.fov !== prefs.fov) { camera.fov = prefs.fov; camera.updateProjectionMatrix(); } camera.updateMatrixWorld(true); }
-  var HANG = Hands.barPose(0.02), OPENH = Hands.POSE.barOpen, FLAT = Hands.POSE.push, blackout = 0, spanSag = 0, spanGone = false, brkK = 0, brkT = 0, zapK = 0, sc = null;
+  var HANGP = [0.9, -0.06], HANGT = 1.25, HANG = Hands.barPose(0.02), OPENH = Hands.POSE.barOpen, FLAT = Hands.POSE.push, blackout = 0, spanSag = 0, spanGone = false, brkK = 0, brkT = 0, zapK = 0, sc = null;
   function tint(css, op) { sc = sc || $('scare'); sc.style.background = css; sc.style.opacity = op; }
 
   // ================= the fall =================
   /* The last span is down.  You go for it anyway: three strides, the rail, air — and your hands come down on the stub of
-     grating left bolted to the platform.  You hang.  You very nearly get up.  Then the stub lets go. */
+     grating still bolted to the platform.  The arms take the weight with a jolt and you hang, your body under you: look down
+     and there is your chest, your belt, your boots kicking for a foothold over black water, and something long going by under
+     them.  You pull, and nearly get an elbow over.  The right hand slips, catches again.  The stub groans.  You pull once more —
+     the bolts go, it drops a hand's breadth, the left hand's fingers peel off one by one, the right holds you alone for a
+     breath, and lets go.  You drop with your hands still up, and the water closes over you: the light goes green and far away,
+     the sound goes thick, bubbles stream up past your face.  You kick up toward the light, slowly, and come out into air with
+     water running down your eyes.  She has gone to the far end, thrashing at the sparks.
+     (She is never moved: she swims, all of it.) */
+  var wetEl = null, wetG = null, wetK = 0, wetDrops = [], bubbles = [];
+  function wetLens() {
+    if (wetEl) return; wetEl = document.createElement('canvas'); wetEl.id = 'wet'; wetEl.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:11;opacity:0;';
+    wetEl.width = 640; wetEl.height = 360; document.body.appendChild(wetEl); wetG = wetEl.getContext('2d');
+  }
+  function wetStart() {                                              // water on the eyes: beads, and runs sliding down
+    wetLens(); wetK = 1; wetDrops = [];
+    for (var q = 0; q < 70; q++) wetDrops.push({ x: Math.random() * 640, y: Math.random() * 360, r: 1.5 + Math.pow(Math.random(), 3) * 9, v: Math.random() < 0.35 ? 30 + Math.random() * 120 : 0, a: 0.25 + Math.random() * 0.4 });
+  }
+  function wetStep(dt) {
+    if (!wetEl || wetK <= 0) { if (wetEl) wetEl.style.opacity = 0; return; }
+    wetK = Math.max(0, wetK - dt / 3.2); var g = wetG; g.clearRect(0, 0, 640, 360);
+    var sheet = clamp((wetK - 0.75) / 0.25, 0, 1); if (sheet > 0) { var gr = g.createLinearGradient(0, 0, 0, 360); gr.addColorStop(0, 'rgba(160,200,210,' + 0.25 * sheet + ')'); gr.addColorStop(1, 'rgba(60,100,110,' + 0.35 * sheet + ')'); g.fillStyle = gr; g.fillRect(0, 0, 640, 360); }
+    wetDrops.forEach(function (d) {
+      if (d.v) { d.y += d.v * dt; d.v *= 1 - dt * 0.3; if (d.y > 380) { d.y = -10; d.x = Math.random() * 640; } g.strokeStyle = 'rgba(210,235,240,' + d.a * 0.35 * wetK + ')'; g.lineWidth = d.r * 0.6; g.beginPath(); g.moveTo(d.x, d.y - d.r * 6); g.lineTo(d.x, d.y); g.stroke(); }
+      var rg = g.createRadialGradient(d.x - d.r * 0.3, d.y - d.r * 0.3, 0, d.x, d.y, d.r); rg.addColorStop(0, 'rgba(255,255,255,' + d.a * wetK + ')'); rg.addColorStop(0.6, 'rgba(170,210,220,' + d.a * 0.5 * wetK + ')'); rg.addColorStop(1, 'rgba(20,40,50,' + d.a * 0.6 * wetK + ')'); g.fillStyle = rg; g.beginPath(); g.arc(d.x, d.y, d.r, 0, 6.283); g.fill();
+    });
+    wetEl.style.opacity = 1;
+  }
+  (function () {                                                     // bubbles: a few dozen, round and bright-edged, that rise past the camera under water
+    var bt = canvasTex(64, function (g, S) { g.clearRect(0, 0, S, S); var gr = g.createRadialGradient(S * 0.5, S * 0.5, S * 0.28, S * 0.5, S * 0.5, S * 0.48); gr.addColorStop(0, 'rgba(200,240,240,0.05)'); gr.addColorStop(0.75, 'rgba(220,250,250,0.55)'); gr.addColorStop(1, 'rgba(220,250,250,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); g.fillStyle = 'rgba(255,255,255,.8)'; g.beginPath(); g.arc(S * 0.38, S * 0.36, S * 0.07, 0, 7); g.fill(); }, 1, 1, false);
+    for (var q = 0; q < 46; q++) { var sp = dyn(new THREE.Sprite(new THREE.SpriteMaterial({ map: bt, transparent: true, depthWrite: false, opacity: 0, fog: false }))); sp.visible = false; scene.add(sp); bubbles.push({ s: sp, v: 0, life: 0 }); }
+  })();
+  function bubble(n, near) { var c = camera.position, q2, k3 = 0; for (q2 = 0; q2 < bubbles.length && k3 < n; q2++) { var b = bubbles[q2]; if (b.life > 0) continue; k3++; tmpV.set((Math.random() - 0.5) * 1.4, -0.3 - Math.random() * 0.8, -(near || 0.5) - Math.random() * 1.2).applyQuaternion(camera.quaternion); b.s.position.copy(c).add(tmpV); b.v = 0.6 + Math.random() * 0.9; b.life = 1.5 + Math.random(); var sc = 0.015 + Math.pow(Math.random(), 2) * 0.06; b.s.scale.set(sc, sc, 1); b.s.visible = true; } }
+  function stepBubbles(dt) { bubbles.forEach(function (b) { if (b.life <= 0) return; b.life -= dt; b.s.position.y += b.v * dt; b.s.position.x += Math.sin(b.life * 9 + b.v * 7) * dt * 0.08; b.s.material.opacity = Math.min(1, b.life) * 0.8; if (b.life <= 0 || b.s.position.y > T.water - 0.05) { b.life = 0; b.s.visible = false; } }); }
   function fall(scripted) {
-    var st = S(), T2 = scripted ? 0 : 4.55, ev = {}, c0 = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp, CN, YAW = PI / 2, Z0 = clamp(player.z, 59.8, 60.2), EY = CW;
-    var hang = new V3(A.STUB + 0.42, CW - 0.31, Z0), land = scripted ? new V3(112.4, 0, Z0 + 0.5) : new V3(clamp(player.x, T.x1 + 1.2, T.x2 - 1.2), 0, clamp(player.z, T.z1 + 1.2, T.z2 - 1.2));
-    var O = Hands.over = newOver(), gq = new Q4(), fq = new Q4(), hR = new V3(), hL = new V3(), pR = new V3(), pL = new V3(), cy = c0.y, cx = c0.x, cz = c0.z, pit = pitch0, yaw = yaw0, roll = 0, slipR = 0, slipL = 0, END = 6.7, yawEnd = 0;
+    var st = S(), T2 = scripted ? 0 : 4.6, ev = {}, c0 = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp, CN, YAW = PI / 2, Z0 = clamp(player.z, 59.8, 60.2);
+    var land = scripted ? new V3(112.2, 0, Z0 + 0.4) : new V3(clamp(player.x, T.x1 + 1.2, T.x2 - 1.2), 0, clamp(player.z, T.z1 + 1.2, T.z2 - 1.2));
+    var O = Hands.over = newOver(), gq = new Q4(), fq = new Q4(), hR = new V3(), hL = new V3(), pR = new V3(), pL = new V3(), mid = new V3(), slipR = 0, slipL = 0, cx = c0.x, cy = c0.y, cz = c0.z, pit = pitch0, yaw = yaw0, roll = 0, END = 8.4, yawEnd = 0, swing = 0, swingV = 0, sx = 0;
+    var CATCH = 0.86, SLIP = 2.35, BOLTS = 3.62, PEEL = 3.78, LETGO = 4.12, SPLASH = 4.66, SURF = 7.0;
     function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
-    function grips() { A.span.rotation.z = -spanSag; A.span.updateMatrixWorld(true); hR.set(0.8, 0.03, Z0 - 60 - 0.21).applyMatrix4(A.span.matrixWorld); hL.set(0.8, 0.03, Z0 - 60 + 0.21).applyMatrix4(A.span.matrixWorld); }
+    function grips() { A.span.rotation.z = -spanSag; A.span.updateMatrixWorld(true); var G = HANGP; hR.set(G[0], G[1], Z0 - 60 - 0.27).applyMatrix4(A.span.matrixWorld); hL.set(G[0], G[1], Z0 - 60 + 0.27).applyMatrix4(A.span.matrixWorld); }      // (shoulder width apart, the wrists in front of the lip and under it: the fingers hooked over)
     closePanel(); yawEnd = Math.atan2(-(121 - land.x), -(69.6 - land.z));
     startCine(CN = { pulse: 0, update: function (dt) {
-      T2 += dt; A.wu.uTime.value += dt; var sh = 0, uw = 0, legs = false;
+      T2 += dt; A.wu.uTime.value += dt; var sh = 0, uw = 0, body = false, legsK = 0, lean = 0, kickL = 0, kickR = 0;
+      grips(); mid.copy(hR).add(hL).multiplyScalar(0.5);
       if (T2 < 0.3) {                                   // three strides
         var r = easeIO(T2 / 0.3); cx = lerp(c0.x, 113.2, r); cz = lerp(c0.z, Z0, r); cy = CW + 1.7 - Math.sin(r * PI) * 0.07 - r * 0.08; pit = lerp(pitch0, -0.1, r); yaw = yaw0 + angDiff(YAW, yaw0) * r;
-      } else if (T2 < 0.86) {                            // the leap
-        var u = (T2 - 0.3) / 0.56; cx = lerp(113.2, hang.x, u); cy = CW + 1.62 + 0.42 * Math.sin(u * PI * 0.8) - 2.09 * Math.pow(u, 2.2); cz = Z0; pit = lerp(-0.1, 0.2, u); yaw = YAW;
+      } else if (T2 < CATCH) {                           // the leap: up off the edge, the arms out for it
+        var u = (T2 - 0.3) / (CATCH - 0.3); cx = lerp(113.2, mid.x + 0.24, u); cy = CW + 1.62 + 0.42 * Math.sin(u * PI * 0.8) - (CW + 1.62 - (mid.y - 0.26)) * Math.pow(u, 2.2); cz = lerp(cz, Z0, u); pit = lerp(-0.1, 0.32, u); yaw = YAW;
         O.noTorch = T2 > 0.36; O.R.k = O.L.k = seg(T2, 0.34, 0.5); O.R.pose = O.L.pose = Hands.mixPose(OPENH, HANG, seg(u, 0.85, 1), []);
-      } else if (T2 < 3.92) {                            // hanging
-        var h = T2 - 0.86, swing = Math.exp(-h * 1.9) * Math.cos(h * 5.6), pull1 = hump(T2, 1.45, 1.95, 2.0, 2.12), pull2 = hump(T2, 3.25, 3.6, 3.62, 3.9), down = hump(T2, 2.35, 2.6, 3.0, 3.25);
-        slipR = hump(T2, 1.98, 2.06, 2.2, 2.42); slipL = seg(T2, 3.6, 3.7); spanSag = 0.05 * seg(T2, 0.86, 0.95) + 0.05 * seg(T2, 1.98, 2.06) + 0.13 * seg(T2, 3.58, 3.66) + Math.sin(h * 23) * 0.004 * Math.exp(-h);
-        cx = hang.x - 0.26 * swing + pull1 * -0.14 + pull2 * -0.1; cy = hang.y - spanSag * 0.8 + pull1 * 0.46 + pull2 * 0.34 - slipR * 0.1 + Math.sin(T2 * 9) * 0.006; cz = Z0 + Math.sin(h * 2.3) * 0.03 * Math.exp(-h * 0.6);
-        pit = lerp(lerp(0.2, 0.62, seg(T2, 0.86, 1.1)), 0.1, pull1) * (1 - down) + down * -1.05; pit = lerp(pit, 0.42, pull2 * (1 - down)); yaw = YAW + Math.sin(h * 2.3) * 0.05 + down * 0.22; roll = Math.sin(h * 2.9) * 0.04 * Math.exp(-h * 0.5) + slipR * 0.1;
-        sh = hump(T2, 0.86, 0.88, 0.92, 1.2) + hump(T2, 1.98, 2.0, 2.04, 2.3) * 0.7 + hump(T2, 3.58, 3.6, 3.64, 3.9) * 0.8; legs = true; O.R.k = O.L.k = 1; O.noTorch = true; O.R.pose = O.L.pose = HANG;
-      } else if (T2 < 4.72) {                            // gone
-        var f = T2 - 3.92; cy = hang.y - 0.22 - 4.9 * f * f * 1.18; cx = hang.x + f * 0.9; cz = Z0 + f * 0.3; pit = lerp(0.55, 1.25, seg(f, 0, 0.35)); yaw = YAW + f * 0.5; roll = f * 0.5; legs = true;
-        O.R.k = O.L.k = 1; O.noTorch = true; O.R.pose = O.L.pose = OPENH; if (cy < T.water + 0.25) cy = T.water + 0.25;
-      } else {                                           // the water
-        var w = T2 - 4.72, under = hump(T2, 4.72, 4.8, 5.5, 6.0); if (!ev.cap) { ev.cap = 1; if (!scripted) { cx = c0.x; cz = c0.z; yaw = yaw0; } ev.sx = cx; ev.sz = cz; ev.sy = yaw; }
-        cx = lerp(ev.sx, land.x, easeIO(clamp(w / 1.4, 0, 1))); cz = lerp(ev.sz, land.z, easeIO(clamp(w / 1.4, 0, 1))); cy = T.swim + 1.7 - under * 1.75 + Math.sin(w * 2.2) * 0.05 * (1 - under);
-        yaw = ev.sy + angDiff(yawEnd, ev.sy) * easeIO(clamp((w - 0.3) / 1.4, 0, 1)); pit = lerp(0.6, -0.02, seg(w, 0, 1.2)) + under * 0.25 * Math.sin(w * 3); roll = (1 - seg(w, 0, 1.3)) * 0.5 * Math.cos(w * 2.4);
-        uw = clamp((T.water + 0.12 - cy) / 0.3, 0, 1); sh = hump(T2, 4.72, 4.74, 4.8, 5.2); O.R.k = O.L.k = 1 - seg(T2, 5.9, 6.5); O.noTorch = T2 < 6.25; O.R.pose = O.L.pose = OPENH;
+      } else if (T2 < LETGO + 0.12) {                    // hanging: the arms straight over you, the body swinging under
+        var h = T2 - CATCH, pull1 = hump(T2, 1.45, 1.92, 1.98, 2.15), pull2 = hump(T2, 3.1, 3.5, 3.52, 3.62), look = hump(T2, 2.62, 2.9, 3.0, 3.18), oneArm = seg(T2, PEEL + 0.18, LETGO);
+        slipR = hump(T2, SLIP, SLIP + 0.07, SLIP + 0.2, SLIP + 0.42) + oneArm * 0; slipL = seg(T2, PEEL, PEEL + 0.24);
+        spanSag = 0.05 * seg(T2, CATCH, CATCH + 0.09) + 0.05 * seg(T2, SLIP, SLIP + 0.08) + 0.13 * seg(T2, BOLTS, BOLTS + 0.06) + Math.sin(h * 23) * 0.004 * Math.exp(-h);
+        swingV += (-swing * 28 - swingV * 1.6) * dt + (T2 - dt < CATCH + dt ? 3.2 : 0) + (once('sw2', SLIP) ? -1.6 : 0) + (once('sw3', BOLTS) ? 2.2 : 0) + (once('sw4', PEEL + 0.2) ? 1.4 : 0); swing += swingV * dt;
+        var hang = 0.5 - pull1 * 0.36 - pull2 * 0.27 + slipR * 0.08 + oneArm * 0.06, jolt = hump(T2, CATCH, CATCH + 0.03, CATCH + 0.06, CATCH + 0.3) * 0.12;
+        cx = mid.x + 0.3 + swing * 0.18 + pull1 * -0.1; cy = mid.y - hang - jolt + Math.sin(T2 * 9) * 0.004; cz = mid.z + Math.sin(h * 2.3) * 0.03 * Math.exp(-h * 0.6) + oneArm * 0.1;
+        pit = lerp(lerp(0.92, 0.5, pull1), 1.0, seg(T2, SLIP, SLIP + 0.2) * (1 - seg(T2, SLIP + 0.5, SLIP + 0.8))) * (1 - look) + look * -1.25; pit = lerp(pit, 0.6, pull2 * (1 - look));      // eyes up on your hands and the edge; down once, past your own body to the water
+        yaw = YAW + Math.sin(h * 2.3) * 0.05 + look * 0.18 + oneArm * 0.25; roll = swing * 0.12 + slipR * 0.1 + oneArm * 0.2;
+        sh = hump(T2, CATCH, CATCH + 0.02, CATCH + 0.06, CATCH + 0.35) + hump(T2, SLIP, SLIP + 0.02, SLIP + 0.04, SLIP + 0.3) * 0.7 + hump(T2, BOLTS, BOLTS + 0.02, BOLTS + 0.04, BOLTS + 0.3) * 0.9;
+        body = true; legsK = 1; lean = swing * 0.25 - 0.14; ev.lookK = look;          // (craning to look down: the head goes out over the body) kickL = Math.sin(T2 * 4.1) * (pull1 + pull2 + 0.35); kickR = Math.sin(T2 * 4.1 + 2) * (pull1 + pull2 + 0.35);
+        O.R.k = O.L.k = 1; O.noTorch = true;
+      } else if (T2 < SPLASH) {                          // the drop: hands still up, the stub going away above you, then the water
+        var f = T2 - LETGO - 0.12, fy0 = mid.y - 0.72; cy = Math.max(T.water + 0.3, fy0 - 4.9 * f * f * 1.15); cx = mid.x + 0.24 + f * 0.6; cz = mid.z + f * 0.2;
+        pit = lerp(0.62, 0.95, seg(f, 0, 0.25)) - seg(f, 0.2, 0.45) * 1.7; yaw = YAW + f * 0.35; roll = 0.2 + f * 0.4; body = true; legsK = 1; lean = -0.2 * f; kickL = 0.6; kickR = -0.4;
+        O.R.k = O.L.k = 1; O.noTorch = true;
+      } else {                                           // the water: under, the light far above; up toward it; out
+        var w = T2 - SPLASH; if (!ev.cap) { ev.cap = 1; }
+        if (!ev.sx) { ev.sx = cx; ev.sz = cz; ev.sy = yaw; }
+        var down = 1 - Math.exp(-w * 5.5), rise = seg(T2, SPLASH + 0.9, SURF), depth = 1.7 * down * (1 - rise) + 0.25 * (1 - down);
+        cy = lerp(T.water + 0.3, T.water - 1.75, clamp(depth / 1.7, 0, 1)) * (1 - seg(T2, SURF - 0.3, SURF)) + seg(T2, SURF - 0.3, SURF) * (T.swim + 1.62); if (T2 > SURF) cy = T.swim + 1.62 + Math.sin(w * 2.2) * 0.05;
+        cx = lerp(ev.sx, land.x, easeIO(clamp(w / 2.4, 0, 1))); cz = lerp(ev.sz, land.z, easeIO(clamp(w / 2.4, 0, 1)));
+        var lookUp = seg(T2, SPLASH + 0.5, SPLASH + 1.2) * (1 - seg(T2, SURF - 0.2, SURF + 0.4));
+        yaw = ev.sy + angDiff(yawEnd, ev.sy) * seg(T2, SURF - 0.2, END - 0.3); pit = lerp(lerp(-0.75, 0.15, seg(w, 0, 0.5)), 0.95, lookUp) * (1 - seg(T2, SURF, SURF + 0.6)) + seg(T2, SURF, SURF + 0.6) * -0.05;
+        roll = (1 - seg(w, 0, 1.6)) * 0.45 * Math.cos(w * 2.4); uw = clamp((T.water + 0.05 - cy) / 0.25, 0, 1);
+        sh = hump(T2, SPLASH, SPLASH + 0.02, SPLASH + 0.06, SPLASH + 0.5);
+        var stroke = Math.sin((T2 - SPLASH) * 3.4); O.R.k = O.L.k = (1 - seg(T2, SURF + 0.4, SURF + 1.0)); O.noTorch = T2 < SURF + 0.7;
+        O.R.pose = O.L.pose = Hands.mixPose(OPENH, Hands.POSE.push, 0.5 + 0.5 * stroke, []);
       }
       setCam(cx + (Math.random() - 0.5) * sh * 0.05, cy + (Math.random() - 0.5) * sh * 0.05, cz, pit, yaw, roll);
-      // the hands: reaching, on the edge (one slips and catches again), then nothing to hold
-      grips(); gripQ(-1, 0, 0.55, gq); gripQ(-1, 0, -0.5, fq);
-      if (T2 < 0.86) { var uu = clamp((T2 - 0.34) / 0.52, 0, 1), e2 = uu * uu; camera.localToWorld(pR.set(0.2, -0.05 + uu * 0.2, -0.46)); camera.localToWorld(pL.set(-0.2, -0.05 + uu * 0.2, -0.46)); pR.lerp(hR, e2); pL.lerp(hL, e2); toCam(pR, gq, O.R); toCam(pL, gq, O.L); }
-      else if (T2 < 3.92) {
-        pR.copy(hR); pL.copy(hL); pR.x += slipR * 0.16; pR.y -= slipR * 0.24; pR.z -= slipR * 0.1; pL.x += slipL * 0.2; pL.y -= slipL * 0.4;
-        toCam(pR, tmpQ.copy(gq).slerp(fq, slipR), O.R); toCam(pL, tmpQ.copy(gq).slerp(fq, slipL), O.L); O.R.pose = Hands.mixPose(HANG, OPENH, slipR, []); O.L.pose = Hands.mixPose(HANG, OPENH, slipL, []);
-      } else { var fl = T2 * 9; O.R.pos.set(0.3 + Math.sin(fl) * 0.08, 0.02 + Math.cos(fl * 1.3) * 0.12, -0.38); O.L.pos.set(-0.3 + Math.cos(fl * 0.9) * 0.08, 0.06 + Math.sin(fl * 1.1) * 0.12, -0.36); O.R.q.setFromEuler(new THREE.Euler(0.9, -0.3, -0.5, 'YXZ')); O.L.q.setFromEuler(new THREE.Euler(0.9, 0.3, 0.5, 'YXZ')); }
-      // the legs, swinging under you
-      Body.show(legs && T2 > 0.9); if (legs) { var sw = Math.sin(T2 * 3.1), kk = T2 > 3.92 ? 1 : 0; Body.place(cx - 0.04, cy - 0.82, cz, YAW); Body.pose('R', 0.5 + sw * 0.3 + kk * 0.4, -0.55 - Math.max(0, sw) * 0.4 - kk * 0.4, -0.25, 0.04); Body.pose('L', 0.42 - sw * 0.32 + kk * 0.2, -0.5 - Math.max(0, -sw) * 0.45 - kk * 0.7, -0.25, 0.06); }      // kicking for a foothold that is not there
-      // her, passing under you while you hang
-      if (!st.dead && T2 > 1.6 && T2 < 3.95) { B.x = 113.8 + Math.sin(T2 * 0.4) * 0.8; B.z = lerp(52.5, 66.5, clamp((T2 - 1.9) / 2.0, 0, 1)); B.y = T.water - 1.25; B.rot = 0.12; B.pitch = 0; B.sp = 2.6; neckAim(cx, cy - 1.5, cz, 0.06, 0.5, 1.0); U.jaw.rotation.x = 0.2; poseBeast(dt, 1.4); }
-      else if (!st.dead) { B.sp = 1; swimTo(129, 2, 54, 3, dt, 1.5); neckPose(0.2, 0.3, 0.5, 0.05); poseBeast(dt, 1.5); }
+      // the hands: reaching, on the edge (one slips and catches again; then the fingers peel), then nothing to hold
+      gripQ(-1, 0, HANGT, gq); gripQ(-1, 0, -0.5, fq);
+      if (T2 < CATCH) { var uu = clamp((T2 - 0.34) / (CATCH - 0.34), 0, 1), e2 = uu * uu; camera.localToWorld(pR.set(0.2, -0.05 + uu * 0.2, -0.46)); camera.localToWorld(pL.set(-0.2, -0.05 + uu * 0.2, -0.46)); pR.lerp(hR, e2); pL.lerp(hL, e2); toCam(pR, gq, O.R); toCam(pL, gq, O.L); }
+      else if (T2 < LETGO + 0.12) {
+        var gone = seg(T2, LETGO, LETGO + 0.12);
+        pR.copy(hR); pL.copy(hL); pR.x += slipR * 0.14 + gone * 0.1; pR.y -= slipR * 0.22 + gone * 0.18; pR.z -= slipR * 0.08; pL.x += slipL * 0.12; pL.y -= slipL * 0.3;
+        toCam(pR, tmpQ.copy(gq).slerp(fq, Math.max(slipR, gone)), O.R); toCam(pL, tmpQ.copy(gq).slerp(fq, slipL), O.L);
+        O.R.pose = Hands.mixPose(HANG, OPENH, Math.max(slipR, gone), []);
+        var pl = Hands.mixPose(HANG, OPENH, 0, []); for (var fi = 0; fi < 4; fi++) { var kf = seg(T2, PEEL + fi * 0.055, PEEL + 0.08 + fi * 0.055); for (var jj = 0; jj < 3; jj++) pl[5 + fi * 3 + jj] = lerp(HANG[5 + fi * 3 + jj], OPENH[5 + fi * 3 + jj], kf); }      // the left hand's fingers come off the edge one at a time, little finger first
+        for (var tj = 0; tj < 5; tj++) pl[tj] = lerp(HANG[tj], OPENH[tj], slipL); O.L.pose = pl;
+      } else if (T2 < SPLASH) { var fl = T2 * 7, up2 = 1 - seg(T2, LETGO + 0.4, SPLASH); O.R.pos.set(0.26 + Math.sin(fl) * 0.05, 0.12 * up2 - 0.2 * (1 - up2) + Math.cos(fl * 1.3) * 0.06, -0.38); O.L.pos.set(-0.26 + Math.cos(fl * 0.9) * 0.05, 0.14 * up2 - 0.2 * (1 - up2) + Math.sin(fl * 1.1) * 0.06, -0.36); O.R.q.setFromEuler(new THREE.Euler(0.9 + up2 * 0.6, -0.3, -0.5, 'YXZ')); O.L.q.setFromEuler(new THREE.Euler(0.9 + up2 * 0.6, 0.3, 0.5, 'YXZ')); O.R.pose = O.L.pose = OPENH; }
+      else { var sw2 = Math.sin((T2 - SPLASH) * 3.4); O.R.pos.set(0.24 + sw2 * 0.12, -0.24 + Math.cos((T2 - SPLASH) * 3.4) * 0.06, -0.42 + Math.abs(sw2) * 0.08); O.L.pos.set(-0.24 - sw2 * 0.12, -0.24 + Math.cos((T2 - SPLASH) * 3.4) * 0.06, -0.42 + Math.abs(sw2) * 0.08); O.R.q.setFromEuler(new THREE.Euler(-0.2, -0.4 - sw2 * 0.4, -1.2, 'YXZ')); O.L.q.setFromEuler(new THREE.Euler(-0.2, 0.4 + sw2 * 0.4, 1.2, 'YXZ')); }      // breast stroke
+      // the rest of you, under the camera: hips 0.74 under the eyes and a hand's breadth behind them (as a neck holds a head), swinging with the body, legs kicking for a foothold
+      Body.show(body); Body.torso(true);
+      var crane = ev.lookK || 0; if (body) { Body.place(cx + Math.sin(yaw) * (0.13 + 0.2 * crane), cy - 0.74, cz + Math.cos(yaw) * (0.13 + 0.2 * crane), yaw, lean); Body.root.rotation.z = roll * 0.6; Body.pose('R', 0.5 + kickR * 0.32, -0.34 - Math.max(0, kickR) * 0.5, -0.25, 0.08); Body.pose('L', 0.42 - kickL * 0.3, -0.3 - Math.max(0, kickL) * 0.55, -0.25, 0.1); }
+      // her: she swims, all of it.  Drawn to the noise; under you while you hang (look down and she goes by); away from the sparks
+      if (!st.dead) {
+        if (T2 < 1.6) { swimTo(116.5, 1.6, 54, 4.2, dt, 1.6); neckPose(0.1, 0.3, 0.5, 0.05); poseBeast(dt, 1.6); }
+        else if (T2 < SPLASH) { var pz2 = T2 < 3.2 ? 66.5 : 54; swimTo(114.4, T.water - 1.5, pz2, 3.4, dt, 1.4); neckAim(cx, T.water - 0.4, cz, 0.05, 0.5, 1.0); U.jaw.rotation.x = 0.2; poseBeast(dt, 1.6); }
+        else { swimTo(129.5, 2.4, 53.5, 4.6, dt, 2.2); neckPose(Math.sin(B.t * 6) * 1.1, 0.6, 0.8, 0.08); U.jaw.rotation.x = 0.35; poseBeast(dt, 2.2); }
+        keepNeckIn(); keepTailIn();
+      }
       // the lights go, from the west end, as the span rips the feeder out of its tray
-      if (T2 > 3.95) blackout = clamp((T2 - 3.95) / 0.75, blackout, 1);
-      if (T2 > 3.92 && !spanGone) { A.span.position.y -= dt * (T2 - 3.9) * 14; A.span.rotation.z -= dt * 3; A.span.rotation.x += dt * 1.2; if (A.span.position.y < T.water - 0.5) { spanGone = true; A.span.visible = false; } }
-      if (T2 > 4.05) st.fell = true;
-      flashlight.intensity = O.noTorch ? 0 : 2.0; Hands.fill.intensity = 0.5 * (1 - blackout * 0.5) + (uw ? 0.2 : 0); Hands.aim = null;
+      if (T2 > LETGO + 0.1) blackout = clamp((T2 - LETGO - 0.1) / 0.75, blackout, 1);
+      if (T2 > LETGO && !spanGone) { A.span.position.y -= dt * (T2 - LETGO + 0.02) * 14; A.span.rotation.z -= dt * 3; A.span.rotation.x += dt * 1.2; if (A.span.position.y < T.water - 0.5) { spanGone = true; A.span.visible = false; } }
+      if (T2 > LETGO) st.fell = true;
+      flashlight.intensity = O.noTorch ? 0 : 2.0; Hands.fill.intensity = 0.5 * (1 - blackout * 0.5) + (uw ? 0.25 : 0); Hands.aim = null;
       Hands.update(dt, { speed: 0, yaw: yaw, pitch: pit, phase: 0, grounded: false });
-      tint(uw > 0 ? 'radial-gradient(ellipse at center, rgba(6,40,48,' + 0.6 * uw + ') 0%, rgba(1,12,18,' + 0.96 * uw + ') 100%)' : 'none', uw > 0 ? 1 : 0);
+      // under: green and far, the surface a bright sheet overhead; streaming bubbles
+      tint(uw > 0 ? 'radial-gradient(ellipse at 50% ' + (30 - pit * 30).toFixed(0) + '%, rgba(30,110,120,' + 0.25 * uw + ') 0%, rgba(4,30,38,' + 0.8 * uw + ') 100%)' : 'none', uw > 0 ? 1 : 0);
+      if (uw > 0.5 && Math.random() < dt * (T2 < SPLASH + 0.8 ? 40 : 9)) bubble(T2 < SPLASH + 0.8 ? 4 : 1, 0.35);
+      stepBubbles(dt); wetStep(dt);
       if (once('go', 0.02) && scripted) { Sound.step(0.2, 700); Sfx.play('grunt', { vol: 0.25, rate: 1.1 }); }
-      if (once('catch', 0.86) && scripted) { Sound.clang(); Sound.thud(0.9); Sfx.play('grunt', { vol: 0.5, rate: 0.9 }); Sfx.play('gate_rattle', { vol: 0.5, rate: 0.8 }); }
-      if (once('creak', 1.5) && scripted) Sound.creak(0.8); if (once('slip', 2.0) && scripted) { Sound.noise(0.12, 3000, 0.2); Sfx.play('gasp', { vol: 0.4 }); Sound.creak(1); }
-      if (once('down', 2.6) && scripted) Sound.tone(60, 40, 1.4, 0.16, 'sine'); if (once('pull2', 3.25) && scripted) Sfx.play('grunt', { vol: 0.45, rate: 0.85 });
-      if (once('shear', 3.6) && scripted) { Sound.clang(); Sound.spark(); Sound.noise(0.2, 5000, 0.4); }
-      for (var q = 0; q < 6; q++) if (once('pop' + q, 4.0 + q * 0.11)) { Sound.spark(); flashA = 0.3; $('flash').style.opacity = 0.3; }
-      if (once('splash', 4.72)) { Sound.splash(); Sound.thud(1); Sound.noise(1.6, 500, 0.5); A.cable.visible = true; }
-      if (once('bub', 5.1)) Sound.noise(0.9, 300, 0.4); if (once('gasp', 5.95)) { Sfx.play('gasp', { vol: 0.6 }); Sound.noise(0.5, 2400, 0.3); }
+      if (once('catch', CATCH) && scripted) { Sound.clang(); Sound.thud(0.9); Sfx.play('grunt', { vol: 0.5, rate: 0.9 }); Sfx.play('gate_rattle', { vol: 0.5, rate: 0.8 }); }
+      if (once('creak', 1.5) && scripted) Sound.creak(0.8); if (once('pull', 1.5) && scripted) Sfx.play('grunt', { vol: 0.4, rate: 0.95 });
+      if (once('slip', SLIP) && scripted) { Sound.noise(0.12, 3000, 0.2); Sfx.play('gasp', { vol: 0.4 }); Sound.creak(1); }
+      if (once('below', 2.75) && scripted) { Sound.tone(60, 40, 1.4, 0.16, 'sine'); if (AquaSound.on) AquaSound.pass(B.x, B.z, 1, 'air'); }
+      if (once('pull2', 3.1) && scripted) Sfx.play('grunt', { vol: 0.45, rate: 0.85 });
+      if (once('shear', BOLTS)) { Sound.clang(); Sound.spark(); Sound.noise(0.2, 5000, 0.4); [0, 1, 2].forEach(function (n) { Sound.tone(2200 - n * 300, 900, 0.05, 0.08, 'square', n * 0.06); }); }
+      if (once('peel', PEEL)) Sfx.play('gasp', { vol: 0.5, rate: 1.05 });
+      for (var q = 0; q < 6; q++) if (once('pop' + q, LETGO + 0.05 + q * 0.11)) { Sound.spark(); flashA = 0.3; $('flash').style.opacity = 0.3; }
+      if (once('splash', SPLASH)) { Sound.splash(); Sound.thud(1); if (AquaSound.on) AquaSound.plunge(); A.cable.visible = true; spray(cx, T.water, cz, 18, 1.2); ripple(cx, cz); }
+      if (once('surf', SURF - 0.05)) { Sfx.play('gasp', { vol: 0.65 }); Sound.noise(0.6, 2400, 0.3); if (AquaSound.on) AquaSound.surface(); wetStart(); ripple(cx, cz); spray(cx, T.water, cz, 8, 0.6); }
       if (flashA > 0) { flashA = Math.max(0, flashA - dt * 2.5); $('flash').style.opacity = flashA.toFixed(3); }
       A.step(dt, false, true); stepDust(dt); CN.pulse = clamp(sh, 0, 1);
       return T2 >= END;
     }, end: function () {
       tint('none', 0); Hands.over = null; Body.show(false); st.fell = true; blackout = 1; spanGone = true; A.span.visible = false; A.cable.visible = true;
-      player.x = land.x; player.z = land.z; player.y = T.swim; player.vy = 0; player.water = true; player.grounded = true; player.yaw = player.cy = yawEnd; player.pitch = player.cp = -0.02; player.light = player.battery > 0; player.stamina = Math.max(player.stamina, 60);
-      chaseDelay = headStart(); B.x = 129.5; B.z = 53.5; B.y = 2; B.state = 'startle'; setState('playing'); lockPointer();
+      player.x = camera.position.x; player.z = camera.position.z; player.y = T.swim; player.vy = 0; player.vx = player.vz = 0; player.water = true; player.grounded = true; player.yaw = player.cy = camera.rotation.y; player.pitch = player.cp = -0.02; player.light = player.battery > 0; player.stamina = Math.max(player.stamina, 60);
+      chaseDelay = headStart(); B.state = 'startle'; setState('playing'); lockPointer();
       showMsg('Dark. She is at the far end, thrashing at the sparks.  The amber light on the south side is the dive station — SWIM.', 6.5);
     } });
   }
@@ -895,7 +959,7 @@
     var nearDoor = doorA > 0.02 && px < G.x1 + 0.5 && px > 44 && Math.abs(pz - 60) < 15;
     groups.gallery.visible = (inAQ && cx < 114) || nearDoor; groups.hall.visible = groups.upper.visible = groups.rails.visible = inAQ && cx > 79; groups.basement.visible = inAQ && cx > 131 && (py < 4.5 || liftBusy);
     plesMesh.visible = inAQ && cx > 79;
-    stepDoors(dt); stepMani(dt, instant); stepLift(dt, instant); stepSpray(dt); if (A.calling) A.calling(dt);
+    stepDoors(dt); stepMani(dt, instant); stepLift(dt, instant); stepSpray(dt); if (!inCine) { wetStep(dt); stepBubbles(dt); if (player.water && camera.position.y < T.water && Math.random() < dt * 3) bubble(1, 0.5); } if (A.calling) A.calling(dt);
     // the ladder's lower half on its winch, the cage gate, the stub, the feeder
     var ld = A.ladderDrop, want = st.ladder ? ld.userData.down : ld.userData.up; ld.position.y = instant ? want : ld.position.y + clamp(want - ld.position.y, -dt * 1.3, dt * 1.3);
     A.cageGate.rotation.y = instant ? (st.gate ? -1.45 : 0) : damp(A.cageGate.rotation.y, st.gate ? -1.45 : 0, 3, dt); A.cageBox.off = !!st.gate;
@@ -922,7 +986,8 @@
     A.benchLamp.color.setHex(0xffe6b0); A.tankTube.color.setHex(f2 > 0.3 || Math.sin(t * 0.9) > -0.6 ? 0xbfe8f0 : 0x6a8a90);
     // the water's own light: day-blue with the lamps, nearly nothing without them, and the colour of a welding arc when the feeder is live
     var uL = A.wu.uLight.value; uL.setRGB(0.55 * tankL + 0.035, 0.78 * tankL + 0.03, 0.8 * tankL + 0.04); if (out > 0.5 && !st.power) { var rp = 0.5 + 0.5 * Math.sin(t * 5); uL.r += 0.1 * rp; } if (zapK > 0) uL.setRGB(0.7 + zapK, 0.9 + zapK * 1.2, 1.1 + zapK * 1.6);
-    A.underMat.opacity = 0.2 * tankL + 0.02; A.shaftMat.opacity = 0.2 * tankL; A.floorCaus.opacity = 0.5 * tankL; A.surfMat.envMapIntensity = 0.3 + tankL;
+    var under = camera.position.y < T.water - 0.05 && camera.position.x > T.x1 && camera.position.x < T.x2 && camera.position.z > T.z1 && camera.position.z < T.z2;      // from under the water the surface is a sheet of light
+    A.underMat.opacity = under ? 0.5 + 0.2 * tankL : 0.2 * tankL + 0.02; A.underMat.color.setHex(under ? 0x9ad8e0 : 0x5a9ca8); A.shaftMat.opacity = 0.2 * tankL + (under ? 0.1 : 0); A.floorCaus.opacity = 0.5 * tankL; A.surfMat.envMapIntensity = 0.3 + tankL;
     A.arc.material.opacity = st.fell && !st.power && Math.random() < 0.04 ? 0.5 : A.arc.material.opacity * 0.8;
     // moving water: the caustics in the little tanks and on the hall floor, the shafts, the drift
     A.tCausTex.offset.set(t * 0.012, t * 0.017); A.floorCaus.map.offset.set(t * 0.02, t * 0.013); A.underMat.map.offset.set(t * 0.016, -t * 0.011); A.surfMat.normalMap.offset.set(t * 0.012, t * 0.018); A.tSurf.normalMap.offset.set(t * 0.02, t * 0.012);
@@ -934,7 +999,7 @@
   };
   A.reset = function () {
     var st = S(); seq = []; liftBusy = false; A.calling = null; if (turning) { tiles[turning.q].turn = null; turning = null; if (Hands.hold && Hands.hold.kind === 'bar') Hands.hold = null; } A.showT = 0; A.liftNow = null; Hands.over = null; Body.show(false); doorA = st.door ? 1 : 0; doorJ = 0; sdDown = st.staff >= 3 ? 1 : 0; sdFall.userData.hit = st.staff >= 3; sdJ = sdJv = 0; brkK = 0; zapK = 0; chaseDelay = 0; whereDied = ''; tint('none', 0);
-    arcs.forEach(function (sp) { sp.visible = false; }); dust.forEach(function (d) { d.life = 0; d.s.visible = false; }); Sound.drone('aqlift', 0, liftDrone); Sound.drone('aqpump', 0, liftDrone);
+    arcs.forEach(function (sp) { sp.visible = false; }); dust.forEach(function (d) { d.life = 0; d.s.visible = false; }); wetK = 0; if (wetEl) wetEl.style.opacity = 0; bubbles.forEach(function (b) { b.life = 0; b.s.visible = false; }); Sound.drone('aqlift', 0, liftDrone); Sound.drone('aqpump', 0, liftDrone);
     A.step(0, true);
   };
   A.checkpoint = false;

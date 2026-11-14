@@ -124,14 +124,14 @@ var Body = (function () {
   var belt = new THREE.Mesh(new THREE.CylinderGeometry(0.172, 0.172, 0.042, 32, 1, true), beltM); belt.scale.set(1, 1, 0.68); belt.position.y = 0.112; top.add(belt); belt.castShadow = true;
   box(0.056, 0.048, 0.012, buckle, 0, 0.112, -0.122, top); box(0.036, 0.03, 0.013, beltM, 0, 0.112, -0.1235, top);                        // the buckle, and the belt showing through its frame
   [-0.13, -0.06, 0.06, 0.13].forEach(function (x) { box(0.014, 0.05, 0.006, cloth, x, 0.112, -0.118 + Math.abs(x) * 0.12, top).rotation.y = -x * 2.2; });                      // belt loops
-  tube([[0, 0.13, 0.0, 0.162, 0.108], [0, 0.2, -0.004, 0.172, 0.114], [0, 0.32, -0.008, 0.186, 0.122], [0, 0.42, -0.004, 0.188, 0.12], [0, 0.5, 0.01, 0.17, 0.11], [0, 0.55, 0.03, 0.12, 0.08]], shirt, top, 22, 4, new V3(1, 0, 0));
+  tube([[0, 0.13, 0.0, 0.162, 0.108], [0, 0.2, -0.004, 0.172, 0.114], [0, 0.32, -0.008, 0.186, 0.122], [0, 0.4, -0.006, 0.188, 0.12], [0, 0.46, 0.0, 0.184, 0.116]], shirt, top, 22, 4, new V3(1, 0, 0));      // (stops at the chest: above that is where the eyes are)
   gathered(0.125, 0.16, 0.166, 0.112, 11, 0.05, shirt, top);                                                                             // where the shirt is tucked in
-  box(0.026, 0.4, 0.006, shirt, 0, 0.34, -0.124, top); for (var b = 0; b < 4; b++) mesh(new THREE.SphereGeometry(0.0055, 8, 6), std(0x3a3426, 0.5), 0, 0.19 + b * 0.1, -0.128, top);   // the placket, its buttons
+  var dome = mesh(new THREE.SphereGeometry(1, 24, 10, 0, PI * 2, 0, PI / 2), shirt, 0, 0.455, 0.0, top); dome.scale.set(0.184, 0.075, 0.116);       // the top of the chest and the shoulders, rounding over
+  box(0.026, 0.32, 0.006, shirt, 0, 0.3, -0.124, top); for (var b = 0; b < 3; b++) mesh(new THREE.SphereGeometry(0.0055, 8, 6), std(0x3a3426, 0.5), 0, 0.19 + b * 0.1, -0.128, top);   // the placket, its buttons
   [-1, 1].forEach(function (sd2) {                                                                                                     // chest pockets with flaps, lying on the curve of the chest
-    var pk2 = loftZ([[0.0, 0.048, 0.05, -0.055, 0], [-0.006, 0.046, 0.048, -0.053, 0]], 14, shirt, top, 5); pk2.position.set(sd2 * 0.085, 0.395, -0.106); pk2.rotation.y = -sd2 * 0.31;
-    var fl2 = loftZ([[0.0, 0.051, 0.014, -0.014, 0], [-0.008, 0.049, 0.012, -0.012, 0]], 14, shirt, top, 6); fl2.position.set(sd2 * 0.085, 0.452, -0.11); fl2.rotation.y = -sd2 * 0.31;
+    var pk2 = loftZ([[0.0, 0.048, 0.04, -0.055, 0], [-0.006, 0.046, 0.038, -0.053, 0]], 14, shirt, top, 5); pk2.position.set(sd2 * 0.085, 0.37, -0.106); pk2.rotation.y = -sd2 * 0.31;
+    var fl2 = loftZ([[0.0, 0.051, 0.014, -0.014, 0], [-0.008, 0.049, 0.012, -0.012, 0]], 14, shirt, top, 6); fl2.position.set(sd2 * 0.085, 0.418, -0.11); fl2.rotation.y = -sd2 * 0.31;
   });
-  var cap = mesh(new THREE.SphereGeometry(1, 20, 10, 0, PI * 2, 0, PI / 2), shirt, 0, 0.545, 0.03, top); cap.scale.set(0.12, 0.05, 0.08);                    // the top of it, under the collar: nothing open to look into
   top.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 
   B.show = function (on) { root.visible = !!on; };
