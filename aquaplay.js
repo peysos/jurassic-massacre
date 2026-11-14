@@ -345,10 +345,12 @@
   function inRefuge(x, z) { for (var q = 0; q < A.REFUGE.length; q++) { var R = A.REFUGE[q]; if (x > R.x1 && x < R.x2 && z > R.z1 - 0.1 && z < R.z2 + 0.1) return true; } return false; }
   function onDive(x, z, y) { var D = A.DIVE; return x > D.x1 - 0.2 && x < D.x2 + 0.2 && z > D.z1 - 0.2 && y > D.y - 0.4 && y < D.y + 1.5; }
   function startRise(kind) { B.state = 'rise'; B.kind = kind; B.riseT = 0; B.locked = false; B.hit = false; B.side = Math.abs(B.z - 60) < 1.2 ? (Math.random() < 0.5 ? 1 : -1) : B.z > 60 ? 1 : -1; Sound.noise(0.9, 900, 0.3); Sound.noise(1.2, 4200, 0.12, 0.2); Sound.tone(180, 90, 0.9, 0.12, 'sawtooth'); }          // (she comes up beside the walk, never through it)
+  function headStart() { return diffName === 'easy' ? 5.2 : diffName === 'hard' ? 2.4 : 3.7; }          // how long she thrashes at the far end before she comes for you
   A.resetBeast = function () {
     var st = S(); B.x = 122; B.y = 0.9; B.z = 60; B.rot = 0.6; B.pitch = 0; B.roll = undefined; B.sp = 0; B.turn = 0; B.state = st.dead ? 'dead' : 'patrol'; B.stunT = 0; B.hit = false; way = 0; lashT = 5; portCD = 0; deadT = st.dead ? 99 : 0; hitFx = 0; chaseDelay = 0; plesMesh.visible = true;
     for (var q = 0; q < NECK; q++) U.segs[q].rotation.set(0, 0, 0); U.head.rotation.set(0, 0, 0); U.jaw.rotation.x = 0.06;
-    if (st.dead) { B.x = 124; B.z = 57; B.rot = 2.2; } poseBeast(0, 1); if (st.dead) poseDead(0);
+    if (st.dead) { B.x = 124; B.z = 57; B.rot = 2.2; } else if (st.fell) { chaseDelay = headStart(); B.x = 129.5; B.z = 53.5; B.y = 2; B.state = 'startle'; }      // (started in the water, by the admin teleport: the same head start as after the fall)
+    poseBeast(0, 1); if (st.dead) poseDead(0);
   };
   function poseDead(dt) {
     deadT += dt; var k = clamp(deadT / 5, 0, 1);
@@ -556,7 +558,7 @@
     }, end: function () {
       tint('none', 0); Hands.over = null; Body.show(false); st.fell = true; blackout = 1; spanGone = true; A.span.visible = false; A.cable.visible = true;
       player.x = land.x; player.z = land.z; player.y = T.swim; player.vy = 0; player.water = true; player.grounded = true; player.yaw = player.cy = yawEnd; player.pitch = player.cp = -0.02; player.light = player.battery > 0; player.stamina = Math.max(player.stamina, 60);
-      chaseDelay = diffName === 'easy' ? 5.2 : diffName === 'hard' ? 2.4 : 3.7; B.x = 129.5; B.z = 53.5; B.y = 2; B.state = 'startle'; setState('playing'); lockPointer();
+      chaseDelay = headStart(); B.x = 129.5; B.z = 53.5; B.y = 2; B.state = 'startle'; setState('playing'); lockPointer();
       showMsg('Dark. She is at the far end, thrashing at the sparks.  The amber light on the south side is the dive station — SWIM.', 6.5);
     } });
   }

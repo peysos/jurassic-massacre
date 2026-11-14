@@ -1,11 +1,12 @@
 /* Jurassic Massacre — the tester's back door.
    Type the code into the small box at the bottom of the main menu and an "Admin teleport" entry appears: pick a point in
    the game and start there with everything before it already done.  Uses whichever difficulty is selected.  A teleport
-   never writes a save by itself, so a real save is only replaced if you save at a terminal afterwards. */
+   never writes a save by itself, so a real save is only replaced if you save at a terminal afterwards: until then a death
+   puts you back where you teleported in (or at a checkpoint reached since, which is kept in memory only). */
 'use strict';
 
 var Admin = (function () {
-  var A = {}, CODE = 'adminpetros', KEY = 'jurassicMassacreAdmin', panel = null, btn = null, box = null;
+  var A = { live: null, snap: null }, CODE = 'adminpetros', KEY = 'jurassicMassacreAdmin', panel = null, btn = null, box = null;
   function unlocked() { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } }
 
   // ---------- what "already done" means at each point ----------
@@ -16,12 +17,20 @@ var Admin = (function () {
     N.run = true; P.pow0 = true; P.turn = true;
     var n = P.net; n.key = true; n.door = 2; n.ups = true; n.a = n.A; n.b = n.B; n.heard = true;
   }
-  function sectorADone() { entranceDone(); keysGot[0] = keysGot[1] = true; P.pen = true; P.pulled = P.lever.slice(); P.gateA = true; }
+  function sectorADone() { entranceDone(); keysGot[0] = keysGot[1] = true; P.aq = Aqua.newState(true); P.pen = true; P.pulled = P.lever.slice(); P.gateA = true; }
+  /* The aquarium, part by part: 1 the door is open and the hall seen, 2 the STAFF ONLY door is down, 3 the pump runs, the
+     manifold is plumbed and the lift is up at the catwalks, 4 you have fallen in and she is hunting you. */
+  function aqua(n) { return function () { entranceDone(); var s = P.aq = Aqua.newState(false); if (n >= 1) { s.door = true; s.seen.hall = 1; } if (n >= 2) { s.staff = 3; s.seen.staff = 1; } if (n >= 3) { var d = Aqua.newState(true); s.pump = true; s.mani = d.mani; s.lift = 1; s.top = true; } if (n >= 4) s.fell = true; }; }
   function sectorBDone() { sectorADone(); keysGot[2] = true; P.power = true; P.sw.g = [true, true, true]; P.gateB = true; }
   function allDone() { sectorBDone(); keysGot[3] = keysGot[4] = true; P.card = true; P.winch.h = 0; P.winch.stop = 3; P.box = 1; }
   var SPOTS = [
     { name: 'Front gate', note: 'The very start, without the intro.', x: null },
     { name: 'Inside the park', note: 'Generator, gift shop and staff wing done. You are through the ticket lanes.', x: 0, z: TURN_Z - 6, yaw: 0, set: entranceDone },
+    { name: 'Aquarium · the door', note: 'Outside the Aquarium with nothing in it done. The whole of it is ahead of you.', x: 69, z: 60, yaw: -PI / 2, set: aqua(0) },
+    { name: 'Aquarium · Ocean Hall', note: 'Through the tank gallery, in front of the great tank. The STAFF ONLY door is up the ramps.', x: 104, z: 60, yaw: -PI / 2, set: aqua(1) },
+    { name: 'Aquarium · basement', note: 'The staff door is kicked in. You are at the foot of the stairs: pump room, manifold, lift.', x: 138.5, z: 61.2, y: BASE_Y, yaw: PI * 0.92, set: aqua(2) },
+    { name: 'Aquarium · catwalks', note: 'The lift is up. The key piece is across the water, and she is under it.', x: 137.5, z: 50.6, y: CW, yaw: 2.6, set: aqua(3) },
+    { name: 'Aquarium · in the tank', note: 'You have fallen. Swim for the amber light.', x: 113.5, z: 60, y: POOL.swim, yaw: -2.47, set: aqua(4) },
     { name: 'Sector 1', note: 'Aquarium and raptor paddock keys in hand, Gate A open.', x: 0, z: FENCE_A - 6, yaw: 0, set: sectorADone },
     { name: 'Wetland', note: 'Same as Sector 1, standing at the flood-control board.', x: -31.5, z: -3.5, yaw: 0.75, set: sectorADone },
     { name: 'Sector 2', note: 'Three keys, Visitor Center done, Gate B open.', x: 0, z: FENCE_B - 6, yaw: 0, set: sectorBDone },
@@ -35,8 +44,9 @@ var Admin = (function () {
     newGame(false);                                 // a clean game on the chosen difficulty, no cutscene
     if (s.x === null) return;
     s.set();
-    player.x = s.x; player.z = s.z; player.y = 0; player.yaw = s.yaw; player.cy = s.yaw; player.pitch = 0;
-    resetPlayer(); placeItems(); resetDinos(); updateHud(true);
+    player.x = s.x; player.z = s.z; player.yaw = s.yaw; player.cy = s.yaw; player.pitch = 0;
+    resetPlayer(); player.y = s.y || 0; placeItems(); resetDinos(); updateHud(true);
+    A.live = i; A.snap = null;
     if (s.chase) {                                  // startEscape() without its checkpoint save
       P.esc = { relA: 0, relB: 0, turn: 0, lock: 0, gate: 0 }; Entrance.breach = 0; breachT = 0;
       Sound.alarm(); Sound.roar(true, 0.7); escBigT = 1.9; $('escape').classList.add('big');

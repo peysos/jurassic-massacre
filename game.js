@@ -168,6 +168,7 @@ function resetPlayer() {
   $('escape').classList.remove('big'); escBigT = 0;
 }
 function newGame(playIntro) {
+  if (window.Admin) Admin.live = Admin.snap = null;
   setDifficulty(diffName);
   keysGot = ZONES.map(function () { return false; });
   batPos = shuffle(BATTERY_SPOTS.slice()).slice(0, DIFF.batteries); batGot = batPos.map(function () { return false; });
@@ -182,15 +183,18 @@ function newGame(playIntro) {
 function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
 function saveGame(zoneName, quiet) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ x: player.x, z: player.z, y: player.y, yaw: player.yaw, battery: player.battery, keysGot: keysGot,
-      batPos: batPos, batGot: batGot, diff: diffName, time: playTime, where: zoneName, P: P }));
+    var json = JSON.stringify({ x: player.x, z: player.z, y: player.y, yaw: player.yaw, battery: player.battery, keysGot: keysGot,
+      batPos: batPos, batGot: batGot, diff: diffName, time: playTime, where: zoneName, P: P });
+    if (quiet && window.Admin && Admin.live !== null) Admin.snap = json;       // a checkpoint reached after an admin teleport stays in memory: the real save is not touched
+    else { localStorage.setItem(SAVE_KEY, json); if (window.Admin) Admin.live = Admin.snap = null; }
     if (!quiet) { showMsg('Game saved — ' + zoneName, 3); Sound.save(); }
   } catch (e) { if (!quiet) showMsg('Could not save (browser storage is blocked).', 4); }
   refreshMenu();
 }
 function loadGame() {
-  var s; try { s = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { s = null; }
+  var s, adm = window.Admin && Admin.live !== null && Admin.snap; try { s = JSON.parse(adm || localStorage.getItem(SAVE_KEY)); } catch (e) { s = null; }
   if (!s || !s.keysGot || s.keysGot.length !== ZONES.length || !s.batPos || !s.P || !s.P.ent || !s.P.winch) return false;
+  if (!adm && window.Admin) Admin.live = Admin.snap = null;
   if (!s.P.net) { s.P.net = newNet(); if (s.P.turn) { s.P.net.key = true; s.P.net.door = 2; s.P.net.ups = true; s.P.net.a = s.P.net.A; s.P.net.b = s.P.net.B; s.P.net.heard = true; } }     // a save from before the staff wing
   if (!s.P.aq) s.P.aq = Aqua.newState(s.keysGot[0]);                 // a save from before the aquarium was rebuilt
   setDifficulty(s.diff);
@@ -248,9 +252,10 @@ function showDeath(kind) {
   if (kind === 'ptero') Sound.screech(); else if (kind === 'ples') Sound.splash(); else Sound.roar(kind === 'rex');
   Sound.noise(0.6, 3000, 0.5, 0.1);
   $('deadTitle').textContent = txt[0];
-  $('deadSub').textContent = txt[1] + ' Key pieces recovered: ' + countKeys() + ' / ' + ZONES.length + '.' + (hasSave() ? (P.esc ? ' You can retry the escape from the start of the lockdown.' : '') : ' You had no save.');
-  $('btnLoad').textContent = P.esc ? 'Retry the Escape' : kind === 'ples' && Aqua.checkpoint ? 'Try Again from the Lift' : 'Load Last Save';
-  refreshMenu(); setState('dead');
+  var adm = window.Admin && Admin.live !== null, chk = adm ? !!Admin.snap : hasSave();
+  $('deadSub').textContent = txt[1] + ' Key pieces recovered: ' + countKeys() + ' / ' + ZONES.length + '.' + (chk ? (P.esc ? ' You can retry the escape from the start of the lockdown.' : '') : adm ? ' (Admin start: you can go again from where you teleported in.)' : ' You had no save.');
+  $('btnLoad').textContent = adm && !chk ? 'Try Again (admin start)' : P.esc ? 'Retry the Escape' : kind === 'ples' && Aqua.checkpoint ? 'Try Again from the Lift' : 'Load Last Save';
+  refreshMenu(); if (adm) $('btnLoad').disabled = false; setState('dead');
 }
 function win() { Sound.klaxonSet(0); Cutscene.ending(showWin); }
 function showWin() {
@@ -711,8 +716,8 @@ window.addEventListener('beforeunload', function (e) { if (state === 'playing') 
 
 $('btnNew').onclick = function () { Settings.show('pNew'); }; $('btnRestart').onclick = function () { newGame(false); };
 $('btnStart').onclick = function () { Settings.close(); newGame(true); };
-$('btnContinue').onclick = function () { if (!loadGame()) refreshMenu(); };
-$('btnLoad').onclick = function () { if (!loadGame()) refreshMenu(); };
+$('btnContinue').onclick = function () { if (window.Admin) Admin.live = Admin.snap = null; if (!loadGame()) refreshMenu(); };
+$('btnLoad').onclick = function () { if (window.Admin && Admin.live !== null && !Admin.snap) { Admin.go(Admin.live); return; } if (!loadGame()) refreshMenu(); };
 $('btnResume').onclick = function () { Sound.init(); setState('playing'); lockPointer(); };
 $('btnQuit').onclick = $('btnDeadMenu').onclick = $('btnWonMenu').onclick = function () { refreshMenu(); setState('menu'); };
 $('btnIntro').onclick = function () { newGame(true); };
