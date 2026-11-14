@@ -251,8 +251,9 @@ var Hands = (function () {
     // switch on the neck (under the thumb), tail button, pocket clip, lanyard ring
     box(0.0105, 0.0022, 0.016, smooth, 0, 0.0134, -0.111, G); H.button = box(0.0072, 0.0026, 0.011, std(0x0d0d0e, 0.85), 0, 0.0152, -0.111, G); H.button.castShadow = false;
     cyl(0.0082, 0.0076, 0.004, std(0x0d0d0e, 0.85), 0, 0, 0.002, capG, 12).rotation.x = PI / 2;
-    box(0.0058, 0.0009, 0.05, metal(0x9aa0a4, 0.3), 0, -0.0147, -0.05, G); box(0.0058, 0.003, 0.004, metal(0x9aa0a4, 0.3), 0, -0.0138, -0.026, G);
-    var lany = new THREE.Mesh(new THREE.TorusGeometry(0.0055, 0.0008, 6, 14), metal(0x9aa0a4, 0.3)); lany.position.set(0.0125, -0.007, -0.004); lany.rotation.y = PI / 2; capG.add(lany);      // (on the lid: it swings with it)
+    var clipM = metal(0x9aa0a4, 0.3);                    // (one material for the three small bright parts, so they can be drawn together)
+    box(0.0058, 0.0009, 0.05, clipM, 0, -0.0147, -0.05, G); box(0.0058, 0.003, 0.004, clipM, 0, -0.0138, -0.026, G);
+    var lany = new THREE.Mesh(new THREE.TorusGeometry(0.0055, 0.0008, 6, 14), clipM); lany.position.set(0.0125, -0.007, -0.004); lany.rotation.y = PI / 2; capG.add(lany);      // (on the lid: it swings with it)
     return G;
   }
 

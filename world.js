@@ -454,10 +454,11 @@ var WB = { posts: [] };
   [[-5.6, 92, PI / 2], [5.6, 70, -PI / 2], [-5.6, 25, PI / 2], [5.6, -30, -PI / 2], [-5.6, -72, PI / 2], [-30, -5.6, 0], [40, 5.6, PI],
    [-75, 5.6, PI], [75, -5.6, 0], [-40, 74.4, 0], [35, 54.4, 0], [20, -95.6, 0], [-55, -84.4, PI]].forEach(function (b) { bench(b[0], b[1], b[2]); });
   var binTex = textTex(['LITTER'], 128, 40, '#143320', '#d8d2c2', null, false);
+  var binLabel = null;                                    // one material for every bin's label, so the labels in a square are one draw
   function bin(x, z, tipped) {
-    var grp = new THREE.Group();
+    var grp = new THREE.Group(); binLabel = binLabel || std(0xffffff, 0.6, { map: binTex });
     cyl(0.36, 0.3, 0.95, M.binGreen, 0, 0.475, 0, grp, 14); cyl(0.37, 0.37, 0.05, M.dark, 0, 0.3, 0, grp, 14); cyl(0.39, 0.39, 0.1, M.dark, 0, 1.0, 0, grp, 14); cyl(0.2, 0.32, 0.22, M.dark, 0, 1.13, 0, grp, 14);
-    mesh(new THREE.PlaneGeometry(0.44, 0.14), std(0xffffff, 0.6, { map: binTex }), 0, 0.7, 0.345, grp);
+    mesh(new THREE.PlaneGeometry(0.44, 0.14), binLabel, 0, 0.7, 0.345, grp);
     grp.position.set(x, 0, z);
     if (tipped) { grp.rotation.set(0, srand() * 6, PI / 2 - 0.05); grp.position.y = 0.36; }
     scene.add(grp); circles.push({ x: x, z: z, r: tipped ? 0.6 : 0.45 });

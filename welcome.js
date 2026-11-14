@@ -319,16 +319,25 @@ var Welcome = (function () {
     }, 1, 1, true, 896), totM = std(0xffffff, 0.75, { map: totTex, bumpMap: bump(2), bumpScale: 0.008 });
     [-4.9, 4.9].forEach(function (x) {
       var g = grp(x, 144.6, x < 0 ? 0.35 : -0.35); box(1.0, 0.3, 0.6, M.concrete, 0, 0.15, 0, g); box(0.84, 3.9, 0.3, EM.rustSteel, 0, 2.25, 0, g);
-      mesh(new THREE.PlaneGeometry(0.8, 3.8), totM, 0, 2.25, 0.152, g).userData.noCast = true; mesh(new THREE.PlaneGeometry(0.8, 3.8), totM, 0, 2.25, -0.152, g).rotation.y = PI; box(0.96, 0.1, 0.42, green, 0, 4.25, 0, g);
+      mesh(new THREE.PlaneGeometry(0.8, 3.8), totM, 0, 2.25, 0.152, g).userData.noCast = true; var tb = mesh(new THREE.PlaneGeometry(0.8, 3.8), totM, 0, 2.25, -0.152, g); tb.rotation.y = PI; tb.userData.noCast = true; box(0.96, 0.1, 0.42, green, 0, 4.25, 0, g);
       ring(x, 144.6, 0.5);
     });
-    var flagTex = function (hue) { return canvasTex(128, function (g, S, HH) { g.clearRect(0, 0, S, HH); g.fillStyle = hue; g.fillRect(0, 0, S, HH); g.fillStyle = '#ece3c4'; g.beginPath(); g.ellipse(S * 0.45, HH / 2, 22, 12, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(200,190,160,.35)'; g.fillRect(0, 0, S, HH); streaks(g, S, HH, 12, 'rgba(30,30,20,.8)', HH); g.globalCompositeOperation = 'destination-out'; for (var n = 0; n < 7; n++) { g.beginPath(); g.moveTo(S, n * HH / 6); g.lineTo(S - 14 - Math.random() * 40, n * HH / 6 + HH / 12); g.lineTo(S, (n + 1) * HH / 6); g.fill(); } g.globalCompositeOperation = 'source-over'; }, 1, 1, true, 80); };
-    Wc.flags = []; var flagM = { '#254a30': std(0xffffff, 0.9, { map: flagTex('#254a30'), alphaTest: 0.5, side: THREE.DoubleSide }), '#8d1f18': std(0xffffff, 0.9, { map: flagTex('#8d1f18'), alphaTest: 0.5, side: THREE.DoubleSide }) };
-    [[-12.6, '#254a30'], [-15.0, '#8d1f18'], [-17.4, '#254a30']].forEach(function (f, n) {
+    /* Three flags, one mesh (and one cloth: the green on the top half of the texture, the red on the bottom), blown about in
+       Welcome.step. */
+    var flagTex = canvasTex(128, function (g, S, HH) {
+      g.clearRect(0, 0, S, HH); ['#254a30', '#8d1f18'].forEach(function (hue, n) {
+        g.save(); g.translate(0, n * 80); g.fillStyle = hue; g.fillRect(0, 0, S, 80); g.fillStyle = '#ece3c4'; g.beginPath(); g.ellipse(S * 0.45, 40, 22, 12, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(200,190,160,.35)'; g.fillRect(0, 0, S, 80); streaks(g, S, 80, 12, 'rgba(30,30,20,.8)', 80);
+        g.globalCompositeOperation = 'destination-out'; for (var k = 0; k < 7; k++) { g.beginPath(); g.moveTo(S, k * 80 / 6); g.lineTo(S - 14 - Math.random() * 40, k * 80 / 6 + 80 / 12); g.lineTo(S, (k + 1) * 80 / 6); g.fill(); } g.globalCompositeOperation = 'source-over'; g.restore(); });
+    }, 1, 1, true, 160);
+    var fP = [], fU = [], fI = [], fL = [];                       // positions, uvs, indices; and for each vertex its distance along the cloth, where it hangs, and its flag's phase
+    [[-12.6, 0], [-15.0, 1], [-17.4, 0]].forEach(function (f, n) {
       cyl(0.045, 0.07, 7.2, steel, f[0], 3.6, 147.8, null, 8); cyl(0.2, 0.24, 0.3, M.concrete, f[0], 0.15, 147.8, null, 10); mesh(new THREE.SphereGeometry(0.08, 8, 6), M.gold, f[0], 7.25, 147.8); ring(f[0], 147.8, 0.22);
-      var fg = dyn(new THREE.Group()); fg.position.set(f[0] + 0.05, 6.5 - n * 0.9, 147.8); scene.add(fg); var geo = new THREE.PlaneGeometry(1.5, 0.9, 8, 4); geo.translate(0.75, 0, 0); mesh(geo, flagM[f[1]], 0, 0, 0, fg).userData.noCast = true;
-      geo.userData = { base: geo.attributes.position.array.slice(), ph: n * 2.1 }; Wc.flags.push(geo);
+      var geo = new THREE.PlaneGeometry(1.5, 0.9, 8, 4), GP = geo.attributes.position, GU = geo.attributes.uv, off = fP.length / 3, px = f[0] + 0.05, py = 6.5 - n * 0.9, v;
+      for (v = 0; v < GP.count; v++) { var lx = GP.getX(v) + 0.75; fP.push(px + lx, py + GP.getY(v), 147.8); fU.push(GU.getX(v), f[1] ? GU.getY(v) * 0.5 : 0.5 + GU.getY(v) * 0.5); fL.push(lx, py + GP.getY(v), n * 2.1); }
+      for (v = 0; v < geo.index.count; v++) fI.push(geo.index.getX(v) + off);
     });
+    var fgeo = new THREE.BufferGeometry(); fgeo.setAttribute('position', new THREE.Float32BufferAttribute(fP, 3)); fgeo.setAttribute('uv', new THREE.Float32BufferAttribute(fU, 2)); fgeo.setIndex(fI); fgeo.computeVertexNormals(); fgeo.computeBoundingSphere(); fgeo.boundingSphere.radius += 0.5;
+    var fm = dyn(new THREE.Mesh(fgeo, std(0xffffff, 0.9, { map: flagTex, alphaTest: 0.5, side: THREE.DoubleSide }))); fm.userData.noCast = true; fm.userData.keep = true; scene.add(fm); Wc.flags = { pos: fgeo.attributes.position, L: fL };
     // ----- the photo point: Trixie, the park's fibreglass Triceratops, on her plinth -----
     (function () {
       var x = -15.6, z = 140.6, PY = 0.36;
@@ -424,7 +433,7 @@ var Welcome = (function () {
     var near = inner.visible && cz > 122 && cx > -12, f = Math.sin(t * 19) + Math.sin(t * 7.3 + 1) > -1.1 ? 1 : 0.15, lit = on && near;
     Wc.light.intensity = lit ? 0.75 * (0.6 + 0.4 * f) : 0; Wc.light2.intensity = lit ? 0.42 : 0;
     Wc.tubes[0].color.setHex(on ? (f > 0.5 ? 0xf4f7ff : 0x6a6e74) : 0x1c1c1a); Wc.tubes[2].color.setHex(on ? 0xf4f7ff : 0x1c1c1a); Wc.bulbs[0].color.setHex(on ? 0xdfeeff : 0x1c1c1a); Wc.lampM.color.setHex(on ? 0xffe6b0 : 0x1c1c1a);
-    if (cz > 118) Wc.flags.forEach(function (geo) { var P2 = geo.attributes.position, b = geo.userData.base; for (var v = 0; v < P2.count; v++) { var x = b[v * 3]; P2.setZ(v, Math.sin(x * 3.2 - t * 2.1 + geo.userData.ph) * 0.09 * x); P2.setY(v, b[v * 3 + 1] - x * x * 0.11 + Math.sin(x * 2 - t * 1.4 + geo.userData.ph) * 0.03 * x); } P2.needsUpdate = true; });
+    if (cz > 118) { var FP = Wc.flags.pos, FL = Wc.flags.L; for (var v = 0; v < FP.count; v++) { var x = FL[v * 3], ph = FL[v * 3 + 2]; FP.setZ(v, 147.8 + Math.sin(x * 3.2 - t * 2.1 + ph) * 0.09 * x); FP.setY(v, FL[v * 3 + 1] - x * x * 0.11 + Math.sin(x * 2 - t * 1.4 + ph) * 0.03 * x); } FP.needsUpdate = true; }
   };
   return Wc;
 })();
