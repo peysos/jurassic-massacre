@@ -718,10 +718,14 @@
       var lg = Scares.lunge(T2, DUR), want = Math.max(0.66, lerp(3.4, 1.2, loom) - bite * 0.25 - lg * 0.45); sh += lg * 0.9;
       B.y = lerp(T.water - 0.8, T.floor + 1.5, drag); B.pitch = (wet ? 0.1 : 0.27) * (1 - drag);
       var by = B.y + 0.26 * SC + Math.sin(B.pitch) * 2.42 * SC, dv = cy - 0.1 - by, Rb = pull + want + 1.0 + Math.sqrt(Math.max(0, 23 - dv * dv)) + Math.cos(B.pitch) * 2.42 * SC;       // far enough off that the neck is drawn out, not folded
-      B.x = clamp(c0.x + dx * Rb, T.x1 + 3.3, T.x2 - 3.3); B.z = clamp(c0.z + dz * Rb, T.z1 + 3.3, T.z2 - 3.3); B.rot = Math.atan2(cx - B.x, cz - B.z);
+      var kx = clamp(c0.x + dx * Rb, T.x1 + 3.3, T.x2 - 3.3), kz = clamp(c0.z + dz * Rb, T.z1 + 3.3, T.z2 - 3.3);
+      if (!ev.b0) ev.b0 = [B.x, B.z, B.y]; var bk = easeIO(clamp(T2 / 0.45, 0, 1));                   // (from where she is: she surges there, never jumps)
+      if (bk < 1) { B.x = lerp(ev.b0[0], kx, bk); B.z = lerp(ev.b0[1], kz, bk); B.y = lerp(ev.b0[2], B.y, bk); }
+      else { var vm = 3.5 * dt; B.x += clamp(kx - B.x, -vm, vm); B.z += clamp(kz - B.z, -vm, vm); }                 // (and after that follows the drag no faster than she can swim)
+      B.rot = Math.atan2(cx - B.x, cz - B.z);
       poseBeast(dt, 2);
       nsAvoid = !wet; var over = nsAvoid ? 0.42 * (1 - drag) : 0;                // off a walk she comes over the rail at you from above, and bites down
-      neckSolve(cx + dx * want, cy - 0.1 - (1 - loom) * 0.5 * (nsAvoid ? 0 : 1) + over, cz + dz * want, cx, cy - 0.05, cz, first); first = false; nsAvoid = false;
+      neckSolve(cx + dx * want, cy - 0.1 - (1 - loom) * 0.5 * (nsAvoid ? 0 : 1) + over, cz + dz * want, cx, cy - 0.05, cz, first || bk < 1); first = false; nsAvoid = false;      // (searched afresh while her body is still surging into place)
       U.jaw.rotation.x = Math.max(lerp(0.3, 0.85, loom) - bite * 0.6 + Math.sin(T2 * 11) * 0.08 * drag, fin * 0.85); U.head.rotation.z = Math.sin(T2 * 9) * 0.2 * drag * (1 - fin);
       headPos(hp); away.set(cx - hp.x, cy - hp.y, cz - hp.z); var gap = away.length(); if (gap < 0.62) { away.multiplyScalar(0.62 / (gap || 1)); cx = hp.x + away.x; cy = hp.y + away.y; cz = hp.z + away.z; }      // (the lens never goes into her head, whatever the neck did)
       camera.position.set(cx + Math.sin(T2 * 41) * sh * 0.04, cy + Math.sin(T2 * 53) * sh * 0.04, cz + Math.sin(T2 * 37) * sh * 0.03);
