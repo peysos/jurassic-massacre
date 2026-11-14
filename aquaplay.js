@@ -69,42 +69,65 @@
   A.gather('hall');
   function puff(x, y, z, n, spread, up) { for (var q = 0; q < n; q++) { var d = dust.filter(function (p) { return p.life <= 0; })[0]; if (!d) return; d.s.position.set(x + (Math.random() - 0.5) * spread, y + (Math.random() - 0.5) * spread, z + (Math.random() - 0.5) * spread); d.v.set((Math.random() - 0.7) * 0.9, (up || 0.2) + Math.random() * 0.5, (Math.random() - 0.5) * 0.9); d.life = d.max = 0.8 + Math.random() * 1.1; d.s.visible = true; } }
   function stepDust(dt) { dust.forEach(function (d) { if (d.life <= 0) return; d.life -= dt; var kk = d.life / d.max; d.s.position.addScaledVector(d.v, dt); d.v.multiplyScalar(1 - dt * 1.6); d.s.material.opacity = kk * 0.5; var sc = 0.12 + (1 - kk) * 0.7; d.s.scale.set(sc, sc, 1); if (d.life <= 0) d.s.visible = false; }); }
-  /* The kick.  You square up to the door, the knee comes up to the chest, and the boot goes into the door beside the lock with
-     the whole leg behind it.  Twice the hasp holds.  The third time the screws come out of the frame and the door goes in
-     flat, off its hinges, and slides down the stairs behind it. */
-  var K_HIP = 1.66, K_KNEE = -0.2, K_ANK = 0.42;
+  /* The kick.  You square up to the door a short pace off it.  The weight goes back onto the left leg (the view tips back a
+     touch), the right knee comes up toward the chest with the boot cocked, toes up and turned out a little; then the hips drive
+     forward and the leg snaps straight, so the heel and the flat of the sole go into the door beside the lock.  The shock comes
+     back up the leg into you: the view jars, the door jumps on its hasp, dust comes off the frame.  The leg comes back, the
+     boot goes down, you are standing again.  Twice the hasp holds.  The third time the screws come out of the frame and the
+     door goes in flat, the boot following it through. */
+  var K_HIP = 1.28, K_KNEE = -0.08, K_ANK = 0.3, K_TW = 0.32, K_AB = 0.06, EYE = new V3(0, 0.72, -0.05), kfP = new V3();
+  function doorFaceX(z, y) {                           // the face of the STAFF ONLY door as it hangs now, where a boot at (z, y) meets it
+    sdHinge.updateWorldMatrix(true, false); var best = SD.x, bd = 1e9;
+    for (var zl = -0.95; zl <= 0.001; zl += 0.005) { kfP.set(-0.026, y - SD.y, zl).applyMatrix4(sdHinge.matrixWorld); var d = Math.abs(kfP.z - z); if (d < bd) { bd = d; best = kfP.x; } }
+    return best;
+  }
   function kick() {
-    var st = S(), n = st.staff, T2 = 0, c0 = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp, DUR = 1.3, ev = {}, YAW = -PI / 2, CN;
-    var faceX = SD.x - 0.03 - 0.02 * n, kz = (SD.z1 + SD.z2) / 2 - 0.13, fy = MEZ, sole = new V3();
-    Body.place(0, fy + 0.93, 0, YAW); Body.pose('R', K_HIP, K_KNEE, K_ANK); Body.root.updateMatrixWorld(true); Body.sole('R', sole);
-    var sx = faceX - sole.x - 0.004, sz = kz - sole.z, yawS = yaw0 + angDiff(YAW, yaw0);
+    var st = S(), n = st.staff, T2 = 0, c0 = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp, DUR = 1.5, ev = {}, YAW = -PI / 2, CN, DRIVE = 0.1;
+    var fy = MEZ, HIPY = fy + 0.98, kz = (SD.z1 + SD.z2) / 2 - 0.12, sole = new V3(), eye = new V3(), tgt = new V3();
+    // the moment of contact, solved: where the hips have to be for the ball of the boot to land square on the face of the door
+    Body.place(0, HIPY, 0, YAW, -0.04); Body.pose('R', K_HIP, K_KNEE, K_ANK, K_AB, K_TW); Body.root.updateMatrixWorld(true); Body.sole('R', sole);
+    var faceX = doorFaceX(kz, sole.y), rx = faceX - sole.x - 0.003, rz = kz - sole.z, sx = rx - DRIVE;
+    var startX = c0.x - 0.05 * Math.sin(-yaw0) * 0, startZ = c0.z;                                                                    // (the body starts under the eyes)
     function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
+    function chain(a0, a1, a2, a3, ch, th, rc, dn) { return lerp(lerp(lerp(a0, a1, ch), a2, th), lerp(a3, a0, dn), rc); }
     closePanel(); Hands.over = { L: { pos: new V3(), q: new Q4(), pose: Hands.POSE.relax, k: 0 } };
     startCine(CN = { pulse: 0, update: function (dt) {
       T2 += dt;
-      var inK = easeIO(clamp(T2 / 0.3, 0, 1)), ch = seg(T2, 0.14, 0.42), th = seg(T2, 0.44, 0.535), rc = seg(T2, 0.6, 0.86), dn = seg(T2, 0.86, 1.2), hit = hump(T2, 0.52, 0.535, 0.56, 0.74);
-      var hip = lerp(lerp(lerp(0, 1.92, ch), K_HIP, th), lerp(1.25, 0, dn), rc), knee = lerp(lerp(lerp(0, -2.05, ch), K_KNEE, th), lerp(-1.55, 0, dn), rc), ank = lerp(0, K_ANK, ch) * (1 - dn);
-      Body.show(true); Body.place(lerp(c0.x, sx, inK) - ch * 0.05 * (1 - th) + th * 0.07 * (1 - rc), fy + 0.93 - ch * 0.03 * (1 - dn), lerp(c0.z, sz, inK), YAW);
-      Body.pose('R', hip, knee, ank, 0.03); Body.pose('L', -0.1 * ch * (1 - dn), -0.16 * ch * (1 - dn), 0, 0.05);
+      var inK = easeIO(clamp(T2 / 0.32, 0, 1)), ch = seg(T2, 0.14, 0.44), th = clamp((T2 - 0.44) / 0.08, 0, 1), rc = seg(T2, 0.6, 0.86), dn = seg(T2, 0.86, 1.22), hit = hump(T2, 0.515, 0.525, 0.56, 0.78);
+      th = th * th * (3 - 2 * th);
+      var follow = n === 2 ? seg(T2, 0.52, 0.64) * 0.12 * (1 - rc) : 0;
+      var hip = chain(0, 1.85, K_HIP, 1.55, ch, th, rc, dn), knee = chain(0, -2.05, K_KNEE, -1.75, ch, th, rc, dn), ank = chain(0, 0.42, K_ANK, 0.3, ch, th, rc, dn);
+      var tw = chain(0, K_TW, K_TW, K_TW * 0.5, ch, th, rc, dn), ab = chain(0, 0.08, K_AB, 0.06, ch, th, rc, dn), lean = 0.1 * ch * (1 - th) - 0.04 * th * (1 - rc);
+      var drive = th * (1 - rc) * DRIVE + follow, bx = lerp(startX, sx, inK) + drive, bz = lerp(startZ, rz, inK), by = HIPY - 0.035 * ch * (1 - dn);
+      Body.show(true); Body.torso(false); Body.place(bx, by, bz, YAW, lean);                                     // (the shirt stays out of it: the view is on the boot)
+      Body.pose('R', hip, knee, ank, ab, tw); Body.pose('L', -0.06 * ch * (1 - dn), -0.2 * ch * (1 - dn), 0.05 * ch * (1 - dn), 0.04);
+      if (th > 0.5 && rc < 0.5) { Body.root.updateMatrixWorld(true); Body.sole('R', sole); var fx = doorFaceX(sole.z, sole.y) - 0.003; if (sole.x > fx) { bx -= sole.x - fx; Body.place(bx, by, bz, YAW, lean); } }      // never into the door, however it is moving
+      // the eyes: on the body, looking at the lock, dropping to the boot as it goes in; jarred by the blow
+      Body.root.updateMatrixWorld(true); eye.copy(EYE).applyMatrix4(Body.root.matrixWorld);
       var sh = hit * (n === 2 ? 1.3 : 0.9);
-      camera.position.set(Body.root.position.x - 0.1 - ch * 0.07 * (1 - rc) + th * 0.05 * (1 - rc) + (Math.random() - 0.5) * sh * 0.03, fy + 1.7 - ch * 0.05 * (1 - dn) + (Math.random() - 0.5) * sh * 0.03, Body.root.position.z - 0.02 + ch * 0.04 * (1 - dn));
-      camera.rotation.set(lerp(pitch0, -0.42 + ch * 0.1 - th * 0.06, inK) * (1 - dn) + dn * -0.05 + hit * 0.03, lerp(yaw0, yawS, inK) + ch * 0.06 * (1 - dn), ch * -0.03 * (1 - dn));
+      tgt.set(faceX, fy + lerp(1.12, 0.92, ch) - 0.05 * th, kz + 0.06);
+      var yawT = Math.atan2(-(tgt.x - eye.x), -(tgt.z - eye.z)), pitT = Math.atan2(tgt.y - eye.y, Math.hypot(tgt.x - eye.x, tgt.z - eye.z));
+      var yaw = lerp(yaw0, yaw0 + angDiff(yawT, yaw0), inK), pit = lerp(pitch0, pitT, inK) * (1 - seg(T2, 1.1, 1.5)) + seg(T2, 1.1, 1.5) * -0.06;
+      camera.position.set(eye.x + (Math.random() - 0.5) * sh * 0.025 - hit * 0.02, eye.y + (Math.random() - 0.5) * sh * 0.025, eye.z + (Math.random() - 0.5) * sh * 0.02);
+      camera.rotation.set(pit + hit * 0.045 + (Math.random() - 0.5) * sh * 0.02, yaw + ch * 0.04 * (1 - dn), -ch * 0.025 * (1 - dn) + hit * 0.02);
       if (camera.fov !== prefs.fov) { camera.fov = prefs.fov; camera.updateProjectionMatrix(); }
-      // the left arm comes out to balance; the torch hand comes up with the lean
-      var o = Hands.over.L; o.k = ch * (1 - dn); o.pos.set(-0.36 - th * 0.05, -0.34 + ch * 0.04, -0.2); o.q.setFromEuler(new THREE.Euler(0.5, 0.5, 1.0, 'YXZ'));
-      Hands.aim = [0.03, 0.03 * ch, 0.03, 0.1 * ch, -0.1 * ch, 0.12 * ch]; flashlight.intensity = player.light ? 2.0 : 0; Hands.fill.intensity = 0.5;
+      // the left arm comes out to balance; the torch hand comes in and up with the lean
+      var o = Hands.over.L; o.k = ch * (1 - dn); o.pos.set(-0.38 - th * 0.05, -0.32 + ch * 0.05, -0.22); o.q.setFromEuler(new THREE.Euler(0.5, 0.5, 1.0, 'YXZ'));
+      Hands.aim = [0.04 + 0.07 * ch * (1 - dn), 0.05 * ch * (1 - dn), 0.04, 0.14 * ch, -0.18 * ch, 0.16 * ch]; flashlight.intensity = player.light ? 2.0 : 0; Hands.fill.intensity = 0.5;
       Hands.update(dt, { speed: 0, yaw: camera.rotation.y, pitch: camera.rotation.x, phase: 0, grounded: true });
-      if (once('grunt', 0.36)) Sfx.play('grunt', { vol: 0.34, rate: 0.95 + n * 0.06 });
-      if (once('hit', 0.53)) {
+      if (once('grunt', 0.4)) Sfx.play('grunt', { vol: 0.34, rate: 0.95 + n * 0.06 });
+      if (once('whoosh', 0.44)) Sound.noise(0.12, 1800, 0.08);
+      if (once('hit', 0.52)) {
         Sound.thud(1); Sound.noise(0.18, 1400, 0.6); Sound.tone(190, 70, 0.3, 0.4, 'square'); Sfx.play('gate_rattle', { vol: 0.5, rate: 0.7 + n * 0.1 }); makeNoise(player.x, player.z, 30);
         puff(SD.x, fy + 1.1, kz, n === 2 ? 9 : 4, 0.5, 0.1); puff(SD.x, fy + 2.1, kz, 3, 0.8, -0.2);
-        if (n < 2) { sdJv = -2.6 - n * 1.2; st.staff = n + 1; if (n === 1) { Sound.clang(); } }
+        if (n < 2) { sdJv = -2.6 - n * 1.2; st.staff = n + 1; if (n === 1) { Sound.clang(); Sound.noise(0.25, 3200, 0.3); } }
         else { st.staff = 3; sdDown = 0.0001; Sound.clang(); Sound.noise(0.5, 2400, 0.5); }
       }
+      if (once('plant', 1.2)) Sound.step(0.16, 520);
       stepDoors(dt); stepDust(dt); CN.pulse = hit * 0.6;
       return T2 >= DUR;
     }, end: function () {
-      Body.show(false); Hands.over = null; Hands.aim = null; player.x = sx - 0.1; player.z = sz - 0.02; player.y = fy; player.yaw = player.cy = YAW; player.pitch = player.cp = -0.05; setState('playing'); lockPointer();
+      Body.show(false); Body.torso(true); Hands.over = null; Hands.aim = null; player.x = camera.position.x; player.z = camera.position.z; player.y = fy; player.vx = player.vz = 0; player.yaw = player.cy = camera.rotation.y; player.pitch = player.cp = camera.rotation.x; setState('playing'); lockPointer();
       showMsg(st.staff === 1 ? 'It jumps in its frame. The hasp holds.' : st.staff === 2 ? 'Wood splits round the staple. Once more.' : 'The door goes in flat and slides away down the stairs. Something below is still dripping.', st.staff === 3 ? 5.5 : 3);
     } });
   }

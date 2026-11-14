@@ -43,6 +43,7 @@ var Hands = (function () {
     for (i = 0; i < 9; i++) { var y = Math.random() * S, gr = g.createLinearGradient(0, y - 9, 0, y + 9); gr.addColorStop(0, 'rgba(128,128,128,0)'); gr.addColorStop(0.5, 'rgba(40,40,40,.7)'); gr.addColorStop(0.75, 'rgba(210,210,210,.55)'); gr.addColorStop(1, 'rgba(128,128,128,0)'); g.fillStyle = gr; g.fillRect(0, y - 9, S, 18); }   // folds
   }, 2.5, 2, 5);
   var clothMat = new THREE.MeshStandardMaterial({ map: clothMap, normalMap: clothNormal, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.92 });
+  H.clothMat = clothMat;                                                 // (the shirt in body.js is the same khaki)
   var brass = std(0xb08d4a, 0.38, { metalness: 0.9 }), strapMat = std(0x3d2a1a, 0.6, { bumpMap: bump(3), bumpScale: 0.004 });
 
   // a small studio environment so the flashlight's metal has something to reflect (applied only to its materials)
