@@ -963,7 +963,7 @@ function update(dt) {
   for (bt = 0.7; bt < Math.min(bHit, 7.5); bt += 0.55) { var bx2 = player.x + bfx * bt, bz2 = player.z + bfz * bt; for (bi = 0; bi < boxes.length; bi++) { var bb = boxes[bi]; if (!bb.off && bx2 > bb.x1 && bx2 < bb.x2 && bz2 > bb.z1 && bz2 < bb.z2) { bHit = bt; break; } } if (bHit === bt) break; }
   beamNear = damp(beamNear, clamp((7.5 - bHit) / 6.8, 0, 1), 4, dt);
   flashlight.intensity = ((player.light && !relo ? 2.3 * flick * (1 - 0.6 * beamNear) : 0) + burst * 14) * (1 - uiK); flashlight.angle = 0.6 + burst * 0.3;
-  Hands.fill.intensity = relo ? 0.5 : player.light ? 0.42 * flick : 0.1; Hands.setLight(player.light);      // enough to see your own hands by
+  Hands.fill.intensity = relo ? 0.8 : player.light ? 0.42 * flick : 0.1; Hands.setLight(player.light);      // enough to see your own hands by
 
   // camera
   /* Head motion from the stride: the head is lowest as each foot lands and rides over the stance leg (side to side once per

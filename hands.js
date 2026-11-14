@@ -219,8 +219,25 @@ var Hands = (function () {
     var smooth = metal(0x1e1f22, 0.34), accent = metal(0x8a3a1c, 0.3);
     function lathe(pts, mat, seg) { var m = new THREE.Mesh(new THREE.LatheGeometry(pts.map(function (p) { return new THREE.Vector2(p[0], p[1]); }), seg || 28), mat); m.rotation.x = -PI / 2; m.castShadow = true; G.add(m); return m; }   // lathe axis (y) laid along -z
     // z = 0 is the tail, the lens is at z = -0.158
-    var capG = new THREE.Group(); G.add(capG); G.userData.cap = capG;                                                                                // the tail cap unscrews
-    var capMesh = lathe([[0.0001, 0], [0.0118, 0], [0.0142, 0.002], [0.0146, 0.004], [0.0146, 0.021], [0.0136, 0.023]], body); capG.add(capMesh);
+    /* The tail is a flip-top breech.  A knurled locking ring turns a quarter to free the lid, which then springs open on a
+       hinge at the rim and stands out sideways, clear of the bore: the cell loads from the tail.  Under the lid are the
+       bore, its rim and the contact spring.  (capPivot is put on the rim by fitHinge() below, once the grip is known.) */
+    var capPivot = new THREE.Group(); G.add(capPivot); var capG = new THREE.Group(); capPivot.add(capG); var ring = new THREE.Group(); capG.add(ring);
+    G.userData.cap = capG; G.userData.capPivot = capPivot; G.userData.ring = ring;
+    var capMesh = lathe([[0.0001, 0], [0.0118, 0], [0.0142, 0.002], [0.0146, 0.004], [0.0146, 0.021], [0.0136, 0.023]], body); ring.add(capMesh);
+    var bore = std(0x0a0a0b, 0.55, { metalness: 0.7, side: THREE.BackSide }), boreIn = std(0x0a0a0b, 0.6, { metalness: 0.6 }), white = std(0xd8d4c8, 0.6);
+    function inG(m, parent) { m.castShadow = false; parent.add(m); return m; }
+    var b1 = inG(new THREE.Mesh(new THREE.CylinderGeometry(0.0127, 0.0127, 0.07, 22, 1, true), bore), G); b1.rotation.x = PI / 2; b1.position.z = -0.058;                 // the bore
+    inG(new THREE.Mesh(new THREE.RingGeometry(0.0127, 0.0137, 24), smooth), G).position.z = -0.02295;                                                               // its rim
+    var b2 = inG(new THREE.Mesh(new THREE.CircleGeometry(0.0127, 18), boreIn), G); b2.position.z = -0.093;
+    [0, 2.1, 4.2].forEach(function (a) { var lug = inG(new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.0012, 0.0022), smooth), G); lug.position.set(Math.cos(a) * 0.0131, Math.sin(a) * 0.0131, -0.0218); lug.rotation.z = a + PI / 2; });   // bayonet lugs
+    var c1 = inG(new THREE.Mesh(new THREE.CylinderGeometry(0.0128, 0.0128, 0.019, 22, 1, true), bore), capG); c1.rotation.x = PI / 2; c1.position.z = -0.0135;            // inside the lid
+    var c2 = inG(new THREE.Mesh(new THREE.CircleGeometry(0.0128, 18), boreIn), capG); c2.position.z = -0.004; c2.rotation.y = PI;
+    var c3 = inG(new THREE.Mesh(new THREE.RingGeometry(0.0128, 0.0137, 24), std(0x1d1e21, 0.7, { metalness: 0.3 })), capG); c3.position.z = -0.02305; c3.rotation.y = PI;
+    var sp = []; for (var q = 0; q <= 44; q++) { var st = q / 44, sa = st * PI * 2 * 3.5, sr = 0.0038 + st * 0.0042; sp.push(new THREE.Vector3(Math.cos(sa) * sr, Math.sin(sa) * sr, -0.0045 - st * 0.0125)); }
+    inG(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sp), 88, 0.00055, 5), metal(0xc9a13a, 0.3)), capG);                                       // the contact spring
+    inG(new THREE.Mesh(new THREE.BoxGeometry(0.0014, 0.0005, 0.008), white), ring).position.set(0, 0.01463, -0.011);                                                // lock mark on the ring...
+    inG(new THREE.Mesh(new THREE.BoxGeometry(0.0014, 0.0005, 0.004), white), G).position.set(0, 0.01345, -0.0262);                                                  // ...and the one it lines up with
     lathe([[0.0136, 0.023], [0.0128, 0.0245], [0.0128, 0.026], [0.0134, 0.027], [0.0134, 0.094], [0.0128, 0.0955]], body);                          // grip
     lathe([[0.0128, 0.0955], [0.0139, 0.097], [0.0139, 0.101], [0.0128, 0.1025]], accent);                                                           // anodised ring
     lathe([[0.0128, 0.1025], [0.0132, 0.104], [0.0132, 0.117], [0.0150, 0.121], [0.0186, 0.129], [0.0196, 0.131], [0.0196, 0.1345], [0.0190, 0.1352], [0.0190, 0.1372], [0.0196, 0.1379], [0.0196, 0.1414], [0.0190, 0.1421], [0.0190, 0.1441], [0.0196, 0.1448], [0.0196, 0.1555], [0.0188, 0.158], [0.0176, 0.1585], [0.0170, 0.156]], smooth);   // neck, flare and finned head
@@ -234,7 +251,7 @@ var Hands = (function () {
     box(0.0105, 0.0022, 0.016, smooth, 0, 0.0134, -0.111, G); H.button = box(0.0072, 0.0026, 0.011, std(0x0d0d0e, 0.85), 0, 0.0152, -0.111, G); H.button.castShadow = false;
     cyl(0.0082, 0.0076, 0.004, std(0x0d0d0e, 0.85), 0, 0, 0.002, capG, 12).rotation.x = PI / 2;
     box(0.0058, 0.0009, 0.05, metal(0x9aa0a4, 0.3), 0, -0.0147, -0.05, G); box(0.0058, 0.003, 0.004, metal(0x9aa0a4, 0.3), 0, -0.0138, -0.026, G);
-    var ring = new THREE.Mesh(new THREE.TorusGeometry(0.0055, 0.0008, 6, 14), metal(0x9aa0a4, 0.3)); ring.position.set(0.0125, -0.007, -0.004); ring.rotation.y = PI / 2; G.add(ring);
+    var lany = new THREE.Mesh(new THREE.TorusGeometry(0.0055, 0.0008, 6, 14), metal(0x9aa0a4, 0.3)); lany.position.set(0.0125, -0.007, -0.004); lany.rotation.y = PI / 2; capG.add(lany);      // (on the lid: it swings with it)
     return G;
   }
 
@@ -361,7 +378,7 @@ var Hands = (function () {
     return m;
   }
   // battery tube pieces that come apart when reloading: the tail cap is a separate part of the torch, plus a spent and a fresh cell
-  H.spare = H.buildBattery(torch); H.spare.visible = false; H.spent = H.buildBattery(torch); H.spent.visible = false;
+  H.spare = H.buildBattery(camera); H.spare.visible = false; H.spent = H.buildBattery(camera); H.spent.visible = false; H.spare.scale.setScalar(1.1); H.spent.scale.setScalar(1.1);      // placed by the reload, frame by frame (camera space)
   H.card = buildCard(); L.hand.add(H.card); H.card.visible = false; H.card.position.set(-0.062, -0.022, -0.118); H.card.rotation.set(0.2, 0.25, 1.45);
   H.carried = null;                                // an object in the left hand (the fuel can)
 
@@ -430,8 +447,96 @@ var Hands = (function () {
   /* Reloading: the right hand turns the torch tail-first toward the left hand, which unscrews the cap, lets the dead cell
      drop out, comes back with a fresh one, pushes it home and screws the cap back on.  Everything the left hand touches is
      keyed in the torch's own space, so the pieces line up however the view is moving. */
-  var RELOAD = 2.5;
-  H.reload = function (done) { if (clipT >= 0) return false; clipT = 0; clip = { done: done, dropped: false, clicked: false }; return true; };
+  var RELOAD = 3.1;
+  H.reload = function (done) { if (clipT >= 0) return false; clipT = 0; clip = { done: done, ev: {} }; return true; };
+  /* A true pinch.  The thumb and the index finger close on a cylinder of radius rc until the pads of both lie on its surface,
+     exactly opposite one another.  The joint angles are found once by walking the hand's real bones (not guessed), so
+     whatever is pinched is touched.  Returns the pose and where the cylinder then sits in the hand (right-hand space):
+     c a point on its axis between the pads, a its axis (pointing away from the palm), d from the thumb's pad to the index's. */
+  var PAD_T = new V(0, -0.0097, -0.0165), PAD_I = new V(0, -0.0087, -0.0135), fkInv = new THREE.Matrix4(), fkM = new THREE.Matrix4();
+  function fkPad(bone, lp, out) { fkM.multiplyMatrices(fkInv, bone.matrixWorld); out.p.copy(lp).applyMatrix4(fkM); out.n.set(0, -1, 0).transformDirection(fkM); out.f.set(0, 0, -1).transformDirection(fkM); return out; }
+  function fk(pose, t, i) { applyPose(R, pose); R.hand.updateWorldMatrix(true, true); fkInv.copy(R.hand.matrixWorld).invert(); fkPad(R.T[2], PAD_T, t); fkPad(R.F[0][2], PAD_I, i); }
+  function solvePinch(rc, prior) {
+    var t = { p: new V(), n: new V(), f: new V() }, i = { p: new V(), n: new V(), f: new V() }, d = new V(), VAR = [0, 1, 2, 3, 4, 5, 6, 7, 17];
+    var LIM = { 0: [0, 1.15], 1: [-0.3, 0.9], 2: [-0.3, 0.9], 3: [0, 0.9], 4: [0, 0.9], 5: [0, 1.5], 6: [0.05, 1.6], 7: [0.05, 1.1], 17: [-0.12, 0.12] };
+    function cost(p) {
+      fk(p, t, i); d.subVectors(i.p, t.p); var L = d.length() || 1e-6; d.multiplyScalar(1 / L);
+      var e = (L - 2 * rc) * 1000, c = e * e * 6 + Math.pow(1 - d.dot(t.n), 2) * 70 + Math.pow(1 + d.dot(i.n), 2) * 70;
+      for (var k = 0; k < VAR.length; k++) c += Math.pow(p[VAR[k]] - prior[VAR[k]], 2) * 1.2;
+      return c;
+    }
+    var p = prior.slice(), best = cost(p), step = 0.16, it, k, sg;
+    for (it = 0; it < 90 && step > 0.0008; it++) {
+      var moved = false;
+      for (k = 0; k < VAR.length; k++) for (sg = -1; sg <= 1; sg += 2) {
+        var q = p.slice(), v = VAR[k]; q[v] = clamp(q[v] + sg * step, LIM[v][0], LIM[v][1]); var c = cost(q);
+        if (c < best - 1e-9) { best = c; p = q; moved = true; }
+      }
+      if (!moved) step *= 0.5;
+    }
+    fk(p, t, i); d.subVectors(i.p, t.p); var gap = d.length(); d.normalize();
+    var a = t.f.clone().add(i.f); a.addScaledVector(d, -a.dot(d)).normalize();
+    return { pose: p, c: t.p.clone().add(i.p).multiplyScalar(0.5), a: a, d: d.clone(), gap: gap, err: best };
+  }
+  /* The reload, as it is seen:
+       the torch is turned across the view, tail to the left and a little high; the left hand takes the locking ring between
+       thumb and forefinger and gives it a quarter turn; the lid springs open; a flick of the right wrist tips the dead cell
+       out; the left hand comes back with a fresh cell held between the pads of the thumb and the forefinger, slides it down
+       the bore with a quarter twist and presses it home against the spring; a jerk of the torch throws the lid shut, and the
+       ring is turned back to lock it.  Then the torch goes back where it was.
+     Everything is placed from the torch itself: the cell is carried rigidly in the solved pinch, and from the moment it is on
+     the bore's axis the hand is put wherever that pinch puts the cell there, so the pads never leave it. */
+  var RL = { h: new V(0.80, -0.30, -0.52).normalize(), tail: new V(-0.012, -0.124, -0.345), back: new V(0.30, -0.72, 0.62), slip: 0.026 };      // slip: the torch is let slide back through the fist, to bring more of the tail out of it
+  var CELL_R = 0.0115 * 1.1, CELL_OFF = 0.016 * 1.1, RING_R = 0.0146 * 1.1, CELL_SEAT = -0.030, CELL_FROM = 0.075, PINCH_REST = POSE.pinch.slice();
+  [8, 9, 10, 11, 12, 13, 14, 15, 16].forEach(function (k, n) { PINCH_REST[k] = [0.74, 0.9, 0.5, 0.86, 0.98, 0.54, 0.94, 1.02, 0.56][n]; }); PINCH_REST[18] = 0.02; PINCH_REST[19] = 0.02; PINCH_REST[20] = 0.0;   // the other three fingers fan out of the way
+  (function () {
+    RL.q = holdQuat(RL.h, RL.back); RL.hq = RL.q.clone().multiply(new Q().setFromEuler(WRIST));
+    RL.pos = RL.tail.clone().sub(GRIP_P.clone().addScaledVector(GRIP_DIR, -(IDX + RL.slip)).applyQuaternion(RL.hq));
+    var tq = RL.hq.clone().multiply(torch.quaternion), inv = tq.clone().invert();
+    // where the hinge sits round the rim (up and away from the eye, so the open lid never hides the bore), and where the forefinger goes
+    /* Seen from the eye the pinch is a claw in the plane of the picture: the thumb under the cell, the forefinger hooked over
+       it, the palm facing the bore and the wrist below.  The lid stands open on the far side, where neither finger goes
+       and it hides nothing of the bore. */
+    var u0 = new V(0, 0.966, 0.259); u0.addScaledVector(RL.h, -u0.dot(RL.h)).normalize().applyAxisAngle(RL.h, -0.62);
+    var rad = new V().crossVectors(u0, RL.h).normalize();                         // a quarter round from both fingers, on the side away from the eye
+    RL.radL = rad.clone().applyQuaternion(inv); RL.radL.z = 0; RL.radL.normalize(); RL.uL = u0.clone().applyQuaternion(inv); RL.uL.z = 0; RL.uL.normalize();
+    var HP = RL.radL.clone().multiplyScalar(0.0158); HP.z = -0.0232;
+    var cp = torch.userData.capPivot; cp.position.copy(HP); torch.userData.cap.position.copy(HP).negate();
+    RL.hinge = new V().crossVectors(new V(0, 0, 1), RL.radL).normalize();
+    var hm = metal(0x9aa0a4, 0.32), ang = Math.atan2(RL.radL.y, RL.radL.x);
+    function part(geo, parent, x, y, z) { var m = new THREE.Mesh(geo, hm); m.position.set(x, y, z); m.rotation.z = ang; m.castShadow = false; parent.add(m); return m; }
+    part(new THREE.BoxGeometry(0.0034, 0.0062, 0.0052), torch, RL.radL.x * 0.0148, RL.radL.y * 0.0148, -0.0262);                 // the lug on the body
+    var pin = part(new THREE.CylinderGeometry(0.0011, 0.0011, 0.0074, 8), torch, HP.x, HP.y, HP.z);                               // the pin (along the rim)
+    part(new THREE.BoxGeometry(0.003, 0.0048, 0.0046), torch.userData.cap, RL.radL.x * 0.0149, RL.radL.y * 0.0149, -0.0204);     // the strap on the lid
+    RL.cell = solvePinch(CELL_R, PINCH_REST); RL.ring = solvePinch(RING_R, RL.cell.pose);
+    RL.open = RL.cell.pose.slice(); RL.open[1] -= 0.2; RL.open[3] -= 0.12; RL.open[5] -= 0.26; RL.open[6] -= 0.12;                // the same hand, opened a finger's width
+    RL.ringOpen = RL.ring.pose.slice(); RL.ringOpen[1] -= 0.18; RL.ringOpen[3] -= 0.1; RL.ringOpen[5] -= 0.22; RL.ringOpen[6] -= 0.1;
+    applyPose(R, POSE.grip);
+  })();
+  H.RL = RL;
+  var rlM = new THREE.Matrix4(), rlTP = new V(), rlTQ = new Q(), rlTS = new V(), rlAx = new V(), rlU = new V(), rlN = new V(), rlP = new V(), rlC = new V(), rlA = new V(), rlD = new V(), rlN2 = new V(), rlM1 = new THREE.Matrix4(), rlM2 = new THREE.Matrix4(), rlQ = new Q(), rlQ2 = new Q(), rlS = new V(1.1, 1.1, 1.1), rlG = new V(), rlPrev = new V(), rlVel = new V(), rlFall = null, rlHand = { pos: new V(), q: new Q() }, rlHand2 = { pos: new V(), q: new Q() }, rlRoll = new Q(), ZAXIS = new V(0, 0, 1);
+  /* Where the left hand must be (camera space) for the pinch G to hold a cylinder whose axis runs through P along ax, with the
+     forefinger's pad on the side u.  (The left hand is the right-hand model mirrored in x.) */
+  function pinchHand(G, P, ax, u, out) {
+    rlC.set(-G.c.x, G.c.y, G.c.z); rlA.set(-G.a.x, G.a.y, G.a.z); rlD.set(-G.d.x, G.d.y, G.d.z); rlN.crossVectors(rlA, rlD);
+    rlM1.makeBasis(rlA, rlD, rlN); rlN2.crossVectors(ax, u); rlM2.makeBasis(ax, u, rlN2); rlM2.multiply(rlM1.transpose());
+    out.q.setFromRotationMatrix(rlM2); out.pos.copy(P).sub(rlC.applyQuaternion(out.q)); return out;
+  }
+  var coX = new V(), coY = new V(), coZ = new V(), coM = new THREE.Matrix4();
+  function cellOnAxis(cell, zl, roll) {              // a cell on the bore's axis, its middle at torch z = zl, turned by roll (the same turn the pinch makes)
+    rlP.copy(rlTP).addScaledVector(rlAx, -zl * 1.1);
+    coX.copy(RL.uL).applyQuaternion(rlTQ).applyAxisAngle(rlAx, roll || 0); coZ.copy(rlAx).negate(); coY.crossVectors(coZ, coX);
+    rlQ.setFromRotationMatrix(coM.makeBasis(coX, coY, coZ)); cell.position.copy(rlP); cell.quaternion.copy(rlQ);
+  }
+  function bump3(t, a, b, c, d) { return t <= a || t >= d ? 0 : t < b ? sstep((t - a) / (b - a)) : t < c ? 1 : 1 - sstep((t - c) / (d - c)); }
+  H.relDbg = function () {          // (the frame checks in .dev measure how far each pad is from what it should be touching, in mm)
+    if (clipT < 0) return null;
+    var out = { t: +clipT.toFixed(3) }, tp2 = new V(), ip2 = new V(), c = new V(), ax = new V(), v = new V();
+    L.hand.updateWorldMatrix(true, true); tp2.copy(PAD_T).applyMatrix4(L.T[2].matrixWorld); ip2.copy(PAD_I).applyMatrix4(L.F[0][2].matrixWorld);
+    function off(obj, lz, r) { obj.updateWorldMatrix(true, false); c.set(0, 0, lz).applyMatrix4(obj.matrixWorld); ax.set(0, 0, 1).transformDirection(obj.matrixWorld);
+      return [tp2, ip2].map(function (p2) { v.subVectors(p2, c); var al = v.dot(ax); v.addScaledVector(ax, -al); return [+((v.length() - r) * 1000).toFixed(2), +(al * 1000).toFixed(1)]; }); }
+    if (H.spare.visible) out.cell = off(H.spare, 0, CELL_R); out.ring = off(torch.userData.ring, -0.0125, RING_R); return out;
+  };
   H.reloading = function () { return clipT >= 0; };
   function seg(t, a, b) { return sstep((t - a) / (b - a)); }
 
@@ -524,9 +629,18 @@ var Hands = (function () {
     if (burstT >= 0) { var bk = burstT < 0.05 ? burstT / 0.05 : 1 - seg(burstT, 0.05, 0.5); pz -= bk * 0.05; rx += bk * 0.05; py += bk * 0.012; burstT += dt; if (burstT > 0.5) burstT = -1; }
     // reload: turn the tail to the left hand
     var rl = 0, T = clipT;
-    if (T >= 0) { rl = seg(T, 0, 0.32) * (1 - seg(T, RELOAD - 0.36, RELOAD - 0.04)); px += -0.085 * rl; py += 0.055 * rl; pz += 0.04 * rl; ry += -1.0 * rl; rx += 0.38 * rl; rz += -0.5 * rl; }
+    if (T >= 0) rl = easeIO(clamp(T / 0.36, 0, 1)) * (1 - easeIO(clamp((T - (RELOAD - 0.36)) / 0.34, 0, 1)));
     tmpE.set(rx, ry, rz, 'YXZ'); tmpQ.setFromEuler(tmpE); bQ.copy(tmpQ).multiply(RQ);              // the forearm as the hold would have it
     var rW = tmpV.set(RP.x + px, RP.y + py, RP.z + pz);
+    if (rl > 0) {
+      /* turned across the view for the left hand; then two motions of the wrist: a roll that drops the tail so the dead cell
+         slides out, and a short jerk that throws the open lid shut */
+      var dumpK = bump3(T, 0.80, 0.97, 1.05, 1.3), jerk = bump3(T, 2.04, 2.13, 2.15, 2.24) * 0.3 - bump3(T, 2.2, 2.27, 2.28, 2.4) * 0.1;
+      rlQ.copy(RL.q).premultiply(rlQ2.setFromAxisAngle(ZAXIS, dumpK * 1.12)).premultiply(rlQ2.setFromAxisAngle(XAX, jerk * 0.5 - dumpK * 0.1)).premultiply(rlQ2.setFromAxisAngle(ZAXIS, jerk * 0.6));
+      rlP.copy(RL.pos); rlP.x += dumpK * 0.03 + sway.x * 0.2; rlP.y += dumpK * 0.035 - jerk * 0.02 + Math.sin(t * 1.3) * 0.0015 - sway.y * 0.2; rlP.z += dumpK * 0.01;
+      rW.lerp(rlP, rl); bQ.slerp(rlQ, rl);
+    }
+    if (rl > 0 || torch.userData.slip) { torch.userData.slip = rl; torch.position.copy(GRIP_P).addScaledVector(GRIP_DIR, -(IDX + RL.slip * rl)); }
     // the right hand pushing something (a door) with the torch still in its grip
     if (useR) {
       var u2 = useR; u2.t += dt; u2.alive -= dt; if (u2.alive <= 0 && !u2.leaving) { u2.leaving = true; u2.out = 0; }
@@ -566,24 +680,72 @@ var Hands = (function () {
       tp = cp; tq = cq; tPose = POSE.carry;
     }
     if (T >= 0) {
-      // torch space: the tail is at z = 0 and the tube runs toward -z
-      var capOff = 0, capSpin = 0, cellZ = null, freshZ = null, near = 0;
-      near = seg(T, 0.18, 0.5) * (1 - seg(T, 0.98, 1.2)) + seg(T, 1.34, 1.62) * (1 - seg(T, RELOAD - 0.3, RELOAD - 0.02));
-      if (T < 1.1) { capSpin = seg(T, 0.5, 0.82) * 5.5; capOff = seg(T, 0.52, 0.82) * 0.006 + seg(T, 0.82, 1.0) * 0.07; }
-      else { capSpin = (1 - seg(T, 1.92, 2.2)) * 5.5; capOff = (1 - seg(T, 1.86, 1.98)) * 0.07 + (1 - seg(T, 1.92, 2.2)) * 0.006; }
-      if (T > 0.86 && T < 1.5) cellZ = -0.03 + seg(T, 0.86, 1.06) * 0.1;
-      if (T > 1.3 && T < 1.9) freshZ = 0.085 - seg(T, 1.62, 1.86) * 0.115;
-      tailCap.position.z = capOff; tailCap.rotation.z = capSpin; tailCap.visible = !(T > 1.08 && T < 1.78);
-      H.spent.visible = cellZ !== null; if (cellZ !== null) { H.spent.position.set(0, T > 1.06 ? -(T - 1.06) * (T - 1.06) * 3.2 : 0, cellZ + (T > 1.06 ? (T - 1.06) * 0.1 : 0)); H.spent.rotation.x = T > 1.06 ? (T - 1.06) * 7 : 0; }
-      H.spare.visible = freshZ !== null; if (freshZ !== null) H.spare.position.set(0, 0, freshZ);
-      if (!clip.dropped && T > 1.2) { clip.dropped = true; Sfx.play('battery_drop', { vol: 0.6, fallback: function () { Sound.tone(900, 500, 0.05, 0.12, 'square'); Sound.noise(0.06, 3000, 0.12, 0.09); } }); }
-      if (!clip.clicked && T > 0.5) { clip.clicked = true; Sfx.play('cap_twist', { vol: 0.6, fallback: function () { Sound.noise(0.25, 2400, 0.1); Sound.noise(0.2, 2000, 0.09, 0.3); } }); }
-      // the hand follows whichever piece it is holding
-      var hz = freshZ !== null && T < 1.9 ? freshZ + 0.03 : capOff + 0.012;
-      torch.updateWorldMatrix(true, false); tailW.set(0, 0, hz).applyMatrix4(torch.matrixWorld); camera.worldToLocal(tailW);
-      tmpE.set(0.15, -1.25, 0.2 + Math.sin(capSpin) * 0.35, 'YXZ'); var q2 = new Q().setFromEuler(tmpE), off = TIP.pinch.clone(); off.x = -off.x; off.applyQuaternion(q2);
-      var gp = tailW.clone().sub(off); tp = tp.clone().lerp(gp, near); tq = tq.clone().slerp(q2, near); tPose = mixPose(tPose, POSE.pinch, near, []);
-      clipT += dt; if (clipT >= RELOAD) { clipT = -1; H.spare.visible = H.spent.visible = false; tailCap.visible = true; tailCap.position.z = 0; tailCap.rotation.z = 0; var cd = clip.done; clip = null; if (cd) cd(); }
+      var ev = clip.ev, cap = torch.userData.capPivot, ringG = torch.userData.ring, hp = null, hq = null, hPose = null, hk = 0;
+      function once(k2, at) { if (T >= at && !ev[k2]) { ev[k2] = 1; return true; } return false; }
+      // --- the lid: the ring's quarter turn, the lid on its sprung hinge ---
+      var turn = -1.05 * (seg(T, 0.50, 0.72) - seg(T, 2.42, 2.66)), sw = T - 0.735, lidA = 0;
+      if (T < 2.1) lidA = sw > 0 ? 1.83 * (1 - Math.exp(-sw * 11) * Math.cos(sw * 24)) : 0;
+      else { var cl = clamp((T - 2.1) / 0.17, 0, 1); lidA = 1.83 * (1 - cl * cl) + (T > 2.27 ? Math.exp(-(T - 2.27) * 30) * Math.sin((T - 2.27) * 50) * 0.05 : 0); }
+      ringG.rotation.z = turn; cap.quaternion.setFromAxisAngle(RL.hinge, lidA);
+      torch.updateWorldMatrix(true, false); camInv.copy(camera.matrixWorld).invert(); rlM.multiplyMatrices(camInv, torch.matrixWorld); rlM.decompose(rlTP, rlTQ, rlTS);
+      rlAx.set(0, 0, -1).applyQuaternion(rlTQ);                                   // the bore, from the tail toward the head (camera space)
+      // --- the dead cell: nudged out by the spring as the lid opens, then down the bore and away as the tail drops ---
+      if (T < 0.74) H.spent.visible = false;
+      else if (!rlFall) {
+        var sl = Math.max(0, T - 0.9), zs = CELL_SEAT + seg(T, 0.735, 0.78) * 0.004 + sl * sl * 3.6;
+        H.spent.visible = true; cellOnAxis(H.spent, zs, sl * 5); rlG.copy(rlP);
+        if (zs > 0.03) { rlFall = { p: rlG.clone(), v: rlVel.subVectors(rlG, rlPrev).multiplyScalar(1 / Math.max(dt, 1e-3)).clone(), q: rlQ.clone(), s: 0 }; rlFall.v.clampLength(0, 1.6); }
+        rlPrev.copy(rlG);
+      } else {                                                                    // clear of the torch: it falls
+        rlG.set(0, -9.8, 0).applyQuaternion(rlQ2.copy(camera.quaternion).invert()); rlFall.v.addScaledVector(rlG, dt); rlFall.p.addScaledVector(rlFall.v, dt); rlFall.s += dt * 9;
+        rlQ.copy(rlFall.q).multiply(rlQ2.setFromAxisAngle(XAX, rlFall.s)); H.spent.position.copy(rlFall.p); H.spent.quaternion.copy(rlQ); H.spent.visible = rlFall.p.y > -0.9;
+      }
+      // --- the left hand ---
+      rlU.copy(RL.uL).applyQuaternion(rlTQ);                                      // the side of the bore the forefinger works from
+      if (T < 1.1 || T >= 2.12) {
+        // on the locking ring: pinched across it, turning with it (the wrist starts wound back so the turn ends comfortable)
+        var first = T < 1.1, roll = turn + 0.5;
+        rlU.applyAxisAngle(rlAx, roll); rlP.copy(rlTP).addScaledVector(rlAx, 0.0125 * 1.1);
+        if (first && T > 0.76 && clip.hp) { hp = clip.hp; hq = clip.hq; }                    // let go: the hand stays where it was as the lid flies up
+        else { pinchHand(RL.ring, rlP, rlAx, rlU, rlHand); hp = rlHand.pos; hq = rlHand.q; if (first) { clip.hp = hp.clone(); clip.hq = hq.clone(); } }
+        hPose = first ? mixPose(RL.ringOpen, RL.ring.pose, seg(T, 0.36, 0.5) * (1 - seg(T, 0.73, 0.8)), []) : mixPose(RL.ringOpen, RL.ring.pose, seg(T, 2.33, 2.42) * (1 - seg(T, 2.67, 2.74)), []);
+        hk = first ? seg(T, 0.14, 0.5) * (1 - seg(T, 0.78, 1.08)) : (1 - seg(T, 2.7, 3.02));
+        if (!first) {                                                             // coming across from the cell: back off the bore first, then onto the ring
+          var w2 = clip.hp2 ? easeIO(clamp((T - 2.12) / 0.3, 0, 1)) : 1; if (!clip.hp2) { clip.hp2 = hp; clip.hq2 = hq; } hp = clip.hp2.clone().lerp(hp, w2); hq = clip.hq2.clone().slerp(hq, w2); hPose = mixPose(RL.open, hPose, w2, hPose);
+        }
+        H.spare.visible = T >= 2.12; if (T >= 2.12) cellOnAxis(H.spare, CELL_SEAT, 0);
+      } else if (T >= 1.18) {
+        // the fresh cell, between the pads of the thumb and the forefinger: up from the pouch, onto the bore's axis, in with a quarter twist, pressed home
+        var inK = easeIO(clamp((T - 1.6) / 0.36, 0, 1)), press = bump3(T, 1.9, 1.965, 1.975, 2.03) * 0.0028, zc = lerp(CELL_FROM, CELL_SEAT, inK) - press, tw = (1 - easeIO(clamp((T - 1.62) / 0.36, 0, 1))) * 0.85;
+        var arrive = easeIO(clamp((T - 1.2) / 0.4, 0, 1)), held = T < 2.0;
+        rlU.applyAxisAngle(rlAx, tw); rlP.copy(rlTP).addScaledVector(rlAx, -zc * 1.1 - CELL_OFF);
+        pinchHand(RL.cell, rlP, rlAx, rlU, rlHand);
+        if (!held) {                                                              // open the fingers and draw the hand straight back off the cell
+          var back = seg(T, 2.0, 2.12); rlHand.pos.addScaledVector(rlAx, -back * 0.028); clip.hp2 = rlHand.pos.clone(); clip.hq2 = rlHand.q.clone();
+        }
+        hp = rlHand.pos; hq = rlHand.q; hk = arrive; hPose = held ? RL.cell.pose : mixPose(RL.cell.pose, RL.open, seg(T, 2.0, 2.08), []);
+        H.spare.visible = true;
+        if (arrive >= 1) cellOnAxis(H.spare, zc, tw);
+        else {                                                                    // still on its way: the cell goes wherever the pinch is
+          var cpos = tp.clone().lerp(hp, hk), cq = tq.clone().slerp(hq, hk);
+          rlC.set(-RL.cell.c.x, RL.cell.c.y, RL.cell.c.z).applyQuaternion(cq).add(cpos); rlA.set(-RL.cell.a.x, RL.cell.a.y, RL.cell.a.z).applyQuaternion(cq); rlD.set(-RL.cell.d.x, RL.cell.d.y, RL.cell.d.z).applyQuaternion(cq);
+          rlC.addScaledVector(rlA, CELL_OFF); rlN.copy(rlA).negate(); rlN2.crossVectors(rlN, rlD); rlM1.makeBasis(rlD, rlN2, rlN); rlQ.setFromRotationMatrix(rlM1);
+          H.spare.position.copy(rlC); H.spare.quaternion.copy(rlQ);
+        }
+      } else H.spare.visible = false;
+      if (hp) { tp = tp.clone().lerp(hp, hk); tq = tq.clone().slerp(hq, hk); tPose = mixPose(tPose, hPose, T >= 1.18 && T < 2.12 ? 1 : clamp(hk * 1.6, 0, 1), []); }      // (the cell is pinched from the moment it leaves the pouch)
+      // --- what it sounds like ---
+      if (once('grip', 0.5)) Sound.noise(0.05, 3200, 0.05);
+      if (once('unlock', 0.7)) Sfx.play('rocker', { vol: 0.45, rate: 1.25, fallback: function () { Sound.tone(1500, 900, 0.03, 0.1, 'square'); } });
+      if (once('lid', 0.75)) { Sound.tone(2100, 1400, 0.04, 0.07, 'triangle'); Sound.noise(0.05, 5200, 0.08); }
+      if (once('slide', 0.93)) Sound.noise(0.16, 3600, 0.07);
+      if (once('drop', 1.5)) { Sound.tone(950, 520, 0.05, 0.07, 'square'); Sound.noise(0.06, 3000, 0.07, 0.07); Sound.tone(820, 480, 0.04, 0.04, 'square', 0.16); }
+      if (once('in', 1.64)) Sound.noise(0.3, 2600, 0.06);
+      if (once('seat', 1.95)) { Sound.tone(420, 260, 0.05, 0.12, 'triangle'); Sound.noise(0.04, 1800, 0.1); }
+      if (once('shut', 2.27)) { Sfx.play('rocker', { vol: 0.5, rate: 0.85, fallback: function () { Sound.clunk(); } }); Sound.noise(0.04, 2400, 0.12); }
+      if (once('lock', 2.64)) Sfx.play('rocker', { vol: 0.55, rate: 1.1, fallback: function () { Sound.tone(1300, 800, 0.03, 0.12, 'square'); } });
+      clipT += dt;
+      if (clipT >= RELOAD) { clipT = -1; H.spare.visible = H.spent.visible = false; ringG.rotation.z = 0; cap.quaternion.identity(); rlFall = null; var cd = clip.done; clip = null; if (cd) cd(); }
     } else if (use) {
       var u = use; u.t += dt; u.alive -= dt;
       if (u.alive <= 0 && !u.leaving) { u.leaving = true; u.out = 0; }
