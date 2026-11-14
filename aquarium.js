@@ -298,7 +298,8 @@ var Aqua = (function () {
       for (p3 = 1; p3 < 6; p3++) { var st = box(0.5, 0.012, RW - 0.9, M.yellow, RX1 + p3 * 4, slope * p3 * 4 + 0.012, cz - r[2] * 0.3); st.rotation.z = ang; st.userData.noCast = true; }     // grip strips, mostly worn off
     });
     // the rear gallery, three metres up behind the tank
-    flat(T.x2, H.x2, H.z1, H.z2, MEZ, M2.slab, 8); floor(T.x2, H.x2, H.z1, H.z2, MEZ, null, null, 'tile');
+    // (round the lift shaft, x 136..139 by z H.z1..47.5: the car goes up through here, so the slab stops at its walls)
+    flat(T.x2, 136, H.z1, H.z2, MEZ, M2.slab, 8); flat(136, H.x2, 47.5, H.z2, MEZ, M2.slab, 8); floor(T.x2, 136, H.z1, H.z2, MEZ, null, null, 'tile'); floor(136, H.x2, 47.5, H.z2, MEZ, null, null, 'tile');
     wb(T.x2 + 0.26, T.x2 + 0.3, 0, MEZ, T.z1, T.z2, M2.conc, 4, 4);                                                                  // its face toward the tank
     rail(T.x2 + 0.75, T.z1 + 0.2, T.x2 + 0.75, T.z2 - 0.2, MEZ, MEZ, { step: 2 });
     // the wall at the back of it, with STAFF ONLY in the middle: the door itself is aquaplay.js's
@@ -438,8 +439,8 @@ var Aqua = (function () {
       for (n2 = 0; n2 < 16000; n2++) { x = Math.random() * S; y = wl + Math.random() * (HH2 - wl); var c2 = covAt(x, y); if (c2 < 0.35 || c2 > 0.75) continue; g.fillStyle = 'rgba(20,36,18,' + (0.12 + Math.random() * 0.2) + ')'; g.fillRect(x, y, (1 + Math.random() * 1.5) * K, (1 + Math.random() * 1.5) * K); }
       // the waterline: scum under it with a ragged lower edge, a white crust over it, hair algae hanging off the scum
       for (x = 0; x < S; x += 2) { var sd = (6 + Math.abs(Math.sin(x / K * 0.031) * 7 + Math.sin(x / K * 0.117 + 2) * 4) + Math.random() * 3) * K; var sg = g.createLinearGradient(0, wl, 0, wl + sd); sg.addColorStop(0, 'rgba(58,62,34,.88)'); sg.addColorStop(0.6, 'rgba(44,58,28,.62)'); sg.addColorStop(1, 'rgba(44,58,28,0)'); g.fillStyle = sg; g.fillRect(x, wl, 2, sd); }
-      for (x = 0; x < S; x += 2) { var ch = (3 + Math.abs(Math.sin(x / K * 0.05 + 1) * 4) + Math.random() * 2) * K; g.fillStyle = 'rgba(226,222,204,' + (0.45 + Math.random() * 0.25) + ')'; g.fillRect(x, wl - ch, 2, ch + 1); }
-      for (n2 = 0; n2 < 160; n2++) { x = Math.random() * S; var dl = (4 + Math.random() * 18) * K; g.fillStyle = 'rgba(222,218,198,.3)'; g.fillRect(x, wl - dl - 4 * K, 1.2 * K, dl); }                   // crust run down the dry glass from splashes
+      for (x = 0; x < S; x += 2) { var ch = (4 + Math.sin(x / K * 0.05 + 1) * 2 + Math.sin(x / K * 0.013 + 4) * 2.5 + Math.sin(x / K * 0.21) * 0.7) * K, cg2 = g.createLinearGradient(0, wl - ch, 0, wl + 1); cg2.addColorStop(0, 'rgba(226,222,204,0)'); cg2.addColorStop(0.35, 'rgba(226,222,204,.45)'); cg2.addColorStop(1, 'rgba(214,210,190,.62)'); g.fillStyle = cg2; g.fillRect(x, wl - ch, 2, ch + 1); }      // the mineral crust: a soft band, thicker in places
+      for (n2 = 0; n2 < 120; n2++) { x = Math.random() * S; var dl = (4 + Math.random() * 14) * K, cg3 = g.createLinearGradient(0, wl - dl - 4 * K, 0, wl - 2 * K); cg3.addColorStop(0, 'rgba(222,218,198,0)'); cg3.addColorStop(1, 'rgba(222,218,198,.22)'); g.fillStyle = cg3; g.fillRect(x, wl - dl - 4 * K, (0.8 + Math.random()) * K, dl); }                   // old splashes dried on the glass above it
       g.lineCap = 'round';
       for (n2 = 0; n2 < 420; n2++) { x = Math.random() * S; y = wl + (3 + Math.random() * 6) * K; var len = (10 + Math.pow(Math.random(), 1.6) * 70) * K, sw2 = (Math.random() - 0.5) * 16 * K; g.strokeStyle = 'rgba(' + (24 + Math.random() * 20 | 0) + ',' + (50 + Math.random() * 30 | 0) + ',24,' + (0.25 + Math.random() * 0.35) + ')'; g.lineWidth = (0.6 + Math.random() * 1.2) * K; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + sw2, y + len * 0.5, x + sw2 * 0.4 + (Math.random() - 0.5) * 6 * K, y + len); g.stroke(); }
       // a dark line along the bottom rail where the silt sits
@@ -669,7 +670,7 @@ var Aqua = (function () {
     // ---- the basement ----
     var bx1 = T.x2 + 0.5, bx2 = EX, bz1 = H.z1, bz2 = H.z2, PX = WX;                               // PX: the partition between the long hall under the gallery and the rooms east of it
     floor(bx1, bx2, bz1, bz2, B, null, null, 'hard'); flat(bx1, bx2, bz1, bz2, B, bf, 4);
-    flat(bx1, PX + 0.25, bz1, bz2, CEIL, bw, 4, false); flat(PX + 0.25, bx2, bz1, 58.4, CEIL, bw, 4, false); flat(PX + 0.25, bx2, 62.2, bz2, CEIL, bw, 4, false);          // (no ceiling across the stairwell)
+    flat(bx1, 136, bz1, bz2, CEIL, bw, 4, false); flat(136, 139, 47.5, bz2, CEIL, bw, 4, false); flat(139, PX + 0.25, bz1, bz2, CEIL, bw, 4, false); flat(PX + 0.25, bx2, bz1, 58.4, CEIL, bw, 4, false); flat(PX + 0.25, bx2, 62.2, bz2, CEIL, bw, 4, false);          // (no ceiling across the stairwell, nor over the lift shaft)
     sheet('z', bz1 + 0.012, 1, bx1, bx2, B, CEIL, bw, 4, 4); sheet('z', bz2 - 0.012, -1, bx1, bx2, B, CEIL, bw, 4, 4); sheet('x', bx2 - 0.012, -1, bz1, 58.4, B, CEIL, bw, 4, 4); sheet('x', bx2 - 0.012, -1, 62.2, bz2, B, CEIL, bw, 4, 4);
     sheet('x', bx1 + 0.012, 1, bz1, bz2, B, CEIL, bw, 4, 4, A.ports.map(function (p2) { return [p2[0], p2[1], A.portY[0], A.portY[1]]; }));
     solid(bx1 - 1, bx1, bz1, bz2, B - 0.2, CEIL); solid(bx1, bx2, bz1 - 0.5, bz1, B - 0.2, CEIL); solid(bx1, bx2, bz2, bz2 + 0.5, B - 0.2, CEIL); solid(bx2, bx2 + 0.5, bz1, bz2, B - 0.2, CEIL);
@@ -743,9 +744,16 @@ var Aqua = (function () {
     A.liftAt = { x: cx, z: cz, door: z2 };
     // the shaft: concrete in the basement, mesh from the gallery up; four corner guides right the way
     [[x1, z1], [x2, z1], [x1, z2], [x2, z2]].forEach(function (c) { box(0.14, CW + 2.6 - B, 0.14, EM.rustSteel, c[0] + (c[0] < cx ? 0.07 : -0.07), (B + CW + 2.6) / 2, c[1] + (c[1] < cz ? 0.07 : -0.07)); });
-    var pm = mesh(new THREE.PlaneGeometry(z2 - z1, CW + 2.4), meshM, x1, (CW + 2.4) / 2, cz); pm.rotation.y = PI / 2; pm.userData.noCast = true;
-    var pm2 = mesh(new THREE.PlaneGeometry(x2 - x1, CW - 2.25), meshM.clone(), cx, 2.25 + (CW - 2.25) / 2, z2); pm2.material.map = meshM.map.clone(); pm2.material.map.needsUpdate = true; pm2.material.map.repeat.set(8, 16); pm2.userData.noCast = true;
-    [0, 2.25, 4.4, 6.5, CW, CW + 2.4].forEach(function (y) { box(0.08, 0.08, z2 - z1, EM.rustSteel, x1, y, cz); box(x2 - x1, 0.08, 0.08, EM.rustSteel, cx, y, z2); });
+    meshM.map.repeat.set(8, 24); var pm = mesh(new THREE.PlaneGeometry(z2 - z1, CW + 2.4 - MEZ), meshM, x1, (CW + 2.4 + MEZ) / 2, cz); pm.rotation.y = PI / 2; pm.userData.noCast = true;
+    var pm2 = mesh(new THREE.PlaneGeometry(x2 - x1, CW - MEZ), meshM.clone(), cx, (MEZ + CW) / 2, z2); pm2.material.map = meshM.map.clone(); pm2.material.map.needsUpdate = true; pm2.material.map.repeat.set(8, 14); pm2.userData.noCast = true;
+    [MEZ + 0.04, 4.9, 6.6, CW, CW + 2.4].forEach(function (y) { box(0.08, 0.08, z2 - z1, EM.rustSteel, x1, y, cz); box(x2 - x1, 0.08, 0.08, EM.rustSteel, cx, y, z2); });
+    /* Between the basement's ceiling and the gallery's floor the car runs in a concrete shaft: four walls, the edge of each
+       slab showing as it goes past, the floor's name stencilled at each one; and a wall on its east side right to the top. */
+    var shaftM = M2.conc;
+    sheet('x', x1 + 0.012, 1, z1, z2, -0.5, MEZ, shaftM, 4, 4); sheet('x', x2 - 0.012, -1, z1, z2, -0.5, CW + 2.5, shaftM, 4, 4); sheet('z', z1 + 0.012, 1, x1, x2, -0.5, MEZ, shaftM, 4, 4); sheet('z', z2 - 0.012, -1, x1, x2, -0.5, MEZ, shaftM, 4, 4);
+    [-0.5, MEZ].forEach(function (y) { [[x1 + 0.03, cz, PI / 2, z2 - z1], [x2 - 0.03, cz, -PI / 2, z2 - z1], [cx, z1 + 0.03, 0, x2 - x1], [cx, z2 - 0.03, PI, x2 - x1]].forEach(function (w) { var bd = mesh(new THREE.PlaneGeometry(w[3], 0.3), std(0x3e403c, 0.95, { map: concTex }), w[0], y - 0.15, w[1]); bd.rotation.y = w[2]; bd.userData.noCast = true; }); });
+    label(['B'], 0.36, 0.36, '#e2b93b', '#17140e', x1 + 0.025, -1.2, cz - 0.6, PI / 2, 128); label(['G'], 0.36, 0.36, '#e2b93b', '#17140e', x1 + 0.025, MEZ - 0.7, cz - 0.6, PI / 2, 128);
+    wb(x2, H.x2 + 0.5, B, -0.5, z1, z2, M2.bw, 4, 4, [B - 0.2, -0.4]);                                                                 // (the basement's corner beside the shaft, filled)
     solid(x1 - 0.1, x1 + 0.1, z1, z2, -0.3, CW + 2.6, true); solid(x1, x2, z2 - 0.1, z2 + 0.1, -0.3, CW - 0.3, true);                    // you cannot walk into the shaft from the gallery
     wb(x1 - 0.25, x1, B, -0.5, z1, z2 + 0.25, M2.bw, 4, 4, [B - 0.2, -0.4]); wb(x1, x1 + 0.4, B, -0.5, z2, z2 + 0.25, M2.bw, 4, 4, [B - 0.2, -0.4]); wb(x2 - 0.4, x2 + 0.5, B, -0.5, z2, z2 + 0.25, M2.bw, 4, 4, [B - 0.2, -0.4]);
     box(x2 - x1 - 0.8, 0.5, 0.25, M2.bw, cx, -0.75, z2 + 0.125); label(['SERVICE LIFT No. 1', 'KEEPERS ONLY  ·  500 kg'], 1.5, 0.34, '#e2b93b', '#17140e', cx, B + 2.5, z2 + 0.262, 0, 384, '#17140e');

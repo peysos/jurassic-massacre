@@ -193,7 +193,7 @@
   function tileXY(c, r) { return [MX + (1.5 - c) * TS, MY - r * TS]; }
   A.ready = function () { var st = S(); return !!(st.pump && maniFlow && maniFlow.solved); };
   (function () {
-    var q, plateM = std(0x596268, 0.6, { metalness: 0.5, map: metalTex }), pipeM = std(0x8a7a3a, 0.5, { metalness: 0.6, map: rustTex }), flangeM = std(0x9aa0a4, 0.4, { metalness: 0.8, map: metalTex });
+    var q, tHandleM = std(0x7a1a14, 0.75, { bumpMap: bump(8), bumpScale: 0.004 }), plateM = std(0x596268, 0.6, { metalness: 0.5, map: metalTex }), pipeM = std(0x8a7a3a, 0.5, { metalness: 0.6, map: rustTex }), flangeM = std(0x9aa0a4, 0.4, { metalness: 0.8, map: metalTex });
     box(COLS * TS + 0.3, ROWS * TS + 0.3, 0.05, plateM, MX, MY - TS, MZ + 0.075);
     for (q = 0; q < COLS * ROWS; q++) {
       var c = q % COLS, r = (q / COLS) | 0, xy = tileXY(c, r), Gp = new THREE.Group(), inner = dyn(new THREE.Group()); Gp.position.set(xy[0], xy[1], MZ + 0.03); Gp.rotation.y = PI; scene.add(Gp); Gp.add(inner);
@@ -204,7 +204,10 @@
       cyl(0.052, 0.052, TS / 2, pipeM, TS / 4, 0, 0.07, pL, 12).rotation.z = PI / 2; cyl(0.052, 0.052, TS / 2, pipeM, 0, TS / 4, 0.07, pL, 12); mesh(new THREE.SphereGeometry(0.06, 12, 10), pipeM, 0, 0, 0.07, pL);
       cyl(0.066, 0.066, 0.03, flangeM, TS / 2 - 0.015, 0, 0.07, pL, 12).rotation.z = PI / 2; cyl(0.066, 0.066, 0.03, flangeM, 0, TS / 2 - 0.015, 0.07, pL, 12);
       var gl = basic(0x10181a, { fog: false }); mesh(new THREE.SphereGeometry(0.026, 10, 8), gl, 0, 0, 0.125, inner).userData.keep = true;                // a sight glass: it shows oil when the coupling is under pressure
-      tiles.push({ g: inner, I: pI, L: pL, glass: gl, a: 0, ol: null });
+      // its T-handle: a spindle out of the hub and a rubber-gripped bar across it, to take hold of and turn
+      cyl(0.011, 0.014, 0.06, flangeM, 0, 0, 0.17, inner, 10).rotation.x = PI / 2; var tb = cyl(0.017, 0.017, 0.22, tHandleM, 0, 0, 0.205, inner, 12); tb.rotation.z = PI / 2;
+      [-1, 1].forEach(function (e) { cyl(0.019, 0.019, 0.012, flangeM, e * 0.114, 0, 0.205, inner, 12).rotation.z = PI / 2; }); cyl(0.022, 0.022, 0.03, flangeM, 0, 0, 0.205, inner, 12).rotation.x = PI / 2;
+      tiles.push({ g: inner, I: pI, L: pL, glass: gl, a: 0, ol: null, turn: null });
     }
     tiles.forEach(function (t) { t.ol = Outline.make(t.g); });
     function stub(txt) { var g2 = dyn(new THREE.Group()); scene.add(g2); cyl(0.052, 0.052, 0.5, pipeM, 0, 0, 0, g2, 12).rotation.z = PI / 2; cyl(0.07, 0.07, 0.04, flangeM, 0.23, 0, 0, g2, 12).rotation.z = PI / 2; cyl(0.07, 0.07, 0.04, flangeM, -0.23, 0, 0, g2, 12).rotation.z = PI / 2;
@@ -217,9 +220,9 @@
   })();
   A.gather('basement');
   function stepMani(dt, instant) {
-    var st = S(), m = st.mani, q; maniFlow = flowOf(m);
+    var st = S(), m = st.mani, q; stepTurn(dt); maniFlow = flowOf(m);
     for (q = 0; q < tiles.length; q++) {
-      var t = tiles[q], want = -m.rot[q] * PI / 2; t.a = instant ? want : damp(t.a, want, 14, dt); t.g.rotation.z = t.a; t.I.visible = m.types[q] === 'I'; t.L.visible = m.types[q] === 'L';
+      var t = tiles[q], want = -m.rot[q] * PI / 2; if (t.turn && !instant) t.a = t.turn.a; else t.a = instant ? want : damp(t.a, want, 14, dt); t.g.rotation.z = t.a; t.I.visible = m.types[q] === 'I'; t.L.visible = m.types[q] === 'L';
       t.glass.color.setHex(st.pump && maniFlow.live.indexOf(q) >= 0 ? 0xffc04a : 0x10181a);
     }
     srcStub.position.set(MX + 1.5 * TS + TS / 2 + 0.27, MY - m.sr * TS, MZ - 0.04); snkStub.position.set(MX - 1.5 * TS - TS / 2 - 0.27, MY - m.tr * TS, MZ - 0.04);
@@ -233,15 +236,52 @@
     for (q = 0; q < sprays.length; q++) { var sp = sprays[q], ph = ((playTime * 1.9 + q / sprays.length) % 1); sp.visible = leak && groups.basement.visible; if (!leak) continue; sp.position.copy(leakP).addScaledVector(leakD, ph * 0.7); sp.position.y -= ph * ph * 0.5; sp.position.x += Math.sin(q * 7 + playTime * 9) * 0.03; var sc = 0.08 + ph * 0.34; sp.scale.set(sc, sc, 1); sp.material.opacity = (1 - ph) * 0.5; }
   }
   function aimTile() { aimRay.setFromCamera(aimNDC, camera); aimRay.far = 2.4; var h = aimRay.intersectObjects(hitList, false); return h.length ? h[0].object.userData.tile : -1; }
+  /* Turning a coupling: the left hand goes to its T-handle and closes round the bar (Hands.barGrip: the knuckles along it,
+     every finger on it), the wrist turns it a quarter against the ratchet (three clicks, the last one a clunk as it seats),
+     and the hand opens and comes away.  The coupling only counts as turned once it has gone round under the hand. */
+  var turning = null, tgP = new V3(), tgA = new V3(), tgM = new THREE.Matrix4();
   function turnTile(q) {
-    var st = S(), m = st.mani, t = tiles[q], t0 = null; m.rot[q]++;
-    Sfx.play('rocker', { vol: 0.5, rate: 0.6 + Math.random() * 0.1, fallback: function () { Sound.clunk(); } }); Sound.noise(0.16, 900, 0.14); makeNoise(player.x, player.z, 8);
-    Hands.use('mani' + q + ':' + playTime, { point: at(t.g.parent, 0.02, 0.0, 0.1), pose: 'hook', tip: 'hook', dur: 0.5, reach: 0.22, rot: [0.25, 0.25, 0.6], rotAt: function (tt) { return [0.25, 0.25, 0.6 - easeIO(clamp((tt - 0.2) / 0.26, 0, 1)) * 0.9]; } });
-    var was = maniFlow && maniFlow.solved, now = flowOf(m);
-    if (now.solved && !was) after(0.3, function () {
-      if (st.pump) { Sound.chime(); Sound.grind(); showMsg('The spray stops. The needle climbs into the green, and somewhere up the corridor the lift clunks awake.', 6); }
-      else showMsg('That is the run from the pump to the ram. Nothing is in it yet: the pump is not running.', 5);
-    });
+    if (turning || Hands.hold) return;
+    var st = S(), m = st.mani, t = tiles[q], a0 = t.a, c0 = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp, T2 = 0, H = null, stepPh = 0, lx = c0.x, lz = c0.z;
+    t.turn = { a: a0, a0: a0, a1: -(m.rot[q] + 1) * PI / 2, t: 0, gripped: false };
+    function at() { t.g.updateWorldMatrix(true, false); return tgP.set(0, 0, 0.205).applyMatrix4(t.g.matrixWorld); }
+    function axis() { t.g.updateWorldMatrix(true, false); return tgA.set(1, 0, 0).transformDirection(t.g.matrixWorld); }
+    // step in to arm's length of the handle, a little to its right (the left hand does the work), eyes on it
+    var hp = at().clone(), sp = new V3(hp.x - 0.1, BASE_Y + 1.66, hp.z - 0.6), d0 = Math.hypot(sp.x - c0.x, sp.z - c0.z), IN = clamp(0.2 + d0 * 0.45, 0.25, 0.9);
+    turning = { q: q, H: null, ev: {} };
+    closePanel();
+    startCine({ pulse: 0, update: function (dt) {
+      T2 += dt; var a = easeIO(clamp(T2 / IN, 0, 1)), cx = lerp(c0.x, sp.x, a), cz = lerp(c0.z, sp.z, a), cy = lerp(c0.y, sp.y, a);
+      var dd = Math.hypot(cx - lx, cz - lz); lx = cx; lz = cz; stepPh += dd / 0.7 * PI; var mv = clamp(dd / Math.max(dt, 1e-3) / 1.3, 0, 1); cy -= ((1 + Math.cos(2 * stepPh)) / 2) * 0.02 * mv;
+      var yawT = Math.atan2(-(hp.x - cx), -(hp.z - cz)), pitT = Math.atan2(hp.y - cy, Math.hypot(hp.x - cx, hp.z - cz)), yaw = yaw0 + angDiff(yawT, yaw0) * a, pit = lerp(pitch0, pitT, a);
+      camera.position.set(cx, cy, cz); camera.rotation.set(pit, yaw, 0); if (camera.fov !== prefs.fov) { camera.fov = prefs.fov; camera.updateProjectionMatrix(); } camera.updateMatrixWorld(true);
+      if (!H && T2 >= IN * 0.55) { H = Hands.barGrip({ at: at, axis: axis, from: function () { return camera.position; }, r: 0.017, dur: 0.4, leanMax: 0.12 }); Hands.hold = H; turning.H = H; H.done = function () { turning = null; }; }
+      Hands.aim = [0.06, -0.02, 0.06, 0.1, -0.25, 0.1]; flashlight.intensity = player.light ? 1.4 : 0; Hands.setLight(player.light); Hands.fill.intensity = player.light ? 0.42 : 0.14;
+      A.step(dt, false, true); Hands.update(dt, { speed: mv * 1.3, yaw: yaw, pitch: pit, phase: stepPh, grounded: true });
+      return (H && !turning) || T2 > 4;
+    }, end: function () {
+      if (turning) { if (tiles[q].turn) { m.rot[q]++; tiles[q].turn = null; } turning = null; if (Hands.hold === H) Hands.hold = null; }
+      Hands.aim = null; player.x = camera.position.x; player.z = camera.position.z; player.vx = player.vz = 0; player.yaw = player.cy = camera.rotation.y; player.pitch = player.cp = camera.rotation.x; setState('playing'); lockPointer();
+    } });
+  }
+  function stepTurn(dt) {
+    if (!turning) return;
+    var st = S(), m = st.mani, q = turning.q, t = tiles[q], tr = t.turn, H = turning.H, ev = turning.ev;
+    if (!tr || !H) return;
+    if (!tr.gripped && (H.k || 0) >= 0.999) { tr.gripped = true; Sound.noise(0.06, 2400, 0.08); }
+    if (tr.gripped && tr.t < 1) {
+      tr.t = Math.min(1, tr.t + dt / 0.5); var u = easeIO(tr.t); tr.a = tr.a0 + (tr.a1 - tr.a0) * u;
+      [0.25, 0.55, 0.85].forEach(function (c, n) { if (tr.t >= c && !ev['c' + n]) { ev['c' + n] = 1; Sfx.play('rocker', { vol: 0.32, rate: 1.1 + n * 0.06, fallback: function () { Sound.click(); } }); } });
+      if (tr.t >= 1) {
+        m.rot[q]++; t.a = tr.a1; t.turn = null; H.want = 0;
+        Sfx.play('rocker', { vol: 0.55, rate: 0.6 + Math.random() * 0.1, fallback: function () { Sound.clunk(); } }); Sound.noise(0.16, 900, 0.14); makeNoise(player.x, player.z, 8);
+        var was = maniFlow && maniFlow.solved, now = flowOf(m);
+        if (now.solved && !was) after(0.3, function () {
+          if (st.pump) { Sound.chime(); Sound.grind(); showMsg('The spray stops. The needle climbs into the green, and somewhere up the corridor the lift clunks awake.', 6); }
+          else showMsg('That is the run from the pump to the ram. Nothing is in it yet: the pump is not running.', 5);
+        });
+      }
+    }
   }
   function startPump() {
     var st = S(); stepTo(145.55, 69.5, new V3(A.starter.x, A.starter.y, A.starter.z), 0.4);
@@ -732,7 +772,7 @@
     if (window.AquaSound && !instant) AquaSound.step(dt, inCine);                // the soundscape (aquasound.js)
   };
   A.reset = function () {
-    var st = S(); seq = []; liftBusy = false; A.calling = null; A.showT = 0; A.liftNow = null; Hands.over = null; Body.show(false); doorA = st.door ? 1 : 0; doorJ = 0; sdDown = st.staff >= 3 ? 1 : 0; sdFall.userData.hit = st.staff >= 3; sdJ = sdJv = 0; brkK = 0; zapK = 0; chaseDelay = 0; whereDied = ''; tint('none', 0);
+    var st = S(); seq = []; liftBusy = false; A.calling = null; if (turning) { tiles[turning.q].turn = null; turning = null; if (Hands.hold && Hands.hold.kind === 'bar') Hands.hold = null; } A.showT = 0; A.liftNow = null; Hands.over = null; Body.show(false); doorA = st.door ? 1 : 0; doorJ = 0; sdDown = st.staff >= 3 ? 1 : 0; sdFall.userData.hit = st.staff >= 3; sdJ = sdJv = 0; brkK = 0; zapK = 0; chaseDelay = 0; whereDied = ''; tint('none', 0);
     arcs.forEach(function (sp) { sp.visible = false; }); dust.forEach(function (d) { d.life = 0; d.s.visible = false; }); Sound.drone('aqlift', 0, liftDrone); Sound.drone('aqpump', 0, liftDrone);
     A.step(0, true);
   };
@@ -751,7 +791,7 @@
     if (st.staff < 3 && py > 2 && py < 5 && px < SD.x && dist(px, pz, SD.x - 0.8, 59.4) < 1.7) return { text: st.staff ? '[E] Kick it again' : '[E] Kick the door in   ·   it stands ajar on a padlocked hasp', fn: kick };
     if (py < -1) {
       if (dist(px, pz, 145.6, 69.5) < 1.5) return st.pump ? { text: 'The hydraulic pump is running.' } : { text: '[E] Start the hydraulic pump', fn: startPump };
-      if (pz > 73.2 && px > 141.4 && px < 144.6) { q = aimTile(); var fl = maniFlow || flowOf(st.mani); return q >= 0 ? { text: '[E] Turn the coupling a quarter', outline: tiles[q].ol, fn: (function (n) { return function () { turnTile(n); }; })(q) } : { text: fl.solved ? 'The manifold is plumbed through: FROM PUMP to TO LIFT RAM.' : 'Manifold: aim at a coupling and turn it.  Run the oil from FROM PUMP (left) through to TO LIFT RAM (right).' }; }
+      if (pz > 73.2 && px > 141.4 && px < 144.6) { q = aimTile(); var fl = maniFlow || flowOf(st.mani); if (turning) return { text: '' }; return q >= 0 ? { text: '[E] Turn the coupling a quarter', outline: tiles[q].ol, fn: (function (n) { return function () { turnTile(n); }; })(q) } : { text: fl.solved ? 'The manifold is plumbed through: FROM PUMP to TO LIFT RAM.' : 'Manifold: aim at a coupling and turn it.  Run the oil from FROM PUMP (left) through to TO LIFT RAM (right).' }; }
       if (!liftBusy && (dist(px, pz, 137.5, 48.4) < 1.7 || (Math.abs(px - 137.5) < 1.3 && pz < 47.6))) {
         if (st.lift === 1) return A.ready() ? { text: '[E] Call the lift', fn: function () { sendLift(0); } } : { text: 'The lift is up at the catwalks, and there is no pressure to bring it down.' };
         return A.ready() ? { text: '[E] Take the lift up', fn: function () { ride(true); } } : { text: st.pump ? 'SERVICE LIFT — the lamp on the call station blinks red: LIFT RAM, NO PRESSURE. The manifold in the pump room is not plumbed through.' : 'SERVICE LIFT — dead. It is hydraulic: its pump is in the pump room, south along this corridor.', fn: function () { Sound.deny(); Sfx.play('rocker', { vol: 0.4 }); } };
