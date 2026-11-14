@@ -251,8 +251,7 @@ var Aqua = (function () {
       geo.computeVertexNormals(); var cm = mesh(geo, curl, c[0], 3.1 - (n % 3) * 0.4, c[1]); cm.rotation.y = c[2]; cm.userData.noCast = true;
     });
     // the desk by the door (the save point's terminal stands on the floor beside it: world.js), a rack of leaflets, a rope line
-    var tz = TERMS[5].tz;
-    label(['TICKETS  ·  INFORMATION'], 2.4, 0.34, '#1d4a58', '#e9e2d0', G.x1 + 0.03, 2.5, tz, PI / 2, 512, '#7fd6e8');
+    label(['TICKETS  ·  INFORMATION'], 1.9, 0.3, '#1d4a58', '#e9e2d0', G.x1 + 0.03, 2.55, 68.9, PI / 2, 512, '#7fd6e8');                     // over the desk (the Ranger Net panel beside it is world.js's)
     var rack = new THREE.Group(); rack.position.set(G.x1 + 0.22, 0, 63.4); rack.rotation.y = PI / 2; scene.add(rack);
     box(1.0, 1.5, 0.06, M2.blue, 0, 0.95, 0, rack); for (q = 0; q < 12; q++) { var lf = box(0.2, 0.3, 0.012, std([0xd8e6ee, 0x6fb0d0, 0xf0e2a8][q % 3], 0.8), -0.36 + (q % 4) * 0.24, 1.45 - Math.floor(q / 4) * 0.42, 0.05, rack); lf.rotation.x = -0.18; if (q === 5 || q === 10) lf.visible = false; }
     solid(G.x1, G.x1 + 0.3, 62.9, 63.9, null, null, true);

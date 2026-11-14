@@ -261,13 +261,12 @@ var Extras = (function () {
       box(0.07, 0.03, 0.11, beige, 0.42, 0.85, -HZ + 1.0, g); box(0.6, 0.004, 0.32, M.rubber, 0, 0.832, -HZ + 0.98, g);                          // mouse and desk mat
       box(0.52, 0.03, 0.2, beige, 0, 0.87, -HZ + 0.98, g);                                                                                          // a proper keyboard over the old pad
       cyl(0.07, 0.09, 0.03, M.dark, -0.62, 0.845, -HZ + 0.6, g, 10); cyl(0.012, 0.012, 0.36, M.dark, -0.62, 1.02, -HZ + 0.6, g, 5); mesh(new THREE.ConeGeometry(0.1, 0.14, 10, 1, true), std(0x2f5a3a, 0.6, { side: THREE.DoubleSide }), -0.62, 1.22, -HZ + 0.64, g).rotation.x = 0.5;   // desk lamp
-      label(['RANGER NET', 'SAVE POINT'], 0.5, 0.2, '#254a30', '#e2b93b', 0, 0.62, -HZ + 1.115, g);
     });
-    var t = TERMS[5], g2 = grp(t.tx + 1.25, t.tz, -PI / 2);                                                                                         // aquarium lobby: a staff desk beside the terminal
+    var g2 = grp(GAL.x1 + 0.42, 68.9, PI / 2);                                                                                                       // aquarium lobby: the information desk, against the west wall beside the Ranger Net panel
     box(1.3, 0.06, 0.7, M.wood, 0, 0.78, 0, g2); [[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]].forEach(function (l) { box(0.06, 0.76, 0.06, M.wood, l[0], 0.38, l[1], g2); });
     box(0.5, 0.42, 0.44, beige, -0.2, 1.03, -0.05, g2); mesh(new THREE.PlaneGeometry(0.4, 0.3), basic(0x0c3020, { map: WB.termTex }), -0.2, 1.04, 0.172, g2);
     box(0.5, 0.03, 0.2, beige, -0.2, 0.83, 0.24, g2); box(0.2, 0.44, 0.46, beige, 0.42, 1.03, -0.05, g2); box(0.07, 0.03, 0.11, beige, 0.2, 0.83, 0.26, g2);
-    circles.push({ x: t.tx + 1.25, z: t.tz, r: 0.7 });
+    boxes.push({ x1: GAL.x1, x2: GAL.x1 + 0.8, z1: 68.2, z2: 69.6, solid: true });
   })();
 
   // ---------- per-frame ----------

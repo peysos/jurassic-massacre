@@ -125,7 +125,7 @@ function stepWorld(dt, instant) {
   var ch = P.winch.h * 0.8;
   W.aviCage.position.y = 1.4 + ch; W.aviCage.visible = (P.winch.h !== 0 || (P.winch.stop || 3) !== 3) && !keysGot[3]; keyMeshes[3].position.y = W.keyY[3] + ch;
   W.boxLid.rotation.x = -anim.box * 1.9; keyMeshes[4].visible = !keysGot[4] && anim.box > 0.5;
-  for (i = 0; i < TERMS.length; i++) W.termScr[i].color.setHex(!esc && done(TERMS[i].need) ? 0x35ff8a : 0x551010);
+  RangerNet.frame(playTime, esc, done);
   for (i = 0; i < fuseMeshes.length; i++) fuseMeshes[i].visible = fuseMeshes[i].userData.glowG.visible = !P.fuseGot[i];
   for (i = 0; i < W.safeViz.length; i++) if (W.safeViz[i] && W.safeViz[i].set) W.safeViz[i].set(!!esc, blink);
   W.skeleton.hat.visible = prefs.duck;
@@ -578,7 +578,7 @@ function findInteract() {
     t = TERMS[i];
     if (dist(px, pz, t.tx, t.tz) < (t.solo ? 2.6 : 2.4)) {
       if (esc) return { text: 'Terminal offline — park lockdown' };
-      return done(t.need) ? { text: '[E] Save game at the terminal', fn: (function (nm) { return function () { saveGame(nm); }; })(t.name) } : { text: 'Terminal offline — ' + NEED_HINT[t.need] };
+      return done(t.need) ? { text: '[E] Swipe your badge — save the game', fn: (function (n2, nm) { return function () { RangerNet.swipe(n2, nm); }; })(i, t.name) } : { text: 'Terminal offline — ' + NEED_HINT[t.need] };
     }
   }
   var nearRel = dist(px, pz, En.release.x, En.release.z) < 2.3, atGate = pz > WORLD - 4.6 && Math.abs(px) < 4.2;

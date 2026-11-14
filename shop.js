@@ -196,45 +196,9 @@
      a 15-inch screen behind scratched glass, a badge pad that glows when the panel is live, a keypad, a printed header and a
      cable conduit up into the ceiling.  Twelve years of dust, a crack across the glass, a strip of tape. */
   var TM = new THREE.Group(); TM.position.set(SAFE[0].tx, 0, Z1 + 0.3); scene.add(TM);
-  var kioskShell = std(0x23282a, 0.55, { metalness: 0.45, map: canvasTex(128, function (g, S) { g.fillStyle = '#2a2f31'; g.fillRect(0, 0, S, S); for (var q = 0; q < 200; q++) { g.strokeStyle = 'rgba(' + (Math.random() < 0.5 ? '255,255,255' : '0,0,0') + ',' + (0.03 + Math.random() * 0.05) + ')'; var y = Math.random() * S; g.beginPath(); g.moveTo(0, y); g.lineTo(S, y); g.stroke(); } blotch(g, S, ['#4a4436', '#14161a'], 10, 6, 30, 0.4); }) });
-  box(0.74, 1.24, 0.1, kioskShell, 0, 1.42, 0.05, TM);                                                          // back plate
-  box(0.66, 1.02, 0.07, kioskShell, 0, 1.4, 0.135, TM);                                                         // the body
-  [-1, 1].forEach(function (s2) { box(0.035, 1.24, 0.13, trim, s2 * 0.37, 1.42, 0.09, TM); });                  // green edging
-  box(0.78, 0.035, 0.14, trim, 0, 0.8, 0.09, TM);
-  var hood = box(0.8, 0.04, 0.26, kioskShell, 0, 2.06, 0.16, TM); hood.rotation.x = 0.28;
-  var strip = basic(0x0a1a10, { fog: false }); E.kioskStrip = strip; box(0.62, 0.012, 0.02, strip, 0, 2.018, 0.27, TM).userData.noCast = true;        // the light strip under the hood
-  // the screen, its bezel and the glass over it
-  box(0.5, 0.38, 0.02, std(0x0e1012, 0.4, { metalness: 0.3 }), 0, 1.66, 0.176, TM);
-  var scrTex = canvasTex(512, function (g, S, HH) {
-    g.fillStyle = '#ffffff'; g.fillRect(0, 0, S, HH); g.fillStyle = '#000'; g.globalAlpha = 0.86; g.fillRect(0, 0, S, HH); g.globalAlpha = 1;
-    g.fillStyle = '#fff'; g.font = 'bold 34px Consolas, "Courier New", monospace'; g.textAlign = 'left'; g.fillText('RANGER NET', 26, 52); g.font = '18px Consolas, monospace'; g.fillText('FAMILY ZOO · STAFF CHECK-IN', 26, 82);
-    g.fillRect(26, 98, S - 52, 2); g.font = '22px Consolas, monospace'; g.fillText('STATION 01 · GIFT SHOP', 26, 140); g.fillText('PLACE BADGE ON THE PAD', 26, 180);
-    g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(26, 214, S - 52, 54); g.font = 'bold 26px Consolas, monospace'; g.textAlign = 'center'; g.fillText('[ E ]  LOG POSITION', S / 2, 250);
-    g.textAlign = 'left'; g.font = '16px Consolas, monospace'; g.fillText('LAST CHECK-IN  08/23 21:14  A. MERCER', 26, 300); g.fillText('SHELTER DOORS: NARROW · 1.26 M', 26, 326);
-    g.fillStyle = 'rgba(0,0,0,.35)'; for (var q = 0; q < HH; q += 4) g.fillRect(0, q, S, 2);
-  }, 1, 1, true, 360);
-  W.termScr[0] = basic(0x551010, { map: scrTex, fog: false }); mesh(new THREE.PlaneGeometry(0.46, 0.33), W.termScr[0], 0, 1.66, 0.1875, TM);
-  var crack = mesh(new THREE.PlaneGeometry(0.46, 0.33), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0.6, map: canvasTex(256, function (g, S, HH) { g.clearRect(0, 0, S, HH); g.strokeStyle = 'rgba(220,235,235,.85)'; g.lineWidth = 1; var cx = S * 0.72, cy = HH * 0.3; for (var q = 0; q < 11; q++) { var a = q / 11 * 6.28 + Math.random() * 0.3, r2 = 30 + Math.random() * 120, x = cx, y = cy; g.beginPath(); g.moveTo(x, y); for (var k = 0; k < 5; k++) { x += Math.cos(a) * r2 / 5 + (Math.random() - 0.5) * 8; y += Math.sin(a) * r2 / 5 + (Math.random() - 0.5) * 8; g.lineTo(x, y); } g.stroke(); } blotch(g, S, ['#8a8270'], 8, 10, 40, 0.25); }, 1, 1, true, 184) }), 0, 1.66, 0.1895, TM);
-  crack.userData.noCast = true;
-  // header plate
-  mesh(new THREE.PlaneGeometry(0.6, 0.1), std(0xffffff, 0.6, { map: textTex(['RANGER NET · EMPLOYEE CHECK-IN'], 512, 84, '#254a30', '#e2b93b', null, false) }), 0, 1.93, 0.1705, TM);
-  // badge pad (glows when live), keypad, speaker grille, status lamps
-  box(0.2, 0.16, 0.025, std(0x101214, 0.35, { metalness: 0.3 }), -0.14, 1.2, 0.18, TM);
-  var padMat = basic(0x0a1a10, { fog: false }); E.kioskPad = padMat; mesh(new THREE.RingGeometry(0.045, 0.052, 32), padMat, -0.14, 1.2, 0.1935, TM).userData.noCast = true;
-  mesh(new THREE.PlaneGeometry(0.16, 0.03), std(0xffffff, 0.6, { map: textTex(['BADGE'], 128, 30, '#101214', '#9aa0a4', null, false) }), -0.14, 1.11, 0.1935, TM);
-  var keyMat = std(0x24282a, 0.55, { metalness: 0.3 }), keyGeo = new THREE.BoxGeometry(0.034, 0.028, 0.012);
-  for (i = 0; i < 12; i++) mesh(keyGeo, keyMat, 0.08 + (i % 3) * 0.045, 1.28 - Math.floor(i / 3) * 0.04, 0.178, TM);
-  for (i = 0; i < 6; i++) box(0.11, 0.004, 0.004, dark, 0, 0.97 + i * 0.012, 0.172, TM);
-  E.kioskLamps = [basic(0x1a0505, { fog: false }), basic(0x041a08, { fog: false })];
-  E.kioskLamps.forEach(function (m, n) { mesh(new THREE.CircleGeometry(0.011, 12), m, 0.23 - n * 0.035, 1.03, 0.1715, TM); });
-  box(0.07, 0.6, 0.05, kioskShell, 0.3, 2.68, 0.04, TM); cyl(0.016, 0.016, 1.2, EM.steel, -0.3, 2.65, 0.03, TM, 6);                // conduit to the ceiling
-  var tape = mesh(new THREE.PlaneGeometry(0.2, 0.035), std(0xc9b878, 0.9), 0.28, 1.53, 0.1902, TM); tape.rotation.z = 0.5; tape.userData.noCast = true;
-  var dust = mesh(new THREE.PlaneGeometry(0.66, 1.02), new THREE.MeshStandardMaterial({ transparent: true, depthWrite: false, roughness: 1, map: canvasTex(256, function (g, S, HH) { g.clearRect(0, 0, S, HH); var gr = g.createLinearGradient(0, 0, 0, HH); gr.addColorStop(0, 'rgba(120,114,96,.42)'); gr.addColorStop(0.18, 'rgba(120,114,96,.08)'); gr.addColorStop(0.85, 'rgba(120,114,96,.05)'); gr.addColorStop(1, 'rgba(90,84,70,.3)'); g.fillStyle = gr; g.fillRect(0, 0, S, HH); g.strokeStyle = 'rgba(30,28,24,.35)'; g.lineWidth = 1; for (var q = 0; q < 14; q++) { var x = Math.random() * S; g.beginPath(); g.moveTo(x, Math.random() * HH * 0.3); g.lineTo(x + (Math.random() - 0.5) * 8, HH * (0.4 + Math.random() * 0.6)); g.stroke(); } }, 1, 1, true, 396) }), 0, 1.4, 0.172, TM);
-  // a live edge round the screen
-  var bez = basic(0x0a1a10, { fog: false }); E.kioskBezel = bez; [[0, 1.855, 0.5, 0.008], [0, 1.465, 0.5, 0.008]].forEach(function (b2) { box(b2[2], b2[3], 0.006, bez, b2[0], b2[1], 0.188, TM).userData.noCast = true; }); [-0.252, 0.252].forEach(function (x) { box(0.008, 0.39, 0.006, bez, x, 1.66, 0.188, TM).userData.noCast = true; });
-  dust.userData.noCast = true;
+  RangerNet.kiosk(null, SAFE[0].tx, Z1 + 0.3, 0, 0, { crack: true, tape: true, name: 'Station 01 · Gift Shop' });      // (rangernet.js: the same unit as every save point)
   // a clipboard on a hook, the sign-in sheet still on it
-  var cb = new THREE.Group(); cb.position.set(0.52, 1.25, 0.03); cb.rotation.z = -0.05; TM.add(cb);
+  var cb = new THREE.Group(); cb.position.set(-0.52, 1.25, 0.03); cb.rotation.z = -0.05; TM.add(cb);
   box(0.24, 0.33, 0.012, std(0x8a6a44, 0.8, { map: woodTex }), 0, 0, 0, cb); mesh(new THREE.PlaneGeometry(0.21, 0.28), std(0xffffff, 0.9, { map: canvasTex(128, function (g, S, HH) { g.fillStyle = '#ece6d4'; g.fillRect(0, 0, S, HH); g.fillStyle = '#1c2a6a'; for (var r = 0; r < 12; r++) { g.fillRect(8, 18 + r * 13, 30 + (r * 17) % 50, 1.6); g.fillRect(70, 18 + r * 13, 20 + (r * 23) % 30, 1.6); } g.fillStyle = 'rgba(60,40,20,.3)'; g.fillRect(0, 0, S, HH); }, 1, 1, true, 170) }), 0, -0.01, 0.007, cb);
   box(0.08, 0.025, 0.02, EM.steel, 0, 0.16, 0.012, cb);
 
@@ -758,8 +722,6 @@
     } else E.stream.visible = false;
     // the check-in panel lives when the shop has power
     var live = !!P.pow0;
-    E.kioskStrip.color.setHex(live ? (Math.sin(t * 3) > -0.9 ? 0x35ff8a : 0x0a1a10) : 0x0a1a10); E.kioskPad.color.setHex(live ? 0x9dffc0 : 0x0a1a10); E.kioskBezel.color.setHex(live ? 0x1f8a4a : 0x0a1a10);
-    E.kioskLamps[0].color.setHex(live ? 0x1a0505 : (Math.sin(t * 2) > 0.6 ? 0xff3020 : 0x1a0505)); E.kioskLamps[1].color.setHex(live ? 0x35ff8a : 0x041a08);
     // light: the shed bulb, the shop tubes (one of them never settles), the monitor, the plaza lamps
     var L = E.lights, flick = run ? (Math.sin(t * 23) + Math.sin(t * 7.3) > -1.5 ? 1 : 0.25) : 0, warm = clamp(runT / 1.6, 0, 1);
     if (!E.introLight) { L.shed.intensity = run ? 1.1 * warm : 0; }

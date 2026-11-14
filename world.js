@@ -332,7 +332,6 @@ var WB = { posts: [] };
   // ----- signs -----
   makeSign('RAPTOR PADDOCK', -52, 74, PI / 2);
   makeSign('T-REX KINGDOM', 50, -98, -PI / 2, 7, 0, '#d9534a');
-  makeSign('THE AQUARIUM', 44, 66.5, -PI / 2);
   makeSign('THE AVIARY', -56, -84.6, PI / 2);
   makeSign('IT HUNTS FROM ABOVE — STAY UNDER COVER', -64, -95.4, PI / 2, 6.4, 0, '#d9534a');
   makeSign('VISITOR CENTER', -6, -10, PI / 2);
@@ -594,13 +593,7 @@ var WB = { posts: [] };
 
   // ----- safe zones (ranger shelters) + save terminals -----
   var termTex = canvasTex(64, function (c, S) { c.fillStyle = '#eaffef'; c.fillRect(0, 0, S, S); c.fillStyle = '#1c6a3a'; for (var q2 = 0; q2 < 5; q2++) c.fillRect(6, 8 + q2 * 10, 20 + ((q2 * 37) % 30), 4); });
-  function terminal(t, idx) {                      // W.termScr[idx] is the screen material game.js recolours (index into TERMS)
-    box(0.9, 1.05, 0.6, M.dark, t.tx, 0.52, t.tz); box(1.0, 0.08, 0.7, M.metal, t.tx, 1.08, t.tz);
-    var mat = basic(0x551010, { map: termTex, fog: false }); W.termScr[idx] = mat;
-    var scr = box(0.78, 0.5, 0.06, mat, t.tx, 1.42, t.tz - 0.12); scr.rotation.x = -0.3; box(0.86, 0.58, 0.08, M.dark, t.tx, 1.42, t.tz - 0.17).rotation.x = -0.3;
-    circles.push({ x: t.tx, z: t.tz, r: 0.6 });
-  }
-  WB.termTex = termTex;
+  WB.termTex = termTex; var deskScr = basic(0x0c3020, { map: termTex, fog: false });
   /* Ranger posts: the safe rooms.  A timber cabin on a concrete plinth with one narrow steel door.  Inside: a desk with the
      Ranger Net terminal, a cot, lockers.  The door is 1.26 m wide: a person fits, nothing that hunts here does. */
   var cabinWall = retile(M.plank, 3, 1.4), stGreen = std(0x2f5a3a, 0.7, { bumpMap: bump(2), bumpScale: 0.01 }), stSteel = std(0x596268, 0.6, { metalness: 0.5, map: metalTex });
@@ -639,9 +632,9 @@ var WB = { posts: [] };
     // desk and the Ranger Net terminal (the save point)
     box(1.8, 0.06, 0.78, M.wood, 0, 0.8, -HZ + 0.72, G); [[-0.84, -HZ + 0.4], [0.84, -HZ + 0.4], [-0.84, -HZ + 1.04], [0.84, -HZ + 1.04]].forEach(function (lg) { box(0.06, 0.78, 0.06, M.wood, lg[0], 0.39, lg[1], G); });
     box(0.56, 0.44, 0.44, M.dark, 0, 1.05, -HZ + 0.62, G); box(0.5, 0.05, 0.22, stSteel, 0, 0.855, -HZ + 0.98, G);
-    var scr = basic(0x551010, { map: WB.termTex, fog: false }); W.termScr[si] = scr; mesh(new THREE.PlaneGeometry(0.46, 0.34), scr, 0, 1.06, -HZ + 0.845, G);
+    mesh(new THREE.PlaneGeometry(0.46, 0.34), deskScr, 0, 1.06, -HZ + 0.845, G);                                          // the desk PC (the save point is the Ranger Net panel on the wall)
     cyl(0.17, 0.17, 0.05, M.rubber, 0.1, 0.5, -HZ + 1.75, G, 12); cyl(0.025, 0.025, 0.5, stSteel, 0.1, 0.25, -HZ + 1.75, G, 6); cyl(0.2, 0.2, 0.03, stSteel, 0.1, 0.015, -HZ + 1.75, G, 10);
-    mesh(new THREE.PlaneGeometry(0.62, 0.48), std(0xffffff, 0.85, { map: noteTex }), 1.25, 1.7, -HZ + 0.306, G);
+    mesh(new THREE.PlaneGeometry(0.62, 0.48), std(0xffffff, 0.85, { map: noteTex }), -1.75, 1.7, -HZ + 0.306, G);
     // cot, lockers, a shelf of supplies
     box(0.9, 0.06, 1.98, stSteel, -HX + 0.82, 0.34, -0.7, G); box(0.84, 0.14, 1.9, blanket, -HX + 0.82, 0.44, -0.7, G); box(0.5, 0.1, 0.34, std(0xb9b29c, 1), -HX + 0.82, 0.56, -1.42, G);
     [[-HX + 0.4, -1.66], [-HX + 1.24, -1.66], [-HX + 0.4, 0.26], [-HX + 1.24, 0.26]].forEach(function (lg) { box(0.04, 0.34, 0.04, stSteel, lg[0], 0.17, lg[1], G); });
@@ -650,14 +643,15 @@ var WB = { posts: [] };
     var jars = []; for (q = 0; q < 8; q++) jars.push([HX - 0.47, (q % 2 ? 1.02 : 1.52) + 0.09, 0.65 + q * 0.18, 0.1 + (q % 3) * 0.02, 0.16 + (q % 4) * 0.03, 0.1, 0, q, 0]);
     WB.inst(new THREE.BoxGeometry(1, 1, 1), M.rust, jars, G);
     solid(-0.95, 0.95, -HZ + 0.3, -HZ + 1.12, true); solid(-HX + 0.3, -HX + 1.3, -1.72, 0.3, true); solid(HX - 0.86, HX - 0.3, -HZ + 0.3, -HZ + 1.58, true);
-    s2.rect = span(-HX + 0.3, HX - 0.3, -HZ + 0.3, HZ - 0.3); var tp = w2(0, -HZ + 1.3); s2.tx = tp[0]; s2.tz = tp[1];
+    s2.rect = span(-HX + 0.3, HX - 0.3, -HZ + 0.3, HZ - 0.3);
+    RangerNet.kiosk(G, 1.55, -HZ + 0.3, 0, si, { crack: si === 3, tape: si === 2, name: 'Station 0' + (si + 1) + ' · ' + s2.name });      // the save point: on the back wall, right of the desk (sets s2.tx, tz)
     W.safeViz[si] = { set: function (esc, blink) {            // game.js calls this every frame; esc = lockdown, the safe rooms are offline
       lampM.color.setHex(esc ? (blink ? 0xff3020 : 0x401008) : 0x9dffc8); inM.color.setHex(esc ? 0x401008 : 0x9dffc8); l.color.setHex(esc ? 0xff3020 : 0x7dffb4); l.intensity = esc ? (blink ? 0.7 : 0.1) : 1.1;
     } };
   }
   W.safeViz[0] = null;                              // the gift shop at the entrance is built by entrance.js
   station(SAFE[1], 1, 'n'); station(SAFE[2], 2, 'e'); station(SAFE[3], 3, 'w'); station(SAFE[4], 4, 's', true);
-  terminal(TERMS[5], 5);
+  RangerNet.kiosk(null, GAL.x1 + 0.015, TERMS[5].tz, PI / 2, 5, { name: 'Station 06 · Aquarium' });          // the aquarium's, on the lobby's west wall
 
   // ----- lamp posts with light cones -----
   var coneMat = basic(0xffffff, { map: coneGlow, transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: true });

@@ -965,7 +965,7 @@ var Sound = {
   zap: function () { this.tone(2400, 300, 0.3, 0.2, 'square'); this.noise(0.35, 6000, 0.35); },
   pickup: function () { this.tone(520, 780, 0.12, 0.2, 'triangle'); this.tone(780, 1040, 0.15, 0.2, 'triangle', 0.1); },
   deny: function () { this.tone(120, 90, 0.2, 0.2, 'square'); },
-  save: function () { this.tone(440, 440, 0.12, 0.2, 'square'); this.tone(660, 660, 0.2, 0.2, 'square', 0.13); }
+  save: function () { this.tone(1318.5, 1318.5, 0.11, 0.13, 'sine'); this.tone(1318.5, 1318.5, 0.08, 0.04, 'triangle'); this.tone(1975.5, 1975.5, 0.26, 0.13, 'sine', 0.115); this.tone(1975.5, 1975.5, 0.12, 0.035, 'triangle', 0.115); this.tone(3951, 3951, 0.05, 0.012, 'sine', 0.115); }      // the Ranger Net's two-note beep
 };
 
 // ---------- recorded effects and voice ----------
