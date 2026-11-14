@@ -328,7 +328,7 @@ var Aqua = (function () {
   }, 1, 1, false);
   A.causTex = causTex;
   var WU = A.wu = { uTime: { value: 0 }, uSurf: { value: T.water }, uBoxMin: { value: new THREE.Vector3(T.x1, T.floor - 1, T.z1) }, uBoxMax: { value: new THREE.Vector3(T.x2, T.water, T.z2) },
-    uWater: { value: new THREE.Color(0x0e4a54) }, uLight: { value: new THREE.Color(0.55, 0.78, 0.8) }, uDens: { value: 0.05 }, uCaus: { value: causTex } };
+    uWater: { value: new THREE.Color(0x0b4050) }, uLight: { value: new THREE.Color(0.55, 0.78, 0.8) }, uDens: { value: 0.105 }, uCaus: { value: causTex } };
   var WDECL = 'varying vec3 vWPos; uniform float uTime; uniform float uSurf; uniform vec3 uBoxMin; uniform vec3 uBoxMax; uniform vec3 uWater; uniform vec3 uLight; uniform float uDens; uniform sampler2D uCaus;';
   var WFRAG = [
     '{ float sub = smoothstep(uSurf + 0.05, uSurf - 0.3, vWPos.y);',
@@ -340,7 +340,9 @@ var Aqua = (function () {
     '    vec2 cuv = vWPos.xz * 0.12; float caus = min(texture2D(uCaus, cuv + uTime * vec2(0.021, 0.013)).r, texture2D(uCaus, cuv * 1.37 - uTime * vec2(0.017, -0.019)).r);',
     '    vec3 lit = diffuseColor.rgb * uLight * (0.26 + 0.74 * up) * sun * (0.75 + caus * 2.4 * up * sun);',
     '    vec3 col = gl_FragColor.rgb * 0.7 + lit; float f = 1.0 - exp(-dw * uDens);',
-    '    col = mix(col, uWater * uLight * (0.25 + 0.75 * sun), f);',
+    '    float ym = 0.5 * (ro.y + rd.y * tN + vWPos.y), up2 = clamp(1.0 - (uSurf - ym) / 7.5, 0.0, 1.0);',      // the water the ray went through: lighter and greener near the surface, deep blue below
+    '    vec3 scat = uWater * uLight * mix(0.32, 1.25, up2 * up2) + vec3(0.0, 0.012, 0.01) * up2 * uLight;',
+    '    col = mix(col, scat * (0.4 + 0.6 * sun), f);',
     '    gl_FragColor.rgb = mix(gl_FragColor.rgb, col, sub);',
     '  } }'].join('\n');
   A.wet = function (m) {
@@ -397,25 +399,64 @@ var Aqua = (function () {
     [[113.2, 53.6], [114.6, 51.8], [125, 67.6], [126.8, 69.6], [125.2, 52.8], [126.6, 50.4], [112.4, 67.4], [113.8, 69.4], [121.4, 50.4], [124, 70], [132.6, 70.2], [116.2, 53], [132.8, 49.8]].forEach(function (w2, n) { var wm = mesh(weedG, weed, w2[0], T.floor + 0.3, w2[1]); wm.rotation.y = n * 1.1; wm.scale.setScalar(0.8 + (n % 4) * 0.25); wm.userData.noCast = true; });
     // the kerb the glass stands on, the steel that holds it, and the glass
     wb(T.x1 - 0.3, T.x1 + 0.25, 0, GY1, T.z1 - 0.3, T.z2 + 0.3, M2.conc, 4, 4); box(0.62, 0.06, TD + 0.7, M2.steel, T.x1 - 0.03, GY1 + 0.03, cz);
-    var glassTex = canvasTex(1024, function (g, S, HH2) {      // 8 m of glass, 4.5 m high: film, algae from the top and the bottom, a crust at the waterline, scratches, hands
-      g.clearRect(0, 0, S, HH2); g.fillStyle = 'rgba(150,205,214,.085)'; g.fillRect(0, 0, S, HH2);
-      var wl = HH2 * (1 - (T.water - GY1) / GHh), n2, x, y;
-      g.fillStyle = 'rgba(200,214,208,.07)'; g.fillRect(0, 0, S, wl);                                                             // dry glass above the water: dusty
-      for (n2 = 0; n2 < 60; n2++) { x = Math.random() * S; var l = 20 + Math.random() * (wl - 30); var gr = g.createLinearGradient(0, wl - l, 0, wl); gr.addColorStop(0, 'rgba(210,220,210,0)'); gr.addColorStop(1, 'rgba(210,220,210,.22)'); g.fillStyle = gr; g.fillRect(x, wl - l, 2 + Math.random() * 5, l); }      // old splash runs
-      function film(n3, yFn, rMin, rMax, aMax) { for (n2 = 0; n2 < n3; n2++) { x = Math.random() * S; y = yFn(); var r = rMin + Math.random() * (rMax - rMin), gr2 = g.createRadialGradient(x, y, 0, x, y, r), cc = (34 + Math.random() * 36 | 0) + ',' + (74 + Math.random() * 44 | 0) + ',' + (38 + Math.random() * 26 | 0); gr2.addColorStop(0, 'rgba(' + cc + ',' + (aMax * (0.4 + Math.random() * 0.6)).toFixed(3) + ')'); gr2.addColorStop(1, 'rgba(' + cc + ',0)'); g.fillStyle = gr2; g.fillRect(x - r, y - r, r * 2, r * 2); } }
-      film(420, function () { return wl + Math.pow(Math.random(), 2.6) * (HH2 - wl) * 0.5; }, 8, 46, 0.2);                       // algae hanging down from the light
-      film(380, function () { return HH2 - Math.pow(Math.random(), 2.4) * HH2 * 0.26; }, 8, 50, 0.22);                            // and climbing from the sand
-      [0, S].forEach(function (ex) { for (n2 = 0; n2 < 150; n2++) { x = ex + (Math.random() - 0.5) * 2 * Math.pow(Math.random(), 2) * 130; y = wl + Math.random() * (HH2 - wl); var r = 8 + Math.random() * 30, gr3 = g.createRadialGradient(x, y, 0, x, y, r); gr3.addColorStop(0, 'rgba(40,88,46,.3)'); gr3.addColorStop(1, 'rgba(40,88,46,0)'); g.fillStyle = gr3; g.fillRect(x - r, y - r, r * 2, r * 2); } });       // thick behind every mullion
-      for (n2 = 0; n2 < 1600; n2++) { x = Math.random() * S; y = wl + Math.pow(Math.random(), 1.6) * (HH2 - wl); g.fillStyle = 'rgba(' + (30 + Math.random() * 30 | 0) + ',' + (64 + Math.random() * 40 | 0) + ',36,' + (0.1 + Math.random() * 0.22) + ')'; g.fillRect(x, y, 1 + Math.random() * 2.5, 1 + Math.random() * 2.5); }      // specks
-      for (n2 = 0; n2 < 18; n2++) { x = Math.random() * S; y = wl + Math.random() * (HH2 - wl) * 0.8; g.strokeStyle = 'rgba(44,92,50,.22)'; g.lineWidth = 5 + Math.random() * 10; g.lineCap = 'round'; g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + 10, y + 40, x - 14, y + 80, x + (Math.random() - 0.5) * 30, y + 90 + Math.random() * 120); g.stroke(); }
-      var cg = g.createLinearGradient(0, wl - 7, 0, wl + 16); cg.addColorStop(0, 'rgba(226,232,214,0)'); cg.addColorStop(0.3, 'rgba(220,226,210,.5)'); cg.addColorStop(0.5, 'rgba(110,134,104,.42)'); cg.addColorStop(1, 'rgba(60,96,60,0)'); g.fillStyle = cg; g.fillRect(0, wl - 7, S, 23);      // the waterline: a pale crust, green under it
-      g.strokeStyle = 'rgba(235,245,245,.22)'; g.lineWidth = 1; for (n2 = 0; n2 < 90; n2++) { x = Math.random() * S; y = Math.random() * HH2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 90, y + (Math.random() - 0.5) * 26); g.stroke(); }
-      [[210, 0.74], [236, 0.75], [620, 0.7], [820, 0.79], [846, 0.78]].forEach(function (h) { g.fillStyle = 'rgba(225,235,235,.1)'; var hy = HH2 * h[1]; g.beginPath(); g.ellipse(h[0], hy, 5.5, 6.5, 0, 0, 7); g.fill(); for (var f = 0; f < 4; f++) { g.beginPath(); g.ellipse(h[0] - 5 + f * 3.4, hy - 10 - (f === 1 || f === 2 ? 2 : 0), 1.5, 4, (f - 1.5) * 0.12, 0, 7); g.fill(); } });      // small hands, at a child's height
-    }, 1, 1, true, 576);
-    function glassMat(rep) { var t = glassTex.clone(); t.needsUpdate = true; t.repeat.set(rep, 1); return new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.06, metalness: 0.0, envMap: envTex, envMapIntensity: 0.9, side: THREE.DoubleSide }); }
+    /* 8 m of glass by 4.5 m, the inside face of it after twelve years: algae grown in colonies (a noise field biased toward
+       where it grows: thick along the bottom rail and behind every mullion, a band under the waterline where the light is),
+       green where it is thin and lit, olive to black where it is thick, brown diatom crusts in places, a scum line and a white
+       mineral crust at the waterline, hair algae hanging under it; above the water, dry glass, dust and old splash marks; on
+       the hall side, a child's hand prints and scratches.  The noise is worked out at half size and drawn up smooth. */
+    var glassTex = canvasTex(2048, function (g, S, HH2) {
+      var PX = S / 8, K = S / 1024, wl = Math.round(HH2 * (1 - (T.water - GY1) / GHh)), n2, x, y;
+      var PERM = new Uint16Array(1024), GR = new Float32Array(512); for (n2 = 0; n2 < 512; n2++) { PERM[n2] = n2; GR[n2] = Math.random(); } for (n2 = 511; n2 > 0; n2--) { var j = (Math.random() * (n2 + 1)) | 0, tt = PERM[n2]; PERM[n2] = PERM[j]; PERM[j] = tt; } for (n2 = 0; n2 < 512; n2++) PERM[n2 + 512] = PERM[n2];
+      function vn(x0, y0, per) { var xi = Math.floor(x0), yi = Math.floor(y0), xf = x0 - xi, yf = y0 - yi, x1 = ((xi + 1) % per + per) % per; xi = (xi % per + per) % per; yi &= 511; var y1 = (yi + 1) & 511;
+        var a2 = GR[PERM[xi + PERM[yi]]], b2 = GR[PERM[x1 + PERM[yi]]], c2 = GR[PERM[xi + PERM[y1]]], d2 = GR[PERM[x1 + PERM[y1]]], u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf); return a2 + (b2 - a2) * u + (c2 - a2) * v + (a2 - b2 - c2 + d2) * u * v; }
+      function fbm(mx, my, f0, oct) { var sm = 0, am = 0.5, f = f0, tot = 0; for (var o = 0; o < oct; o++) { sm += am * vn(mx * f, my * f, Math.round(8 * f)); tot += am; f *= 2; am *= 0.5; } return sm / tot; }      // tiles every 8 m across
+      // the field, at half size: how thick the growth is, and whether it is green algae or a brown diatom crust
+      var LW = S / 2, LH = HH2 / 2, lo = document.createElement('canvas'); lo.width = LW; lo.height = LH; var lg = lo.getContext('2d'), img = lg.createImageData(LW, LH), d = img.data, cov = new Float32Array(LW * LH);
+      for (y = 0; y < LH; y++) for (x = 0; x < LW; x++) {
+        var o1 = y * LW + x, o4 = o1 * 4, py = y * 2, mx = x * 2 / PX, my = (HH2 - py) / PX, below = (py - wl) / PX;
+        if (below < 0) { d[o4 + 3] = 0; continue; }
+        var dm = Math.min(mx % 4, 4 - mx % 4), grow = 0.1 + Math.pow(clamp(1 - my / 1.3, 0, 1), 1.5) * 0.6 + Math.pow(clamp(1 - below / 0.7, 0, 1), 2) * 0.38 + Math.pow(clamp(1 - dm / 0.3, 0, 1), 2) * 0.22;
+        var n = fbm(mx, my, 0.9, 4), dens = sstep((n - 0.66 + grow * 0.5) / 0.13), fine = vn(mx * 9.0, my * 9.0, 72), brown = sstep((fbm(mx + 70, my + 9, 0.6, 2) - 0.55) / 0.1);
+        dens = clamp(dens * (0.7 + fine * 0.6), 0, 1); cov[o1] = dens;
+        var film = 0.07 + fbm(mx + 13, my + 5, 1.6, 2) * 0.08;                                                           // the thin film over all of it
+        var gR = lerp(86, 22, dens), gG = lerp(122, 46, dens), gB = lerp(66, 22, dens), bR = lerp(112, 50, dens), bG = lerp(98, 40, dens), bB = lerp(60, 22, dens), bk = brown * clamp(0.3 + dens, 0, 1);
+        d[o4] = lerp(gR, bR, bk); d[o4 + 1] = lerp(gG, bG, bk); d[o4 + 2] = lerp(gB, bB, bk); d[o4 + 3] = clamp((film + Math.pow(dens, 1.2) * 0.8) * 255, 0, 255);
+      }
+      lg.putImageData(img, 0, 0);
+      g.clearRect(0, 0, S, HH2); g.fillStyle = 'rgba(150,205,214,.07)'; g.fillRect(0, 0, S, HH2);                                     // the glass itself
+      g.fillStyle = 'rgba(200,214,208,.06)'; g.fillRect(0, 0, S, wl);                                                                  // dry glass above the water: dusty
+      for (n2 = 0; n2 < 90; n2++) { x = Math.random() * S; var l = 12 * K + Math.random() * (wl - 20 * K); var gr = g.createLinearGradient(0, wl - l, 0, wl); gr.addColorStop(0, 'rgba(214,222,212,0)'); gr.addColorStop(1, 'rgba(214,222,212,.24)'); g.fillStyle = gr; g.fillRect(x, wl - l, (1.5 + Math.random() * 4) * K, l); }      // old splash runs, dried
+      g.imageSmoothingEnabled = true; g.drawImage(lo, 0, 0, S, HH2);
+      function covAt(px, py) { return cov[clamp((py / 2) | 0, 0, LH - 1) * LW + clamp((px / 2) | 0, 0, LW - 1)]; }
+      // spot algae: hard little discs, a darker rim, in loose clusters where the growth is, and scattered where it is not
+      for (n2 = 0; n2 < 60000; n2++) {
+        x = Math.random() * S; y = wl + 8 * K + Math.random() * (HH2 - wl - 8 * K); var c = covAt(x, y); if (Math.random() > 0.1 + c * 0.8) continue;
+        var r = 0.45 + Math.pow(Math.random(), 3) * 1.3, sh = Math.random();                                                     // two to eight millimetres
+        g.fillStyle = 'rgba(' + (16 + sh * 18 | 0) + ',' + (34 + sh * 26 | 0) + ',' + (14 + sh * 12 | 0) + ',' + (0.3 + Math.random() * 0.4) + ')'; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill();
+      }
+      // the edges of the thick colonies: a darker, slimier margin
+      for (n2 = 0; n2 < 16000; n2++) { x = Math.random() * S; y = wl + Math.random() * (HH2 - wl); var c2 = covAt(x, y); if (c2 < 0.35 || c2 > 0.75) continue; g.fillStyle = 'rgba(20,36,18,' + (0.12 + Math.random() * 0.2) + ')'; g.fillRect(x, y, (1 + Math.random() * 1.5) * K, (1 + Math.random() * 1.5) * K); }
+      // the waterline: scum under it with a ragged lower edge, a white crust over it, hair algae hanging off the scum
+      for (x = 0; x < S; x += 2) { var sd = (6 + Math.abs(Math.sin(x / K * 0.031) * 7 + Math.sin(x / K * 0.117 + 2) * 4) + Math.random() * 3) * K; var sg = g.createLinearGradient(0, wl, 0, wl + sd); sg.addColorStop(0, 'rgba(58,62,34,.88)'); sg.addColorStop(0.6, 'rgba(44,58,28,.62)'); sg.addColorStop(1, 'rgba(44,58,28,0)'); g.fillStyle = sg; g.fillRect(x, wl, 2, sd); }
+      for (x = 0; x < S; x += 2) { var ch = (3 + Math.abs(Math.sin(x / K * 0.05 + 1) * 4) + Math.random() * 2) * K; g.fillStyle = 'rgba(226,222,204,' + (0.45 + Math.random() * 0.25) + ')'; g.fillRect(x, wl - ch, 2, ch + 1); }
+      for (n2 = 0; n2 < 160; n2++) { x = Math.random() * S; var dl = (4 + Math.random() * 18) * K; g.fillStyle = 'rgba(222,218,198,.3)'; g.fillRect(x, wl - dl - 4 * K, 1.2 * K, dl); }                   // crust run down the dry glass from splashes
+      g.lineCap = 'round';
+      for (n2 = 0; n2 < 420; n2++) { x = Math.random() * S; y = wl + (3 + Math.random() * 6) * K; var len = (10 + Math.pow(Math.random(), 1.6) * 70) * K, sw2 = (Math.random() - 0.5) * 16 * K; g.strokeStyle = 'rgba(' + (24 + Math.random() * 20 | 0) + ',' + (50 + Math.random() * 30 | 0) + ',24,' + (0.25 + Math.random() * 0.35) + ')'; g.lineWidth = (0.6 + Math.random() * 1.2) * K; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + sw2, y + len * 0.5, x + sw2 * 0.4 + (Math.random() - 0.5) * 6 * K, y + len); g.stroke(); }
+      // a dark line along the bottom rail where the silt sits
+      var bg2 = g.createLinearGradient(0, HH2 - 24 * K, 0, HH2); bg2.addColorStop(0, 'rgba(40,46,26,0)'); bg2.addColorStop(1, 'rgba(36,40,22,.88)'); g.fillStyle = bg2; g.fillRect(0, HH2 - 24 * K, S, 24 * K);
+      // the hall side: scratches, and small hands at a child's height
+      g.strokeStyle = 'rgba(235,245,245,.08)'; g.lineWidth = K * 0.6; for (n2 = 0; n2 < 70; n2++) { x = Math.random() * S; y = Math.random() * HH2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 90 * K, y + (Math.random() - 0.5) * 26 * K); g.stroke(); }
+      [[210, 0.86], [236, 0.87], [620, 0.84], [820, 0.88], [846, 0.87]].forEach(function (h) { g.fillStyle = 'rgba(225,235,235,.11)'; var hx = h[0] * K, hy = HH2 * h[1]; g.beginPath(); g.ellipse(hx, hy, 5.5 * K, 6.5 * K, 0, 0, 7); g.fill(); for (var f = 0; f < 4; f++) { g.beginPath(); g.ellipse(hx + (-5 + f * 3.4) * K, hy - (10 + (f === 1 || f === 2 ? 2 : 0)) * K, 1.5 * K, 4 * K, (f - 1.5) * 0.12, 0, 7); g.fill(); } });
+    }, 1, 1, true, 1152);
+    glassTex.anisotropy = 8;
+    /* lit from in front by the hall, and from behind by the tank: the algae glows its own green when the tank lights are on
+       (emissive from the same map, its strength set with the lights in aquaplay.js) and goes to a silhouette when they are not */
+    var glassM = new THREE.MeshStandardMaterial({ map: glassTex, emissiveMap: glassTex, emissive: 0xffffff, emissiveIntensity: 0.2, transparent: true, depthWrite: false, roughness: 0.06, metalness: 0.0, envMap: envTex, envMapIntensity: 0.9, side: THREE.DoubleSide });
+    A.glassMats = [glassM];
+    function glassMat(rep, off, geo) { var U = geo.attributes.uv; for (var v = 0; v < U.count; v++) U.setX(v, U.getX(v) * rep + off); U.needsUpdate = true; return glassM; }      // (one texture for all four walls: the repeat is in the UVs)
     A.glass = [];
     [['x', T.x1, TD, cz], ['x', T.x2, TD, cz], ['z', T.z1, TW, cx], ['z', T.z2, TW, cx]].forEach(function (w, n) {
-      var gm = mesh(new THREE.PlaneGeometry(w[2], GHh), glassMat(w[2] / 8), w[0] === 'x' ? w[1] : w[3], (GY1 + GY2) / 2, w[0] === 'x' ? w[3] : w[1]); if (w[0] === 'x') gm.rotation.y = PI / 2;
+      var gg = new THREE.PlaneGeometry(w[2], GHh), gm = mesh(gg, glassMat(w[2] / 8, n * 0.37, gg), w[0] === 'x' ? w[1] : w[3], (GY1 + GY2) / 2, w[0] === 'x' ? w[3] : w[1]); if (w[0] === 'x') gm.rotation.y = PI / 2;
       gm.renderOrder = 5; gm.userData.noCast = true; A.glass.push(gm);
       var a1 = w[0] === 'x' ? T.z1 : T.x1, len = w[2], out = n === 0 ? -1 : n === 1 ? 1 : n === 2 ? -1 : 1;
       for (var p2 = 0; p2 <= len + 0.01; p2 += 4) {                                                                                    // mullions on the dry side
@@ -427,18 +468,41 @@ var Aqua = (function () {
     });
     // the water's surface, from above and from below; shafts of light; things adrift in it
     var ripN = normalTex(256, function (g, S) { g.fillStyle = '#808080'; g.fillRect(0, 0, S, S); for (var r = 0; r < 260; r++) { var x = Math.random() * S, y = Math.random() * S, rr = 6 + Math.random() * 22, gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, 'rgba(' + (Math.random() < 0.5 ? '230,230,230' : '30,30,30') + ',.5)'); gr.addColorStop(1, 'rgba(128,128,128,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); } }, 2.4, 6, 5.5);
-    A.surfMat = new THREE.MeshStandardMaterial({ color: 0x0c3a44, roughness: 0.07, metalness: 0.35, transparent: true, opacity: 0.72, depthWrite: false, normalMap: ripN, normalScale: new THREE.Vector2(0.5, 0.5), envMap: envTex, envMapIntensity: 1.3 });
+    /* From above: looking straight down you see into it (dark, deep, the sand a ghost under seven metres of water); toward the
+       far side it turns to a mirror of the roof and the lamps.  (Opacity rises with the angle: a Fresnel term, in the shader.) */
+    A.surfMat = new THREE.MeshStandardMaterial({ color: 0x062830, roughness: 0.06, metalness: 0.3, transparent: true, opacity: 0.8, depthWrite: false, normalMap: ripN, normalScale: new THREE.Vector2(0.6, 0.6), envMap: envTex, envMapIntensity: 1.0 });
+    A.surfMat.onBeforeCompile = function (sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <tonemapping_fragment>', 'float frs = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 2.5);\n gl_FragColor.rgb *= 0.55 + 0.75 * frs; gl_FragColor.a = mix(0.42, 0.95, frs);\n#include <tonemapping_fragment>'); };
+    A.surfMat.customProgramCacheKey = function () { return 'aqsurf'; };
     var surf = mesh(new THREE.PlaneGeometry(TW - 0.3, TD - 0.3), A.surfMat, cx, T.water, cz); surf.rotation.x = -PI / 2; surf.renderOrder = 3; surf.userData.noCast = true;
     var ct = causTex.clone(); ct.needsUpdate = true; ct.repeat.set(9, 8.2);
     A.underMat = new THREE.MeshBasicMaterial({ color: 0x5a9ca8, map: ct, transparent: true, opacity: 0.2, depthWrite: false, fog: false, blending: THREE.AdditiveBlending });
     var under = mesh(new THREE.PlaneGeometry(TW - 0.3, TD - 0.3), A.underMat, cx, T.water - 0.012, cz); under.rotation.x = PI / 2; under.renderOrder = 2; under.userData.noCast = true;
-    var shaftTex = canvasTex(64, function (g, S, HH2) { var gr = g.createLinearGradient(0, 0, 0, HH2); gr.addColorStop(0, 'rgba(190,240,236,.5)'); gr.addColorStop(1, 'rgba(120,200,210,0)'); g.fillStyle = gr; g.fillRect(0, 0, S, HH2); var gx = g.createLinearGradient(0, 0, S, 0); gx.addColorStop(0, 'rgba(0,0,0,1)'); gx.addColorStop(0.5, 'rgba(0,0,0,0)'); gx.addColorStop(1, 'rgba(0,0,0,1)'); g.globalCompositeOperation = 'destination-out'; g.fillStyle = gx; g.fillRect(0, 0, S, HH2); g.globalCompositeOperation = 'source-over'; }, 1, 1, true, 256);
+    /* light coming down through moving water: a sheaf of rays of different widths and strengths, brightest just under the
+       surface and gone by the sand, feathered at the sides; the texture slides sideways so the rays shift as the surface does */
+    var shaftTex = canvasTex(256, function (g, S, HH2) {
+      g.clearRect(0, 0, S, HH2);
+      for (var r = 0; r < 34; r++) { var x = Math.random() * S, w = 2 + Math.pow(Math.random(), 2) * 22, a = 0.05 + Math.random() * 0.2, len = HH2 * (0.45 + Math.random() * 0.55), gr = g.createLinearGradient(0, 0, 0, len); gr.addColorStop(0, 'rgba(200,244,238,' + a + ')'); gr.addColorStop(0.35, 'rgba(160,226,226,' + a * 0.6 + ')'); gr.addColorStop(1, 'rgba(120,200,210,0)'); g.fillStyle = gr; g.fillRect(x - w / 2, 0, w, len); if (x < w) g.fillRect(x - w / 2 + S, 0, w, len); if (x > S - w) g.fillRect(x - w / 2 - S, 0, w, len); }
+      g.globalCompositeOperation = 'destination-in'; var gx = g.createLinearGradient(0, 0, S, 0); gx.addColorStop(0, 'rgba(0,0,0,0)'); gx.addColorStop(0.2, 'rgba(0,0,0,1)'); gx.addColorStop(0.8, 'rgba(0,0,0,1)'); gx.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gx; g.fillRect(0, 0, S, HH2); g.globalCompositeOperation = 'source-over';
+    }, 1, 1, true, 512);
+    shaftTex.wrapS = THREE.RepeatWrapping;
     A.shaftMat = new THREE.MeshBasicMaterial({ map: shaftTex, transparent: true, opacity: 0.2, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     A.shafts = [];
-    [[114.5, 54], [119, 64.5], [124.5, 57], [129.5, 66], [121.5, 60.5], [130.5, 53.5], [115.5, 67.5]].forEach(function (p2, n) { var sh = dyn(mesh(new THREE.PlaneGeometry(2.2 + (n % 3) * 0.8, 6.6), A.shaftMat, p2[0], T.water - 3.3, p2[1])); sh.rotation.y = n * 0.9; sh.renderOrder = 2; sh.userData.noCast = true; sh.userData.keep = true; A.shafts.push(sh); });
-    var sn = [], NS = 320; for (q = 0; q < NS; q++) sn.push(T.x1 + 0.6 + Math.random() * (TW - 1.2), T.floor + 0.4 + Math.random() * (T.water - T.floor - 0.6), T.z1 + 0.6 + Math.random() * (TD - 1.2));
-    var sgeo = new THREE.BufferGeometry(); sgeo.setAttribute('position', new THREE.Float32BufferAttribute(sn, 3));
-    A.snow = dyn(new THREE.Points(sgeo, new THREE.PointsMaterial({ color: 0xa8d4d0, size: 0.03, transparent: true, opacity: 0.22, depthWrite: false, fog: false }))); A.snow.frustumCulled = false; A.snow.renderOrder = 2; scene.add(A.snow);
+    [[114.5, 54], [119, 64.5], [124.5, 57], [129.5, 66], [121.5, 60.5], [130.5, 53.5], [115.5, 67.5], [126.5, 61.5], [117.5, 58.5]].forEach(function (p2, n) { var sh = dyn(mesh(new THREE.PlaneGeometry(2.6 + (n % 3) * 1.0, 6.8), A.shaftMat, p2[0], T.water - 3.4, p2[1])); sh.rotation.set(0, n * 0.9, (n % 2 ? 1 : -1) * 0.06); sh.renderOrder = 2; sh.userData.noCast = true; sh.userData.keep = true; A.shafts.push(sh); });
+    /* What hangs in the water: twelve years of it.  Every mote drifts on its own slow loop (in the shader), is drawn round and
+       soft, sized by distance, and fades with the water between it and your eye, so the near ones read and the far ones haze. */
+    A.snowU = { uTime: { value: 0 }, uPx: { value: 600 }, uCol: { value: new THREE.Color(0xb8dcd4) }, uOp: { value: 0.5 }, uSurf: { value: T.water } };
+    function motes(nm, size, op) {
+      var pos = [], rr = []; for (var q2 = 0; q2 < nm; q2++) { pos.push(T.x1 + 0.6 + Math.random() * (TW - 1.2), T.floor + 0.3 + Math.random() * (T.water - T.floor - 0.4), T.z1 + 0.6 + Math.random() * (TD - 1.2)); rr.push(Math.random()); }
+      var geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('aR', new THREE.Float32BufferAttribute(rr, 1));
+      var mat = new THREE.ShaderMaterial({ uniforms: { uTime: A.snowU.uTime, uPx: A.snowU.uPx, uCol: A.snowU.uCol, uOp: { value: op }, uSurf: A.snowU.uSurf, uSize: { value: size } }, transparent: true, depthWrite: false, fog: false,
+        vertexShader: 'attribute float aR; uniform float uTime, uPx, uSize, uSurf; varying float vA;\n' +
+          'void main() { vec3 p = position; float k = aR * 6.2831; p.x += sin(uTime * 0.09 + k * 7.0) * 0.45 + sin(uTime * 0.031 + k) * 0.8; p.y += sin(uTime * 0.06 + k * 3.0) * 0.3 - 0.15 * sin(uTime * 0.02 + k * 11.0); p.z += cos(uTime * 0.08 + k * 5.0) * 0.45;\n' +
+          '  p.y = min(p.y, uSurf - 0.05); vec4 mv = modelViewMatrix * vec4(p, 1.0); float d = max(-mv.z, 0.05); gl_PointSize = clamp(uSize * uPx / d * (0.55 + aR * 0.9), 1.0, 26.0);\n' +
+          '  vA = exp(-d * 0.11) * smoothstep(0.25, 0.9, d) * (0.55 + 0.45 * clamp(1.0 - (uSurf - p.y) / 7.0, 0.0, 1.0)); gl_Position = projectionMatrix * mv; }',
+        fragmentShader: 'uniform vec3 uCol; uniform float uOp; varying float vA; void main() { vec2 c = gl_PointCoord - 0.5; float r = dot(c, c) * 4.0; if (r > 1.0) discard; float a = 1.0 - r; gl_FragColor = vec4(uCol, a * a * uOp * vA); }' });
+      var pts = dyn(new THREE.Points(geo, mat)); pts.frustumCulled = false; pts.renderOrder = 2; pts.userData.keep = true; scene.add(pts); return pts;
+    }
+    A.snow = motes(1600, 0.022, 0.42); A.snow2 = motes(260, 0.06, 0.18);
     // the caustics the tank throws out through its front glass onto the hall floor
     var fc = causTex.clone(); fc.needsUpdate = true; fc.repeat.set(3.2, 5.5);
     A.floorCaus = new THREE.MeshBasicMaterial({ color: 0x3f8f9a, map: fc, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, alphaMap: canvasTex(64, function (g, S) { var gr = g.createLinearGradient(0, 0, S, 0); gr.addColorStop(0, '#000'); gr.addColorStop(1, '#fff'); g.fillStyle = gr; g.fillRect(0, 0, S, S); }, 1, 1, false) });

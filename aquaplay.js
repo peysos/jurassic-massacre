@@ -702,9 +702,11 @@
     A.arc.material.opacity = st.fell && !st.power && Math.random() < 0.04 ? 0.5 : A.arc.material.opacity * 0.8;
     // moving water: the caustics in the little tanks and on the hall floor, the shafts, the drift
     A.tCausTex.offset.set(t * 0.012, t * 0.017); A.floorCaus.map.offset.set(t * 0.02, t * 0.013); A.underMat.map.offset.set(t * 0.016, -t * 0.011); A.surfMat.normalMap.offset.set(t * 0.012, t * 0.018); A.tSurf.normalMap.offset.set(t * 0.02, t * 0.012);
-    A.shafts.forEach(function (sh, n) { sh.rotation.y = n * 0.9 + Math.sin(t * 0.13 + n) * 0.5; sh.position.x += Math.sin(t * 0.21 + n * 2) * dt * 0.08; }); A.snow.position.y = Math.sin(t * 0.11) * 0.25; A.snow.position.x = Math.sin(t * 0.07) * 0.4;
+    A.shafts.forEach(function (sh, n) { sh.rotation.y = n * 0.9 + Math.sin(t * 0.13 + n) * 0.5; sh.position.x += Math.sin(t * 0.21 + n * 2) * dt * 0.08; }); A.snowU.uTime.value = t; A.snowU.uPx.value = renderer.domElement.height / (2 * Math.tan(camera.fov * PI / 360)); A.snowU.uCol.value.setRGB(0.5 + 0.22 * tankL, 0.58 + 0.28 * tankL, 0.55 + 0.27 * tankL).multiplyScalar(0.3 + 0.7 * tankL + zapK);
+    A.shaftMat.map.offset.x = Math.sin(t * 0.05) * 0.2 + t * 0.006; A.glassMats.forEach(function (m) { m.emissiveIntensity = 0.03 + 0.18 * tankL + zapK * 0.5; });
     // the air: thinner fog indoors, so the hall reads as big as it is
     var fogT = zone === 'out' ? 0.03 : zone === 'gal' ? 0.021 : zone === 'base' ? 0.024 : 0.012; fogD = instant ? fogT : damp(fogD, fogT, 1.5, dt); scene.fog.density = fogD;
+    if (window.AquaSound && !instant) AquaSound.step(dt, inCine);                // the soundscape (aquasound.js)
   };
   A.reset = function () {
     var st = S(); seq = []; liftBusy = false; A.calling = null; A.showT = 0; A.liftNow = null; Hands.over = null; Body.show(false); doorA = st.door ? 1 : 0; doorJ = 0; sdDown = st.staff >= 3 ? 1 : 0; sdFall.userData.hit = st.staff >= 3; sdJ = sdJv = 0; brkK = 0; zapK = 0; chaseDelay = 0; whereDied = ''; tint('none', 0);
@@ -770,9 +772,7 @@
     // the last span: however you leave the end of the walk, you are jumping for the platform
     if (!st.fell && py > CW - 1.6 && px < 113.36 && px > T.x1 + 0.9 && Math.abs(pz - 60) < 1.2 && !st.dead) { fall(true); return true; }
     // sounds of the place
-    var inHall = px > H.x1 && py > -0.6; dripT -= dt; if (dripT <= 0) { dripT = 1.2 + Math.random() * 3.6; var fq = 900 + Math.random() * 900; Sound.tone(fq, fq * 0.5, 0.05, 0.03, 'sine'); if (Math.random() < 0.3) Sound.tone(fq * 1.3, fq * 0.6, 0.05, 0.02, 'sine', 0.12); }
-    groanT -= dt; if (groanT <= 0 && inHall && !st.dead && B.state === 'patrol') { groanT = 13 + Math.random() * 14; Sound.tone(58, 40, 2.4, 0.09, 'sine'); Sound.tone(87, 62, 1.8, 0.04, 'triangle', 0.2); }
-    Sound.drone('aqpump', st.pump && py < 0 ? clamp(1 - dist(px, pz, A.pumpAt.x, A.pumpAt.z) / 24, 0.02, 1) * 0.16 : 0, liftDrone);
+    // (the place's own sounds, drips to her calls, are aquasound.js's)
     if (st.pump && maniFlow && !maniFlow.solved && py < -1 && dist(px, pz, MX, MZ) < 9) { hissT -= dt; if (hissT <= 0) { hissT = 0.35; Sound.noise(0.4, 5200, 0.07 * clamp(1 - dist(px, pz, MX, MZ) / 9, 0, 1)); } }
     return false;
   };

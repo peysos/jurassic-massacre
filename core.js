@@ -876,12 +876,14 @@ var Sound = {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     var C = window.AudioContext || window.webkitAudioContext; if (!C) return;
     var ctx = this.ctx = new C();
-    this.master = ctx.createGain(); this.master.gain.value = prefs.muted ? 0 : 0.875 * prefs.vol; this.master.connect(ctx.destination);
+    this.master = ctx.createGain(); this.master.gain.value = prefs.muted ? 0 : 0.875 * prefs.vol; this.muf = ctx.createBiquadFilter(); this.muf.type = 'lowpass'; this.muf.frequency.value = 22000; this.muf.Q.value = 0.5; this.master.connect(this.muf); this.muf.connect(ctx.destination);
     var buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = buf.getChannelData(0), last = 0;
     for (var i = 0; i < d.length; i++) { var w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = w * 0.5 + last * 3; }
     this.buf = buf;
     if (typeof Sfx !== 'undefined') Sfx.loadAll();          // the recorded effects (audio/manifest.js), decoded in the background
   },
+  /* Everything pressed down, as it sounds with your head under water: k 0 (clear) .. 1 (under). */
+  muffle: function (k) { if (!this.muf || Math.abs((this.mufK || 0) - k) < 0.002) return; this.mufK = k; this.muf.frequency.setTargetAtTime(22000 * Math.pow(360 / 22000, clamp(k, 0, 1)), this.ctx.currentTime, 0.05); },
   setMuted: function (m) { prefs.muted = m; savePrefs(); this.setVolume(); },
   setVolume: function () { if (this.master) this.master.gain.setTargetAtTime(prefs.muted ? 0 : 0.875 * prefs.vol, this.ctx.currentTime, 0.05); },
   noise: function (dur, freq, vol, delay) {
@@ -1046,7 +1048,7 @@ var Music = {
     var w = this.want(), n, a, target;
     for (n in this.tracks) {
       a = this.tracks[n];
-      target = n === w && !prefs.muted ? this.vol[n] * (prefs.music / 0.8) * (prefs.vol / 0.8) * (state === 'paused' ? 0.45 : 1) : 0; target = Math.min(target, 1);
+      target = n === w && !prefs.muted ? this.vol[n] * (prefs.music / 0.8) * (prefs.vol / 0.8) * (state === 'paused' ? 0.45 : 1) * (state === 'menu' ? 1 : clamp(this.duck === undefined ? 1 : this.duck, 0, 1)) : 0; target = Math.min(target, 1);
       a.volume = clamp(a.volume + clamp(target - a.volume, -dt * 0.6, dt * 0.9), 0, 1);
       if (target > 0 && a.paused) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
       else if (target === 0 && a.volume <= 0.001 && !a.paused) { a.pause(); if (n === 'chase' || n === 'intro') a.currentTime = 0; }
