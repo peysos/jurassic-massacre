@@ -7,7 +7,7 @@ var Fossils = (function () {
   var F = {}, items = [], logEl = null;
   var LIST = [
     { id: 'trilobite', name: 'Trilobite', at: [-13.5, 147.3], fact: '521 million years old. One of the first animals on Earth with eyes.', hint: 'Not far from where you came in.' },
-    { id: 'ammonite', name: 'Ammonite', at: [86.4, 75.5], fact: 'A coiled cousin of the squid. It died out with the dinosaurs.', hint: 'The aquarium kept more than fish.' },
+    { id: 'ammonite', name: 'Ammonite', at: [86.3, 68.1], fact: 'A coiled cousin of the squid. It died out with the dinosaurs.', hint: 'The aquarium kept more than fish.' },
     { id: 'megalodon', name: 'Megalodon tooth', at: [12.6, -25.6], fact: 'From a shark as long as a bus. Its teeth reached 18 cm.', hint: 'Behind the wreck in the plaza.' },
     { id: 'claw', name: 'Raptor claw', at: [-62.8, 102.4], fact: 'The sickle claw. Held clear of the ground to keep it sharp.', hint: 'The paddock still holds one of its own.' },
     { id: 'anomalocaris', name: 'Anomalocaris', at: [-54.4, -81.4], fact: 'The “abnormal shrimp”: top predator of the Cambrian seas.', hint: 'North, by the sign for the flyers.' },

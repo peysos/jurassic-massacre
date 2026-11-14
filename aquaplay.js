@@ -319,6 +319,22 @@
     U.head.rotation.set(clamp(-pitT * 0.25, -0.5, 0.5), clamp(yawT * 0.2, -0.5, 0.5), 0);
   }
   function headPos(out) { U.head.updateWorldMatrix(true, false); return (out || headW).set(0, 0, 0.75).applyMatrix4(U.head.matrixWorld); }
+  /* Put her snout at a point and turn her face to another, as nearly as the neck allows: a search over the three numbers
+     neckPose takes (total yaw, total pitch, curl), begun from where it ended last time.  Returns how far off she still is.
+     (For the moments that have to be exact: the kill, where her mouth must arrive in front of your eyes.) */
+  var NS = [0, 0.8, 0.6], nsT = new V3(), nsL = new V3(), nsV = new V3();
+  function neckSolve(tx, ty, tz, lx, ly, lz, fresh) {
+    if (fresh) { NS[0] = 0; NS[1] = 0.9; NS[2] = 0.6; }
+    nsT.set(tx, ty, tz); nsL.set(lx, ly, lz); plesMesh.updateMatrixWorld(true);
+    function err() {
+      neckPose(NS[0], NS[1], NS[2], 1); var par = U.head.parent; par.updateWorldMatrix(true, false); nsV.copy(nsL); par.worldToLocal(nsV); nsV.sub(U.head.position);
+      U.head.rotation.set(clamp(-Math.atan2(nsV.y, Math.hypot(nsV.x, nsV.z)), -1.15, 1.15), clamp(Math.atan2(nsV.x, nsV.z), -1.15, 1.15), 0);
+      return headPos(nsV).distanceToSquared(nsT);
+    }
+    var st0 = fresh ? 0.5 : 0.16, step = [st0, st0, st0], lo = [-2.7, -1.6, -0.6], hi = [2.7, 2.4, 3.6], e = err(), pass, i, sgn, v, e2;
+    for (pass = 0; pass < (fresh ? 9 : 5); pass++) for (i = 0; i < 3; i++) { for (sgn = -1; sgn <= 1; sgn += 2) { v = NS[i]; NS[i] = clamp(v + sgn * step[i], lo[i], hi[i]); e2 = err(); if (e2 < e) e = e2; else NS[i] = v; } step[i] *= 0.6; }
+    err(); return Math.sqrt(e);
+  }
   function keepTailIn() {                              // nor her tail: it bends along the wall instead
     for (var it = 0; it < 6; it++) {
       U.tail2.updateWorldMatrix(true, false); tmpV2.set(0, 0, -1.25).applyMatrix4(U.tail2.matrixWorld); if (tmpV2.y > T.rim) return;
@@ -455,21 +471,26 @@
   A.kill = function (done) {
     var T2 = 0, DUR = 2.9, ev = {}, c0 = camera.position.clone(), yaw0 = camera.rotation.y, pitch0 = camera.rotation.x, fov0 = camera.fov, CN, sc = $('scare'), hp = new V3();
     function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
-    var dx = B.x - c0.x, dz = B.z - c0.z, dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl; var yaw1 = yaw0 + angDiff(Math.atan2(-dx, -dz), yaw0), wet = whereDied === 'water';
+    var dx = B.x - c0.x, dz = B.z - c0.z, dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl; var yaw1 = yaw0 + angDiff(Math.atan2(-dx, -dz), yaw0), wet = whereDied === 'water', PULL = wet ? 0.6 : whereDied === 'dive' ? 1.7 : 1.1, first = true, away = new V3();
     Scares.sting(); Hands.over = null;
     startCine(CN = { pulse: 0, update: function (dt) {
       T2 += dt; A.wu.uTime.value += dt;
       var whip = easeOut(clamp(T2 / 0.2, 0, 1)), loom = seg(T2, 0.05, 0.5), bite = seg(T2, 0.55, 0.7), drag = seg(T2, 0.72, 2.3), fin = seg(T2, DUR - 0.75, DUR - 0.25), sh = 0.3 + loom * 0.4 + bite * 0.5;
-      var cx = c0.x + dx * drag * 3.4, cz = c0.z + dz * drag * 3.4, cy = lerp(c0.y, T.water - 2.2, drag * drag) + Math.sin(drag * PI) * (wet ? 0 : 0.5);
-      // her body off where it was, the neck brought round so the mouth stops just short of the lens
-      B.x = clamp(c0.x + dx * lerp(6.2, 5.2, loom), T.x1 + 3.3, T.x2 - 3.3); B.z = clamp(c0.z + dz * lerp(6.2, 5.2, loom), T.z1 + 3.3, T.z2 - 3.3); B.rot = Math.atan2(c0.x - B.x, c0.z - B.z); B.y = lerp(T.water - 0.8, T.water - 2.6, drag); B.pitch = 0.25 * (1 - drag);
-      var lg = Scares.lunge(T2, DUR); sh += lg * 0.9;
-      poseBeast(dt, 2); var want = Math.max(0.55, lerp(3.2, 1.25, loom) - bite * 0.2 - lg * 0.6);
-      for (var it = 0; it < 14; it++) { neckAim(cx - dx * want, cy - 0.1, cz - dz * want, 1, 1.2 * (1 - loom), 1.3 + it * 0.05); headPos(hp); if (hp.distanceTo(tmpV2.set(cx, cy, cz)) < want + 0.25) break; }
+      // you: taken off whatever you stood on (out over the rail first, then down) and under
+      var pull = (1 - (1 - drag) * (1 - drag)) * PULL, cx = c0.x + dx * pull, cz = c0.z + dz * pull, cy = lerp(c0.y, T.water - 2.2, drag * drag) + Math.sin(drag * PI) * (wet ? 0 : 0.5);
+      // her: the body out in the water in front of you, backing off and sinking as she drags; the neck brought up and over so
+      // that the mouth arrives in front of your eyes, facing you, and stays there
+      var lg = Scares.lunge(T2, DUR), want = Math.max(0.66, lerp(3.4, 1.2, loom) - bite * 0.25 - lg * 0.45); sh += lg * 0.9;
+      B.y = lerp(T.water - 0.8, T.floor + 1.5, drag); B.pitch = (wet ? 0.1 : 0.27) * (1 - drag);
+      var by = B.y + 0.26 * SC + Math.sin(B.pitch) * 2.42 * SC, dv = cy - 0.1 - by, Rb = pull + want + 1.0 + Math.sqrt(Math.max(0, 23 - dv * dv)) + Math.cos(B.pitch) * 2.42 * SC;       // far enough off that the neck is drawn out, not folded
+      B.x = clamp(c0.x + dx * Rb, T.x1 + 3.3, T.x2 - 3.3); B.z = clamp(c0.z + dz * Rb, T.z1 + 3.3, T.z2 - 3.3); B.rot = Math.atan2(cx - B.x, cz - B.z);
+      poseBeast(dt, 2);
+      neckSolve(cx + dx * want, cy - 0.1 - (1 - loom) * 0.5, cz + dz * want, cx, cy - 0.05, cz, first); first = false;
       U.jaw.rotation.x = Math.max(lerp(0.3, 0.85, loom) - bite * 0.6 + Math.sin(T2 * 11) * 0.08 * drag, fin * 0.85); U.head.rotation.z = Math.sin(T2 * 9) * 0.2 * drag * (1 - fin);
+      headPos(hp); away.set(cx - hp.x, cy - hp.y, cz - hp.z); var gap = away.length(); if (gap < 0.62) { away.multiplyScalar(0.62 / (gap || 1)); cx = hp.x + away.x; cy = hp.y + away.y; cz = hp.z + away.z; }      // (the lens never goes into her head, whatever the neck did)
       camera.position.set(cx + Math.sin(T2 * 41) * sh * 0.04, cy + Math.sin(T2 * 53) * sh * 0.04, cz + Math.sin(T2 * 37) * sh * 0.03);
-      headPos(hp); var pit = Math.atan2(hp.y - cy, Math.max(0.6, Math.hypot(hp.x - cx, hp.z - cz)));
-      camera.rotation.set(lerp(pitch0, clamp(pit, -0.9, 1.0), seg(T2, 0.04, 0.4)) + Math.sin(T2 * 47) * sh * 0.02, lerp(yaw0, yaw1, whip) + Math.sin(T2 * 7) * 0.06 * drag, Math.sin(T2 * 3.1) * 0.3 * drag);
+      var hd = Math.hypot(hp.x - cx, hp.z - cz), pit = Math.atan2(hp.y - cy, Math.max(0.6, hd)), yawH = hd > 0.3 ? Math.atan2(-(hp.x - cx), -(hp.z - cz)) : yaw1, yawC = lerp(yaw0, yaw1, whip); yawC += angDiff(yawH, yawC) * seg(T2, 0.08, 0.4);
+      camera.rotation.set(lerp(pitch0, clamp(pit, -0.9, 1.0), seg(T2, 0.04, 0.4)) + Math.sin(T2 * 47) * sh * 0.02, yawC + Math.sin(T2 * 7) * 0.05 * drag, Math.sin(T2 * 3.1) * 0.22 * drag);
       var punch = bite * (1 - seg(T2, 0.75, 1.2)) * 14 + lg * 9; if (Math.abs(camera.fov - (fov0 + punch)) > 0.05) { camera.fov = fov0 + punch; camera.updateProjectionMatrix(); }
       flashlight.intensity = 1.2; Hands.fill.intensity = 0.6; Hands.aim = [0.03, 0.04, 0.06, 0.12, 0.1, 0.25]; Hands.update(dt, {});
       var uw = seg(cy, T.water + 0.1, T.water - 0.5) > 0 ? clamp((T.water + 0.1 - cy) / 0.6, 0, 1) : 0;
@@ -629,7 +650,8 @@
       setCam(cx + Math.sin(st2 * PI) * 0.018 * rx, cy, cz + Math.sin(st2 * PI) * 0.018 * rz, lerp(lerp(pitch0, up ? 0.34 : -0.5, a), -0.05, out), yaw0 + angDiff(o.end && out > 0 ? lerp(YAW, o.endYaw === undefined ? YAW : YAW + angDiff(o.endYaw, YAW), out) : YAW, yaw0) * a, Math.sin(st2 * PI) * 0.014);
       // hands: each takes every second rung, the one that is moving opens as it goes
       gripQ(o.fx, o.fz, 0.35, q); var yb = Math.min(o.y0, o.y1), sR = clamp((feet - yb) / RUNG, 0, n - 0.001), kr = Math.floor(sR), er = easeIO(sR - kr), movR = kr % 2 === 0;
-      var yR = Math.min(yb + 1.6 + 0.6 * (Math.floor(kr / 2) + (movR ? er : 1)), o.top + 1.05), yL = Math.min(yb + 1.9 + 0.6 * (Math.floor((kr - 1) / 2) + (movR ? 1 : er)), o.top + 1.05); fr = sR - kr;
+      var HB = up ? 1.6 : 1.08;                                // going down you look down: the hands work at chest height, in view
+      var yR = Math.min(yb + HB + 0.6 * (Math.floor(kr / 2) + (movR ? er : 1)), o.top + 1.05), yL = Math.min(yb + HB + 0.3 + 0.6 * (Math.floor((kr - 1) / 2) + (movR ? 1 : er)), o.top + 1.05); fr = sR - kr;
       pR.set(o.x + rx * 0.15 - o.fx * 0.03, yR, o.z + rz * 0.15 - o.fz * 0.03); pL.set(o.x - rx * 0.15 - o.fx * 0.03, yL, o.z - rz * 0.15 - o.fz * 0.03);
       toCam(pR, q, O.R); toCam(pL, q, O.L); var lift = Math.sin(fr * PI); O.R.pose = movR ? Hands.mixPose(HANG, OPENH, lift * 0.8, []) : HANG; O.L.pose = movR ? HANG : Hands.mixPose(HANG, OPENH, lift * 0.8, []);
       O.R.k = O.L.k = a * (1 - out); O.noTorch = T2 > 0.25 && out < 0.6;
