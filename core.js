@@ -70,11 +70,12 @@ var NEED_HINT = { pow0: 'no power. Restore it from the generator shed across the
 var PATHS = [[-4, 4, -118, 113.5], [-100, 100, -4, 4], [-80, 0, 76, 84], [0, 74, 56, 64], [-100, 60, -94, -86]];   // x1, x2, z1, z2
 /* Where spare cells can turn up (a game picks DIFF.batteries of them).  Each lies on whatever is under it (game.js restY): many
    are on counters, desks and tables (the gift shop counter, the shed workbench, the food kiosks, the save-point desks, the
-   break room table, picnic tables), the rest where someone dropped them. */
+   break room table, picnic tables), the rest where someone dropped them.  A third number is the floor it is on, when that is not the ground. */
 var BATTERY_SPOTS = [[-8, 96], [26, 93], [-45, 73], [-70, 100], [104, 40], [-14, -8], [-28, -10], [10, -36],
   [60, 20], [-60, 22], [-22, -63], [-80, -62], [-60, -97], [40, -84], [70, -110],
   [21.45, 130.6], [-17.25, 124.32], [20.35, 49.05], [17.45, 11.35], [25.65, -81.05], [79.55, 67.0], [30.6, 131.0],
-  [-44.45, 95.3], [-108.3, 0.55], [108.3, -0.55], [-0.55, -126.3], [60.4, 80.1], [-14.56, 12.27], [62.51, 47.95]];
+  [-44.45, 95.3], [-108.3, 0.55], [108.3, -0.55], [-0.55, -126.3], [60.4, 80.1], [-14.56, 12.27], [62.51, 47.95],
+  [15.6, 145.62], [19.62, 140.58], [21.5, 144.62], [21.0, 146.6], [144.4, 56.1, -3.4]];        // the Welcome Center: the desk, the first-aid sink, the lost-property desk, the store floor; the feed table under the aquarium
 var ROMAN = ['I', 'II', 'III', 'IV'];
 
 // ---------- helpers ----------

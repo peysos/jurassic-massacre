@@ -105,7 +105,7 @@ function stepWorld(dt, instant) {
   anim.gate = esc ? esc.gate : 0;
   if (window.Entrance) Entrance.step(dt, instant);
   if (window.Staff && P.net) Staff.step(instant ? 0 : dt);
-  Extras.step(dt, instant); Swamp.step(dt, instant); Keeper.step(dt, instant); Aqua.step(dt, instant);
+  Extras.step(dt, instant); Swamp.step(dt, instant); Keeper.step(dt, instant); Aqua.step(dt, instant); Welcome.step(dt);
   [['A', 'gA'], ['B', 'gB']].forEach(function (q) {
     var G = W['gate' + q[0]], open = gateOpen(q[0]);
     G.set(anim[q[1]]); G.box.off = anim[q[1]] > 0.8; G.lamp.color.setHex(open ? 0x35ff8a : 0xff3020);
@@ -859,7 +859,7 @@ function stopBreath() { if (breathLoop) { breathLoop.stop(0.3); breathLoop = nul
    grass and earth.  Each take is pitched a little differently so no two in a row sound the same. */
 function surfaceAt(x, z) {
   var aq = Aqua.surface(x, z); if (aq) return aq;
-  if ((x > 11 && x < 25 && z > 121 && z < 135) || inRect(x, z, STAFF_WING) || (x > 24.6 && x < 27.2 && z > 131.4 && z < 133)) return 'tile';
+  if ((x > 11 && x < 25 && z > 121 && z < 135) || Welcome.inside(x, z) || inRect(x, z, STAFF_WING) || (x > 24.6 && x < 27.2 && z > 131.4 && z < 133)) return 'tile';
   if (inRect(x, z, ENTR) || onPath(x, z, 0) || (x > -22 && x < -16 && z > 124 && z < 130)) return 'hard';
   return 'soft';
 }

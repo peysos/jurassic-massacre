@@ -94,7 +94,7 @@ function drawMapBase(S) {
   [TURN_Z, FENCE_A, FENCE_B].forEach(function (fz) { g.beginPath(); g.moveTo(X(-144), Y(fz)); g.lineTo(X(144), Y(fz)); g.stroke(); });
   g.setLineDash([]);
   // buildings on the plan
-  g.fillStyle = '#b8462c'; [[11, 121, 14, 14], [-22, 124, 6, 6], [-6.7, 114.8, 2.2, 2.4], [-1.1, 114.8, 2.2, 2.4], [4.5, 114.8, 2.2, 2.4]].forEach(function (b) { g.fillRect(X(b[0]), Y(b[1]), b[2] * k, b[3] * k); });
+  g.fillStyle = '#b8462c'; [[11, 121, 14, 14], [10.4, 137.2, 14.5, 11.5], [-22, 124, 6, 6], [-6.7, 114.8, 2.2, 2.4], [-1.1, 114.8, 2.2, 2.4], [4.5, 114.8, 2.2, 2.4]].forEach(function (b) { g.fillRect(X(b[0]), Y(b[1]), b[2] * k, b[3] * k); });
   g.beginPath(); g.arc(X(0), Y(132), 3 * k, 0, 7); g.fillStyle = '#5aa9c4'; g.fill(); g.lineWidth = 1 * k; g.strokeStyle = '#4a4a40'; g.stroke();
   SAFE.forEach(function (s2) { var R = s2.rect; g.fillStyle = '#7a5a3a'; g.fillRect(X(R.x1 - 0.4), Y(R.z1 - 0.4), (R.x2 - R.x1 + 0.8) * k, (R.z2 - R.z1 + 0.8) * k); });
   g.restore();
@@ -108,9 +108,9 @@ function drawMapBase(S) {
     g.fillStyle = '#f3ecd6'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(text, x0 + (icon ? 22 * k : 6 * k), y0 + h / 2 + 0.5 * k);
   }
   tag('RAPTOR PADDOCK', -85, 63, 'raptor', '#8d5a1f'); tag('T-REX KINGDOM', 90, -108, 'rex', '#8d3a1f'); tag('THE AQUARIUM', 108, 85, 'fish', '#1d5a70');
-  tag('THE AVIARY', -100, -112, 'bird', '#3a6a5a'); tag('VISITOR CENTER', -22, -6, 'house', '#5a4a2a'); tag('GIFT SHOP', 24, 104, 'shop', '#8d1f18');
+  tag('THE AVIARY', -100, -112, 'bird', '#3a6a5a'); tag('VISITOR CENTER', -22, -6, 'house', '#5a4a2a'); tag('GIFT SHOP', 24, 104, 'shop', '#8d1f18'); tag('WELCOME CENTER', 62, 143, 'info', '#254a30');
   // little legend pictograms dotted where those things are
-  [['wc', -4.8, 82], ['food', 10, 60], ['aid', 8, 2], ['info', 0, 141], ['food', -40, 6], ['wc', 40, -6]].forEach(function (p2) { g.beginPath(); g.arc(X(p2[1]), Y(p2[2]), 6.5 * k, 0, 7); g.fillStyle = '#1d4a7a'; g.fill(); mapIcon(g, p2[0], X(p2[1]), Y(p2[2]), 0.36 * k, '#fff'); });
+  [['wc', -4.8, 82], ['food', 10, 60], ['aid', 8, 2], ['aid', 21.5, 139.6], ['info', 0, 141], ['food', -40, 6], ['wc', 40, -6]].forEach(function (p2) { g.beginPath(); g.arc(X(p2[1]), Y(p2[2]), 6.5 * k, 0, 7); g.fillStyle = '#1d4a7a'; g.fill(); mapIcon(g, p2[0], X(p2[1]), Y(p2[2]), 0.36 * k, '#fff'); });
   SAFE.forEach(function (s2) { g.beginPath(); g.arc(X(s2.x), Y(s2.z), 6.5 * k, 0, 7); g.fillStyle = '#2f6a3a'; g.fill(); mapIcon(g, 'ranger', X(s2.x), Y(s2.z), 0.4 * k, '#fff'); });
   // title cartouche and the entrance
   g.font = 'bold ' + 12 * k + 'px "Arial Rounded MT Bold", "Trebuchet MS", sans-serif'; var ttl = 'FAMILY ZOO · PARK MAP', tw2 = g.measureText(ttl).width + 22 * k;

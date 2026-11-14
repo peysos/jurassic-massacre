@@ -871,7 +871,7 @@ var Entrance = (function () {
   W.drawEntranceMap = function (g) {
     g.fillStyle = '#4a4840'; g.fillRect(-25.5, 113.2, 52, 36.2);
     g.fillStyle = '#55534c'; [-5.6, 0, 5.6].forEach(function (x) { g.fillRect(x - 1.1, TZ - 1.2, 2.2, 2.4); });
-    g.fillRect(-22, 124, 6, 6); g.fillRect(11, 121, 14, 14); g.fillRect(25, 131.4, 2.1, 1.6); g.fillRect(26.9, 126.85, 6.7, 8.7); g.fillStyle = '#2a2c28'; g.beginPath(); g.arc(0, 132, 2.7, 0, 7); g.fill();
+    g.fillRect(-22, 124, 6, 6); g.fillRect(11, 121, 14, 14); g.fillRect(10.4, 137.2, 14.5, 11.5); g.fillRect(25, 131.4, 2.1, 1.6); g.fillRect(26.9, 126.85, 6.7, 8.7); g.fillStyle = '#2a2c28'; g.beginPath(); g.arc(0, 132, 2.7, 0, 7); g.fill();
   };
 
   // someone walking through an open lane pushes the tripod round a third of a turn
