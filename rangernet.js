@@ -10,24 +10,40 @@
 
 var RangerNet = (function () {
   var R = { list: [] }, V3 = THREE.Vector3;
-  // ---------- materials: one set for every kiosk ----------
-  var shell = std(0x23282a, 0.55, { metalness: 0.45, map: canvasTex(128, function (g, S) { g.fillStyle = '#2a2f31'; g.fillRect(0, 0, S, S); for (var q = 0; q < 200; q++) { g.strokeStyle = 'rgba(' + (Math.random() < 0.5 ? '255,255,255' : '0,0,0') + ',' + (0.03 + Math.random() * 0.05) + ')'; var y = Math.random() * S; g.beginPath(); g.moveTo(0, y); g.lineTo(S, y); g.stroke(); } blotch(g, S, ['#4a4436', '#14161a'], 10, 6, 30, 0.4); }) });
-  var trim = std(0xffffff, 0.7, { map: canvasTex(128, function (g, S) { g.fillStyle = '#2f5a3a'; g.fillRect(0, 0, S, S); chips(g, S, S, 18, '#1a1c18'); chips(g, S, S, 8, '#6a3c20'); grime(g, S, S, 0.8); }), bumpMap: bump(2), bumpScale: 0.01 });
-  var hsg = std(0x4a4e52, 0.6, { metalness: 0.35, map: metalTex }), hsgDark = std(0x202224, 0.65, { metalness: 0.3 }), stain = std(0x8d9295, 0.38, { metalness: 0.7, map: metalTex });
-  var bezelM = std(0x0e1012, 0.4, { metalness: 0.3 }), keyMat = std(0x24282a, 0.55, { metalness: 0.3 }), keyGeo = new THREE.BoxGeometry(0.034, 0.028, 0.012), grille = std(0x16171a, 0.85);
-  var header = std(0xffffff, 0.6, { map: textTex(['RANGER NET · EMPLOYEE CHECK-IN'], 512, 84, '#254a30', '#e2b93b', null, false) });
-  var swipeLbl = std(0xffffff, 0.6, { map: textTex(['SWIPE', '▼'], 64, 192, '#2b2d2f', '#d9dcde', null, false) });
-  var howTo = std(0xffffff, 0.6, { map: canvasTex(256, function (g, S, HH) {
-    g.fillStyle = '#101214'; g.fillRect(0, 0, S, HH); g.fillStyle = '#9aa0a4'; g.font = 'bold 22px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText('LOG YOUR POSITION', S / 2, HH * 0.3); g.fillStyle = '#e2b93b'; g.font = 'bold 20px Arial, sans-serif'; g.fillText('SWIPE STAFF BADGE  ▶', S / 2, HH * 0.68);
-  }, 1, 1, true, 96) });
-  var dustM = new THREE.MeshStandardMaterial({ transparent: true, depthWrite: false, roughness: 1, map: canvasTex(256, function (g, S, HH) {
-    g.clearRect(0, 0, S, HH); var gr = g.createLinearGradient(0, 0, 0, HH); gr.addColorStop(0, 'rgba(120,114,96,.42)'); gr.addColorStop(0.3, 'rgba(120,114,96,.12)'); gr.addColorStop(1, 'rgba(110,104,88,.3)'); g.fillStyle = gr; g.fillRect(0, 0, S, HH);
-    for (var q = 0; q < 900; q++) { g.fillStyle = 'rgba(130,124,104,' + (0.05 + Math.random() * 0.12) + ')'; g.fillRect(Math.random() * S, Math.random() * HH, 1 + Math.random() * 2, 1 + Math.random() * 2); }
-    g.globalCompositeOperation = 'destination-out'; g.fillStyle = 'rgba(0,0,0,.85)'; g.fillRect(S * 0.12, HH * 0.13, S * 0.76, HH * 0.36); g.globalCompositeOperation = 'source-over';      // the screen is wiped every shift
-  }, 1, 1, true, 396) });
+  /* ---------- materials: one set for every kiosk ----------
+     Everything solid on a kiosk is drawn from one atlas (its regions below) with two materials, metal and matte, so all six
+     kiosks cost a handful of draws; the lamps and light strips of each kiosk share one tiny status texture (status()). */
+  var AS = 1024, REG = {
+    shell: [0, 0, 256, 256], trim: [264, 0, 128, 128], hsg: [400, 0, 128, 128], stain: [536, 0, 128, 128], header: [0, 264, 512, 84], howTo: [0, 356, 256, 96],
+    swipe: [672, 0, 64, 192], hsgDark: [744, 0, 32, 32, 1], bezel: [784, 0, 32, 32, 1], key: [824, 0, 32, 32, 1], grille: [864, 0, 32, 32, 1], tape: [904, 0, 32, 32, 1], keyLbl: [264, 136, 256, 64]
+  };
+  var atlas = canvasTex(AS, function (g) {
+    function at(r, fn) { g.save(); g.translate(r[0], r[1]); g.beginPath(); g.rect(0, 0, r[2], r[3]); g.clip(); fn(r[2], r[3]); g.restore(); }
+    at(REG.shell, function (W, Hh) { g.fillStyle = '#2a2f31'; g.fillRect(0, 0, W, Hh); for (var q = 0; q < 400; q++) { g.strokeStyle = 'rgba(' + (Math.random() < 0.5 ? '255,255,255' : '0,0,0') + ',' + (0.03 + Math.random() * 0.05) + ')'; var y = Math.random() * Hh; g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); } blotch(g, W, ['#4a4436', '#14161a'], 14, 6, 30, 0.4);
+      var gr = g.createLinearGradient(0, 0, 0, Hh); gr.addColorStop(0, 'rgba(120,114,96,.28)'); gr.addColorStop(0.35, 'rgba(120,114,96,.06)'); gr.addColorStop(1, 'rgba(110,104,88,.2)'); g.fillStyle = gr; g.fillRect(0, 0, W, Hh);       // twelve years of dust
+      for (q = 0; q < 1200; q++) { g.fillStyle = 'rgba(130,124,104,' + (0.05 + Math.random() * 0.12) + ')'; g.fillRect(Math.random() * W, Math.random() * Hh, 1 + Math.random() * 2, 1 + Math.random() * 2); } });
+    at(REG.trim, function (W, Hh) { g.fillStyle = '#2f5a3a'; g.fillRect(0, 0, W, Hh); chips(g, W, Hh, 18, '#1a1c18'); chips(g, W, Hh, 8, '#6a3c20'); grime(g, W, Hh, 0.8); });
+    at(REG.hsg, function (W, Hh) { g.drawImage(metalTex.image, 0, 0, W, Hh); g.fillStyle = 'rgba(74,78,82,.72)'; g.fillRect(0, 0, W, Hh); });
+    at(REG.stain, function (W, Hh) { g.drawImage(metalTex.image, 0, 0, W, Hh); g.fillStyle = 'rgba(141,146,149,.6)'; g.fillRect(0, 0, W, Hh); });
+    at(REG.header, function (W, Hh) { g.fillStyle = '#254a30'; g.fillRect(0, 0, W, Hh); g.fillStyle = '#e2b93b'; g.font = 'bold 34px ' + ZOO_FONT; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('RANGER NET · EMPLOYEE CHECK-IN', W / 2, Hh / 2 + 2, W - 24); });
+    at(REG.howTo, function (W, Hh) { g.fillStyle = '#101214'; g.fillRect(0, 0, W, Hh); g.fillStyle = '#9aa0a4'; g.font = 'bold 22px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('LOG YOUR POSITION', W / 2, Hh * 0.3); g.fillStyle = '#e2b93b'; g.font = 'bold 20px Arial, sans-serif'; g.fillText('SWIPE STAFF BADGE  ▶', W / 2, Hh * 0.68); });
+    at(REG.swipe, function (W, Hh) { g.fillStyle = '#2b2d2f'; g.fillRect(0, 0, W, Hh); g.fillStyle = '#d9dcde'; g.font = 'bold 20px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SWIPE', W / 2, Hh * 0.35); g.fillText('▼', W / 2, Hh * 0.65); });
+    [['hsgDark', '#202224'], ['bezel', '#0e1012'], ['key', '#24282a'], ['grille', '#16171a'], ['tape', '#c9b878']].forEach(function (f) { at(REG[f[0]], function (W, Hh) { g.fillStyle = f[1]; g.fillRect(0, 0, W, Hh); }); });
+  }, 1, 1, true, AS);
+  atlas.wrapS = atlas.wrapT = THREE.ClampToEdgeWrapping; atlas.repeat.set(1, 1);
+  var kMetal = std(0xffffff, 0.5, { metalness: 0.42, map: atlas }), kMatte = std(0xffffff, 0.66, { map: atlas });
+  var METAL = { shell: 1, hsg: 1, stain: 1, hsgDark: 1, bezel: 1, key: 1 };
+  function A(m, reg) {                                                // put a mesh on its region of the atlas
+    var r = REG[reg], U = m.geometry.attributes.uv; if (m.geometry.userData.atlas) { m.material = METAL[reg] ? kMetal : kMatte; return m; }
+    var inset = r[4] ? r[2] / 2 : 2, x0 = r[0] + inset, y0 = r[1] + inset, w = r[2] - inset * 2, h = r[3] - inset * 2;
+    for (var q = 0; q < U.count; q++) U.setXY(q, (x0 + U.getX(q) * w) / AS, 1 - (y0 + (1 - U.getY(q)) * h) / AS);
+    U.needsUpdate = true; m.geometry.userData.atlas = reg; m.material = METAL[reg] ? kMetal : kMatte; return m;
+  }
+  var keyGeo = new THREE.BoxGeometry(0.034, 0.028, 0.012);
   var crackM = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: 0.32, map: canvasTex(256, function (g, S, HH) { g.clearRect(0, 0, S, HH); g.strokeStyle = 'rgba(220,235,235,.85)'; g.lineWidth = 1; var cx = S * 0.72, cy = HH * 0.3; for (var q = 0; q < 11; q++) { var a = q / 11 * 6.28 + Math.random() * 0.3, r2 = 30 + Math.random() * 120, x = cx, y = cy; g.beginPath(); g.moveTo(x, y); for (var k = 0; k < 5; k++) { x += Math.cos(a) * r2 / 5 + (Math.random() - 0.5) * 8; y += Math.sin(a) * r2 / 5 + (Math.random() - 0.5) * 8; g.lineTo(x, y); } g.stroke(); } }, 1, 1, true, 184) });
-  var tapeM = std(0xc9b878, 0.9);
+  /* the status texture: one texel each for the light strip, the screen's edge, the two lamps and the swipe head's lamp */
+  function status() { var c = document.createElement('canvas'); c.width = 8; c.height = 1; var t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.encoding = THREE.sRGBEncoding; return { g: c.getContext('2d'), tex: t, col: [] }; }
+  function onTexel(m, i) { var U = m.geometry.attributes.uv; for (var q = 0; q < U.count; q++) U.setXY(q, (i + 0.5) / 8, 0.5); U.needsUpdate = true; return m; }
   // the swipe head: the front gate's dimensions (jaw width, half the gap, depth, length)
   var SJ = 0.024, SG = 0.002, SD = 0.05, SL = 0.3, SX = 0.43, SY = 1.42;
   R.SLOT = { x: SX, y: SY, z: SD, len: SL };
@@ -65,58 +81,59 @@ var RangerNet = (function () {
 
   // ---------- one kiosk ----------
   R.kiosk = function (parent, x, z, rotY, idx, o) {
-    o = o || {}; var K = new THREE.Group(), i; K.position.set(x, 0, z); K.rotation.y = rotY || 0; (parent || scene).add(K);
-    box(0.74, 1.24, 0.1, shell, 0, 1.42, 0.05, K);                                                                // back plate
-    box(0.66, 1.02, 0.07, shell, 0, 1.4, 0.135, K);                                                               // the body
-    [-1, 1].forEach(function (s2) { box(0.035, 1.24, 0.13, trim, s2 * 0.37, 1.42, 0.065, K); });                  // green edging
-    box(0.78, 0.035, 0.14, trim, 0, 0.8, 0.07, K);
-    var hood = box(0.8, 0.04, 0.26, shell, 0, 2.06, 0.16, K); hood.rotation.x = 0.28;
-    var strip = basic(0x0a1a10, { fog: false }); box(0.62, 0.012, 0.02, strip, 0, 2.018, 0.27, K).userData.noCast = true;   // the light strip under the hood
-    box(0.5, 0.38, 0.02, bezelM, 0, 1.66, 0.176, K);
+    o = o || {}; var K = new THREE.Group(), i; K.position.set(x, 0, z); K.rotation.y = rotY || 0; K.userData.noCast = true; (parent || scene).add(K);      // (flat on a wall: it casts nothing worth a shadow pass)
+    var st = status(), sm = basic(0xffffff, { map: st.tex, fog: false });
+    A(box(0.74, 1.24, 0.1, kMetal, 0, 1.42, 0.05, K), 'shell');                                                       // back plate
+    A(box(0.66, 1.02, 0.07, kMetal, 0, 1.4, 0.135, K), 'shell');                                                      // the body
+    [-1, 1].forEach(function (s2) { A(box(0.035, 1.24, 0.13, kMatte, s2 * 0.37, 1.42, 0.065, K), 'trim'); });         // green edging
+    A(box(0.78, 0.035, 0.14, kMatte, 0, 0.8, 0.07, K), 'trim');
+    var hood = A(box(0.8, 0.04, 0.26, kMetal, 0, 2.06, 0.16, K), 'shell'); hood.rotation.x = 0.28;
+    onTexel(box(0.62, 0.012, 0.02, sm, 0, 2.018, 0.27, K), 0);                                                         // the light strip under the hood
+    A(box(0.5, 0.38, 0.02, kMetal, 0, 1.66, 0.176, K), 'bezel');
     var c = document.createElement('canvas'); c.width = SW; c.height = SH; var tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
-    var scrM = basic(0xffffff, { map: tex, fog: false }), scr = mesh(new THREE.PlaneGeometry(0.46, 0.33), scrM, 0, 1.66, 0.1875, K); scr.userData.noCast = true; scr.userData.keep = true;
-    if (o.crack) mesh(new THREE.PlaneGeometry(0.46, 0.33), crackM, 0, 1.66, 0.1895, K).userData.noCast = true;
-    var bez = basic(0x0a1a10, { fog: false }); [[0, 1.855, 0.5, 0.008], [0, 1.465, 0.5, 0.008]].forEach(function (b2) { box(b2[2], b2[3], 0.006, bez, b2[0], b2[1], 0.188, K).userData.noCast = true; });
-    [-0.252, 0.252].forEach(function (bx) { box(0.008, 0.39, 0.006, bez, bx, 1.66, 0.188, K).userData.noCast = true; });
-    mesh(new THREE.PlaneGeometry(0.6, 0.1), header, 0, 1.93, 0.1705, K).userData.noCast = true;
-    mesh(new THREE.PlaneGeometry(0.24, 0.09), howTo, -0.14, 1.22, 0.1705, K).userData.noCast = true;            // how to use it, by the keypad
-    for (i = 0; i < 12; i++) mesh(keyGeo, keyMat, 0.08 + (i % 3) * 0.045, 1.28 - Math.floor(i / 3) * 0.04, 0.178, K);
-    for (i = 0; i < 6; i++) box(0.11, 0.004, 0.004, grille, 0, 0.97 + i * 0.012, 0.172, K);                          // speaker grille
-    var lamps = [basic(0x1a0505, { fog: false }), basic(0x041a08, { fog: false })];
-    lamps.forEach(function (m, n) { mesh(new THREE.CircleGeometry(0.011, 12), m, 0.23 - n * 0.035, 1.03, 0.1715, K); });
-    box(0.07, 0.6, 0.05, shell, 0.3, 2.68, 0.04, K); cyl(0.016, 0.016, 1.2, stain, -0.3, 2.65, 0.03, K, 6);      // conduit up to the ceiling
-    if (o.tape) { var tp = mesh(new THREE.PlaneGeometry(0.2, 0.035), tapeM, 0.28, 1.53, 0.1902, K); tp.rotation.z = 0.5; tp.userData.noCast = true; }
-    mesh(new THREE.PlaneGeometry(0.66, 1.02), dustM, 0, 1.4, 0.1712, K).userData.noCast = true;
+    var scrM = basic(0xffffff, { map: tex, fog: false }), scr = mesh(new THREE.PlaneGeometry(0.46, 0.33), scrM, 0, 1.66, 0.1875, K); scr.userData.keep = true;
+    if (o.crack) mesh(new THREE.PlaneGeometry(0.46, 0.33), crackM, 0, 1.66, 0.1895, K);
+    [[0, 1.855, 0.5, 0.008], [0, 1.465, 0.5, 0.008]].forEach(function (b2) { onTexel(box(b2[2], b2[3], 0.006, sm, b2[0], b2[1], 0.188, K), 1); });
+    [-0.252, 0.252].forEach(function (bx) { onTexel(box(0.008, 0.39, 0.006, sm, bx, 1.66, 0.188, K), 1); });
+    A(mesh(new THREE.PlaneGeometry(0.6, 0.1), kMatte, 0, 1.93, 0.1705, K), 'header');
+    A(mesh(new THREE.PlaneGeometry(0.24, 0.09), kMatte, -0.14, 1.22, 0.1705, K), 'howTo');                             // how to use it, by the keypad
+    for (i = 0; i < 12; i++) A(mesh(keyGeo, kMetal, 0.08 + (i % 3) * 0.045, 1.28 - Math.floor(i / 3) * 0.04, 0.178, K), 'key');
+    for (i = 0; i < 6; i++) A(box(0.11, 0.004, 0.004, kMatte, 0, 0.97 + i * 0.012, 0.172, K), 'grille');              // speaker grille
+    [0, 1].forEach(function (n) { onTexel(mesh(new THREE.CircleGeometry(0.011, 12), sm, 0.23 - n * 0.035, 1.03, 0.1715, K), 2 + n); });
+    A(box(0.07, 0.6, 0.05, kMetal, 0.3, 2.68, 0.04, K), 'shell'); A(cyl(0.016, 0.016, 1.2, kMetal, -0.3, 2.65, 0.03, K, 6), 'stain');      // conduit up to the ceiling
+    if (o.tape) { var tp = A(mesh(new THREE.PlaneGeometry(0.2, 0.035), kMatte, 0.28, 1.53, 0.1902, K), 'tape'); tp.rotation.z = 0.5; }
     // the swipe head: a flange, two jaws with a 4 mm slot between them (flared at both ends), the read head in its floor
-    box(SJ * 2 + SG * 2 + 0.012, SL + 0.012, 0.006, hsgDark, SX, SY, 0.003, K);
+    A(box(SJ * 2 + SG * 2 + 0.012, SL + 0.012, 0.006, kMetal, SX, SY, 0.003, K), 'hsgDark');
     [-1, 1].forEach(function (sd) {
-      box(SJ, SL, SD - 0.006, hsg, SX + sd * (SG + SJ / 2), SY, 0.006 + (SD - 0.006) / 2, K);
-      [1, -1].forEach(function (e) { var fl = box(SJ, 0.012, SD - 0.01, hsg, SX + sd * (SG + SJ / 2 + 0.0015), SY + e * (SL / 2 + 0.004), 0.008 + (SD - 0.01) / 2, K); fl.rotation.z = sd * e * 0.35; });
+      A(box(SJ, SL, SD - 0.006, kMetal, SX + sd * (SG + SJ / 2), SY, 0.006 + (SD - 0.006) / 2, K), 'hsg');
+      [1, -1].forEach(function (e) { var fl = A(box(SJ, 0.012, SD - 0.01, kMetal, SX + sd * (SG + SJ / 2 + 0.0015), SY + e * (SL / 2 + 0.004), 0.008 + (SD - 0.01) / 2, K), 'hsg'); fl.rotation.z = sd * e * 0.35; });
     });
-    box(SG * 2, SL, 0.016, hsgDark, SX, SY, 0.014, K); box(SG * 2 - 0.0005, 0.03, 0.01, stain, SX, SY + 0.02, 0.026, K);
-    mesh(new THREE.PlaneGeometry(SJ - 0.002, 0.07), swipeLbl, SX - SG - SJ / 2, SY + 0.08, SD + 0.0005, K).userData.noCast = true;
-    var led = basic(0x041a08, { fog: false }); mesh(new THREE.CircleGeometry(0.006, 12), led, SX + SG + SJ / 2, SY + SL / 2 - 0.03, SD + 0.0006, K);   // the head's own lamp: green on a good read
-    cyl(0.007, 0.007, 0.16, hsgDark, SX - 0.012, SY - SL / 2 - 0.07, 0.02, K, 6);                                // its lead, down into the wall
+    A(box(SG * 2, SL, 0.016, kMetal, SX, SY, 0.014, K), 'hsgDark'); A(box(SG * 2 - 0.0005, 0.03, 0.01, kMetal, SX, SY + 0.02, 0.026, K), 'stain');
+    A(mesh(new THREE.PlaneGeometry(SJ - 0.002, 0.07), kMatte, SX - SG - SJ / 2, SY + 0.08, SD + 0.0005, K), 'swipe');
+    onTexel(mesh(new THREE.CircleGeometry(0.006, 12), sm, SX + SG + SJ / 2, SY + SL / 2 - 0.03, SD + 0.0006, K), 4);   // the head's own lamp: green on a good read
+    A(cyl(0.007, 0.007, 0.16, kMetal, SX - 0.012, SY - SL / 2 - 0.07, 0.02, K, 6), 'hsgDark');                        // its lead, down into the wall
+    K.traverse(function (m) { if (m.isMesh) { m.userData.noCast = true; m.castShadow = false; } });
     // where it stands in the world, and where you stand to use it
     (parent || scene).updateMatrixWorld(true); K.updateMatrixWorld(true);
     var org = new V3().setFromMatrixPosition(K.matrixWorld), q = new THREE.Quaternion().setFromRotationMatrix(K.matrixWorld), yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
-    var k = { idx: idx, name: o.name || TERMS[idx].name, g: c.getContext('2d'), tex: tex, org: org, yaw: yaw, strip: strip, bez: bez, lamps: lamps, led: led, mode: '', hold: 0, busy: false };
+    var k = { idx: idx, name: o.name || TERMS[idx].name, g: c.getContext('2d'), tex: tex, org: org, yaw: yaw, st: st, mode: '', hold: 0, busy: false };
     k.w = function (lx, ly, lz, out) { var cs = Math.cos(yaw), sn = Math.sin(yaw); return (out || new V3()).set(org.x + lx * cs + lz * sn, ly, org.z - lx * sn + lz * cs); };
     var st = k.w(SX + 0.2, 0, SD + 0.62); TERMS[idx].tx = st.x; TERMS[idx].tz = st.z; k.stand = st;
-    R.list[idx] = k; draw(k, 'off');
+    R.list[idx] = k; draw(k, 'off'); (R.mats = R.mats || [kMetal, kMatte, crackM]).push(scrM, sm);
     return k;
   };
 
   // ---------- every frame ----------
+  function setT(k, i, css) { var S2 = k.st; if (S2.col[i] === css) return; S2.col[i] = css; S2.g.fillStyle = css; S2.g.fillRect(i, 0, 1, 1); S2.tex.needsUpdate = true; }
   R.frame = function (t, esc, done) {
     for (var i = 0; i < R.list.length; i++) {
       var k = R.list[i]; if (!k) continue;
       var live = !esc && done(TERMS[i].need), want = esc ? 'lock' : !live ? 'off' : k.busy ? k.busyMode : k.hold > t ? 'ok' : 'idle';
       if (want !== k.mode) draw(k, want);
-      k.strip.color.setHex(live ? (Math.sin(t * 3 + i) > -0.9 ? 0x35ff8a : 0x0a1a10) : esc ? (Math.sin(t * 9) > 0 ? 0xff3020 : 0x1a0505) : 0x0a1a10);
-      k.bez.color.setHex(live ? (k.mode === 'read' ? 0x4a3608 : 0x1f8a4a) : 0x0a1a10);
-      k.lamps[0].color.setHex(live ? 0x1a0505 : (Math.sin(t * 2 + i) > 0.6 ? 0xff3020 : 0x1a0505)); k.lamps[1].color.setHex(live ? 0x35ff8a : 0x041a08);
-      k.led.color.setHex(k.mode === 'ok' ? 0x35ff8a : k.mode === 'read' ? 0xffb020 : 0x041a08);
+      setT(k, 0, live ? (Math.sin(t * 3 + i) > -0.9 ? '#35ff8a' : '#0a1a10') : esc ? (Math.sin(t * 9) > 0 ? '#ff3020' : '#1a0505') : '#0a1a10');
+      setT(k, 1, live ? (k.mode === 'read' ? '#4a3608' : '#1f8a4a') : '#0a1a10');
+      setT(k, 2, live ? '#1a0505' : (Math.sin(t * 2 + i) > 0.6 ? '#ff3020' : '#1a0505')); setT(k, 3, live ? '#35ff8a' : '#041a08');
+      setT(k, 4, k.mode === 'ok' ? '#35ff8a' : k.mode === 'read' ? '#ffb020' : '#041a08');
     }
   };
 

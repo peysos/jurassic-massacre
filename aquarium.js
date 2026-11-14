@@ -180,7 +180,21 @@ var Aqua = (function () {
     if (o.collide !== false) { var w = 0.07; solid(Math.min(x1, x2) - w, Math.max(x1, x2) + w, Math.min(z1, z2) - w, Math.max(z1, z2) + w, Math.min(y1, y2) - 0.2, Math.max(y1, y2) + hh + 0.5, true); }
   }
   A.rail = rail; A.wb = wb; A.sheet = sheet; A.flat = flat;
-  function label(lines, w, h, bg, fg, x, y, z, rotY, pw, border) { var m = mesh(new THREE.PlaneGeometry(w, h), std(0xffffff, 0.75, { map: textTex(lines, pw || 256, Math.round((pw || 256) * h / w), bg, fg, border || null, false) }), x, y, z); m.rotation.y = rotY || 0; m.userData.noCast = true; return m; }
+  /* Labels: every printed sign, plate and stencil in the building is drawn into one atlas and shares one material (one draw for
+     all of them in each part of the building, not one each).  Shelf-packed, 4 px apart. */
+  var LA = { c: document.createElement('canvas'), x: 4, y: 4, row: 0, S: 2048 }; LA.c.width = LA.S; LA.c.height = 1024; LA.g = LA.c.getContext('2d');
+  LA.tex = new THREE.CanvasTexture(LA.c); LA.tex.encoding = THREE.sRGBEncoding; LA.tex.anisotropy = 8; LA.mat = std(0xffffff, 0.75, { map: LA.tex });
+  function atlasRect(w, h) { if (LA.x + w + 4 > LA.S) { LA.x = 4; LA.y += LA.row + 6; LA.row = 0; } var r = [LA.x, LA.y, w, h]; LA.x += w + 6; LA.row = Math.max(LA.row, h); return LA.y + h > LA.c.height ? null : r; }
+  function atlasPlane(cv, w, h) {                                    // a plane of w x h metres showing the picture on canvas cv, from the atlas
+    var r = atlasRect(cv.width, cv.height), geo = new THREE.PlaneGeometry(w, h);
+    if (!r) { var t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return { geo: geo, mat: std(0xffffff, 0.75, { map: t }) }; }      // (full: its own texture)
+    LA.g.drawImage(cv, r[0], r[1]); LA.tex.needsUpdate = true;
+    var U = geo.attributes.uv, H2 = LA.c.height; for (var q = 0; q < U.count; q++) U.setXY(q, (r[0] + 0.5 + U.getX(q) * (r[2] - 1)) / LA.S, 1 - (r[1] + 0.5 + (1 - U.getY(q)) * (r[3] - 1)) / H2);
+    U.needsUpdate = true; return { geo: geo, mat: LA.mat };
+  }
+  A.atlasPlane = atlasPlane;
+  function atlasMesh(w, h, tex, x, y, z, parent) { var ap = atlasPlane(tex.image, w, h), m = mesh(ap.geo, ap.mat, x, y, z, parent); m.userData.noCast = true; return m; }
+  function label(lines, w, h, bg, fg, x, y, z, rotY, pw, border) { var cv = textTex(lines, pw || 256, Math.round((pw || 256) * h / w), bg, fg, border || null, false).image, ap = atlasPlane(cv, w, h), m = mesh(ap.geo, ap.mat, x, y, z); m.rotation.y = rotY || 0; m.userData.noCast = true; return m; }
   A.label = label;
 
   // ================= the shell: what you see from the park =================
@@ -840,13 +854,13 @@ var Aqua = (function () {
     /* Where a walk ends at a gap: the grating torn off and hanging, the rails bent down, and across the end a barrier — a striped
        board on a chain and a DANGER plate — that you cannot climb or jump (its solid stands two metres high). */
     var stripeM = std(0xffffff, 0.7, { map: canvasTex(128, function (g, S, HH) { g.fillStyle = '#e2b93b'; g.fillRect(0, 0, S, HH); g.fillStyle = '#17140e'; for (var x = -HH; x < S; x += 28) { g.beginPath(); g.moveTo(x, HH); g.lineTo(x + 14, HH); g.lineTo(x + 14 + HH, 0); g.lineTo(x + HH, 0); g.closePath(); g.fill(); } chips(g, S, HH, 10, '#3a3020'); grime(g, S, HH, 1); }, 1, 1, true, 24) });
-    var dangerM = std(0xffffff, 0.7, { map: textTex(['DANGER', 'SPAN DOWN'], 256, 128, '#8d1f18', '#f1ecdd', '#f1ecdd') });
+    var dangerC = textTex(['DANGER', 'SPAN DOWN'], 256, 128, '#8d1f18', '#f1ecdd', '#f1ecdd');
     function barrier(x, z1, z2, y, dir, alongZ) {                    // across the end of a walk: at x (or z if alongZ), spanning z1..z2 (x1..x2); dir: which way the gap is
       var c = (z1 + z2) / 2, w = z2 - z1, g = new THREE.Group(); scene.add(g);
       if (alongZ) { g.position.set(c, y, x); } else { g.position.set(x, y, c); g.rotation.y = PI / 2; }
       [-1, 1].forEach(function (e) { box(0.06, 1.1, 0.06, M2.steel, e * (w / 2 - 0.05), 0.55, 0, g); });
       box(w - 0.1, 0.14, 0.03, stripeM, 0, 0.92, 0, g); var ch = box(w - 0.12, 0.02, 0.02, M.chain || M2.rail, 0, 0.5, 0, g); ch.scale.y = 1;
-      box(0.42, 0.22, 0.012, dangerM, 0, 0.62, dir * 0.02, g).rotation.y = dir > 0 ? 0 : PI;
+      atlasMesh(0.42, 0.22, dangerC, 0, 0.62, dir * 0.03, g).rotation.y = dir > 0 ? 0 : PI; box(0.44, 0.24, 0.01, M2.steel, 0, 0.62, dir * 0.022, g);
       if (alongZ) solid(z1, z2, x - 0.1, x + 0.1, y - 0.3, y + 2.0, true); else solid(x - 0.1, x + 0.1, z1, z2, y - 0.3, y + 2.0, true);
       // what is left past it: a length of grating torn down and hanging toward the water, a rail bent after it
       var hx = alongZ ? c : x + dir * 0.55, hz = alongZ ? x + dir * 0.55 : c, h1 = mesh(new THREE.PlaneGeometry(alongZ ? w * 0.9 : 1.0, alongZ ? 1.0 : w * 0.9), M2.grate, hx, y - 0.4, hz);
@@ -927,15 +941,18 @@ var Aqua = (function () {
     /* Paint: three five-litre tins of the aquarium's blue, red and white.  Rolled steel with a rim top and bottom and two
        swaged rings round the middle, a printed label, a wire handle on two ears, paint run down the outside from under the lid;
        one lid off and lying by it, the paint in that one skinned over.  They are something to walk round, not to stand on. */
+    var tinM = std(0xa4a8a8, 0.38, { metalness: 0.8, map: metalTex }), tinC = document.createElement('canvas'); tinC.width = 256; tinC.height = 384; var tinG = tinC.getContext('2d'), tinT = new THREE.CanvasTexture(tinC); tinT.encoding = THREE.sRGBEncoding; tinT.anisotropy = 4;
+    var tinLab = std(0xffffff, 0.55, { metalness: 0.2, map: tinT }), tinN = 0;                // (the three labels, one above another on one texture: one material)
     function tin(x, z, col, name, open, rot) {
-      var g = new THREE.Group(); g.position.set(x, Y, z); g.rotation.y = rot; scene.add(g);
-      var lab = std(0xffffff, 0.55, { metalness: 0.2, map: canvasTex(256, function (c, S2, HH) {
+      var g = new THREE.Group(); g.position.set(x, Y, z); g.rotation.y = rot; scene.add(g); var band = tinN++;
+      var lab = (function (c, S2, HH) { c.save(); c.translate(0, band * 128); c.beginPath(); c.rect(0, 0, S2, HH); c.clip(); (function (c, S2, HH) {
         c.fillStyle = '#b8bcbc'; c.fillRect(0, 0, S2, HH); c.fillStyle = col; c.fillRect(0, HH * 0.18, S2, HH * 0.64); c.fillStyle = '#f2efe6'; c.fillRect(S2 * 0.08, HH * 0.3, S2 * 0.4, HH * 0.4);
         c.fillStyle = '#17140e'; c.font = 'bold 26px Arial, sans-serif'; c.fillText('MARINE', S2 * 0.11, HH * 0.47); c.font = '15px Arial, sans-serif'; c.fillText(name, S2 * 0.11, HH * 0.62); c.fillText('5 LITRES  ·  GLOSS', S2 * 0.6, HH * 0.75);
         for (var d = 0; d < 9; d++) { var dx = Math.random() * S2, dl = 10 + Math.random() * HH * 0.5; c.fillStyle = col; c.fillRect(dx, 0, 3 + Math.random() * 5, dl); c.beginPath(); c.arc(dx + 3, dl, 4, 0, 7); c.fill(); }      // runs from under the lid
         streaks(c, S2, HH, 10, 'rgba(90,60,30,.7)', HH); chips(c, S2, HH, 14, '#6a6058'); grime(c, S2, HH, 1.1);
-      }, 1, 1, true, 128) }), tinM = std(0xa4a8a8, 0.38, { metalness: 0.8, map: metalTex });
-      var body = cyl(0.11, 0.11, 0.21, lab, 0, 0.115, 0, g, 20); body.rotation.y = Math.random() * 6;
+      })(c, S2, HH); c.restore(); tinT.needsUpdate = true; return tinLab; })(tinG, 256, 128);
+      var body = cyl(0.11, 0.11, 0.21, lab, 0, 0.115, 0, g, 20), BU = body.geometry.attributes.uv; body.rotation.y = Math.random() * 6;
+      for (var q3 = 0; q3 < BU.count; q3++) BU.setY(q3, 1 - (band * 128 + 2 + (1 - BU.getY(q3)) * 124) / 384); BU.needsUpdate = true;
       [0.012, 0.222].forEach(function (y) { mesh(new THREE.TorusGeometry(0.11, 0.008, 6, 22), tinM, 0, y, 0, g).rotation.x = PI / 2; });
       [0.08, 0.15].forEach(function (y) { mesh(new THREE.TorusGeometry(0.111, 0.003, 4, 22), tinM, 0, y, 0, g).rotation.x = PI / 2; });
       [-1, 1].forEach(function (e) { box(0.012, 0.03, 0.02, tinM, e * 0.11, 0.2, 0, g); });
@@ -975,8 +992,8 @@ var Aqua = (function () {
     label(['INSULATING MAT 1000 V'], 0.9, 0.12, '#17181a', '#e2b93b', D2 - 1.0, DY + 0.016, T.z2 - 0.5, 0, 256).rotation.x = -PI / 2;
     var cab = new THREE.Group(); cab.position.set(D2 - 1.0, DY, T.z2 - 0.42); scene.add(cab); A.cab = cab;
     box(0.9, 1.5, 0.3, std(0x8a8f8c, 0.6, { metalness: 0.4, map: rustTex }), 0, 0.95, 0, cab); box(0.96, 0.05, 0.36, M.dark, 0, 1.72, 0, cab); box(0.06, 0.4, 0.06, M2.steel, -0.3, 0.1, 0, cab); box(0.06, 0.4, 0.06, M2.steel, 0.3, 0.1, 0, cab);
-    mesh(new THREE.PlaneGeometry(0.8, 0.26), std(0xffffff, 0.7, { map: textTex(['TANK LIGHTING & PLANT', 'MAIN FEEDER  480 V'], 384, 120, '#e2b93b', '#17140e', '#17140e', false) }), 0, 1.5, -0.152, cab).rotation.y = PI;
-    mesh(new THREE.PlaneGeometry(0.8, 0.22), std(0xffffff, 0.7, { map: textTex(['DANGER  ISOLATE BEFORE DIVING', 'A FAULT PUTS THE WATER LIVE'], 384, 104, '#8d1f18', '#f1ecdd', '#f1ecdd', false) }), 0, 0.5, -0.152, cab).rotation.y = PI;
+    atlasMesh(0.8, 0.26, textTex(['TANK LIGHTING & PLANT', 'MAIN FEEDER  480 V'], 384, 120, '#e2b93b', '#17140e', '#17140e', false), 0, 1.5, -0.152, cab).rotation.y = PI;
+    atlasMesh(0.8, 0.22, textTex(['DANGER  ISOLATE BEFORE DIVING', 'A FAULT PUTS THE WATER LIVE'], 384, 104, '#8d1f18', '#f1ecdd', '#f1ecdd', false), 0, 0.5, -0.152, cab).rotation.y = PI;
     /* The tank's main breaker: a 480 V air circuit breaker of the old kind.  It is closed in three moves, and the plate on the
        door says so: 1 the feeder isolator (out at the tank wall by the ladder) must be ON; 2 the closing spring must be charged
        with the pump handle on the cabinet's right side (five strokes; the flag shows CHARGED); 3 the closing lever is hauled
@@ -996,17 +1013,17 @@ var Aqua = (function () {
     A.springN = dyn(box(0.006, 0.055, 0.004, M.dark, 0.28, 1.36, -0.156, cab)); A.springN.geometry.translate(0, 0.022, 0);
     A.flag = basic(0x3a0a06, { fog: false }); mesh(new THREE.PlaneGeometry(0.14, 0.05), A.flag, 0.28, 1.25, -0.153, cab).rotation.y = PI;
     // the order, on a plate on the door, and the lamps: ISOLATOR, SPRING, LIVE
-    mesh(new THREE.PlaneGeometry(0.34, 0.2), std(0xffffff, 0.7, { map: textTex(['TO CLOSE:', '1  ISOLATOR ON (TANK WALL)', '2  CHARGE SPRING  ×5', '3  HAUL LEVER DOWN'], 256, 150, '#e9e2d0', '#17140e', '#17140e', false) }), -0.24, 1.42, -0.152, cab).rotation.y = PI;
+    atlasMesh(0.34, 0.2, textTex(['TO CLOSE:', '1  ISOLATOR ON (TANK WALL)', '2  CHARGE SPRING  ×5', '3  HAUL LEVER DOWN'], 256, 150, '#e9e2d0', '#17140e', '#17140e', false), -0.24, 1.42, -0.152, cab).rotation.y = PI;
     A.isoLamp = basic(0x3a0a06, { fog: false }); A.brkLamp = basic(0x3a0a06, { fog: false }); A.ladLamp = basic(0x0a1a0c, { fog: false });
-    [[A.isoLamp, -0.33, 'ISOL'], [A.flag, null, null], [A.brkLamp, -0.2, 'LIVE'], [A.ladLamp, -0.07, 'WINCH']].forEach(function (L) { if (L[1] === null) return; mesh(new THREE.SphereGeometry(0.022, 8, 8), L[0], L[1], 1.25, -0.16, cab).userData.keep = true; mesh(new THREE.PlaneGeometry(0.11, 0.035), std(0xffffff, 0.7, { map: textTex([L[2]], 96, 30, '#17140e', '#e2b93b', null, false) }), L[1], 1.205, -0.152, cab).rotation.y = PI; });
+    [[A.isoLamp, -0.33, 'ISOL'], [A.flag, null, null], [A.brkLamp, -0.2, 'LIVE'], [A.ladLamp, -0.07, 'WINCH']].forEach(function (L) { if (L[1] === null) return; mesh(new THREE.SphereGeometry(0.022, 8, 8), L[0], L[1], 1.25, -0.16, cab).userData.keep = true; atlasMesh(0.11, 0.035, textTex([L[2]], 96, 30, '#17140e', '#e2b93b', null, false), L[1], 1.205, -0.152, cab).rotation.y = PI; });
     // the feeder isolator: a grey box on a bracket on the tank's west wall, at the waterline by the ladder, its big rotary handle
     var iso = new THREE.Group(); iso.position.set(T.x1 + 0.08, T.water + 0.42, 62.6); iso.rotation.y = PI / 2; scene.add(iso); A.iso = iso;
     box(0.5, 0.06, 0.12, A.wetMats.steel, 0, -0.32, -0.03, iso); box(0.06, 0.7, 0.06, A.wetMats.steel, -0.2, -0.05, -0.04, iso); box(0.06, 0.7, 0.06, A.wetMats.steel, 0.2, -0.05, -0.04, iso);
     box(0.34, 0.42, 0.16, std(0x9aa0a0, 0.6, { metalness: 0.3, map: rustTex }), 0, 0.04, 0.05, iso); box(0.36, 0.03, 0.18, M.dark, 0, 0.27, 0.05, iso);
-    mesh(new THREE.PlaneGeometry(0.3, 0.09), std(0xffffff, 0.7, { map: textTex(['FEEDER ISOLATOR', 'TANK MAIN  ·  480 V'], 256, 76, '#e2b93b', '#17140e', '#17140e', false) }), 0, 0.19, 0.131, iso);
+    atlasMesh(0.3, 0.09, textTex(['FEEDER ISOLATOR', 'TANK MAIN  ·  480 V'], 256, 76, '#e2b93b', '#17140e', '#17140e', false), 0, 0.19, 0.131, iso);
     cyl(0.07, 0.07, 0.02, std(0xe2b93b, 0.6), 0, -0.02, 0.135, iso, 20).rotation.x = PI / 2;
     A.isoH = dyn(new THREE.Group()); A.isoH.position.set(0, -0.02, 0.15); iso.add(A.isoH); box(0.2, 0.045, 0.045, redP, 0, 0, 0.02, A.isoH); cyl(0.03, 0.03, 0.03, redP, 0, 0, 0.0, A.isoH, 12).rotation.x = PI / 2;
-    mesh(new THREE.PlaneGeometry(0.06, 0.03), std(0xffffff, 0.7, { map: textTex(['OFF'], 64, 32, '#17140e', '#f1ecdd', null, false) }), -0.12, 0.08, 0.146, iso); mesh(new THREE.PlaneGeometry(0.06, 0.03), std(0xffffff, 0.7, { map: textTex(['ON'], 64, 32, '#17140e', '#f1ecdd', null, false) }), 0.0, -0.13, 0.146, iso);
+    atlasMesh(0.06, 0.03, textTex(['OFF'], 64, 32, '#17140e', '#f1ecdd', null, false), -0.12, 0.08, 0.146, iso); atlasMesh(0.06, 0.03, textTex(['ON'], 64, 32, '#17140e', '#f1ecdd', null, false), 0.0, -0.13, 0.146, iso);
     A.ISO_AT = new THREE.Vector3(T.x1 + 0.28, T.water + 0.4, 62.6);
     solid(D2 - 1.5, D2 - 0.5, T.z2 - 0.62, T.z2 - 0.2, DY - 0.3, DY + 2, true);
     A.beacon = basic(0x402008, { fog: false }); cyl(0.03, 0.03, 0.5, M2.steel, D1 + 0.25, DY + 2.0, T.z2 - 0.4, null, 6); mesh(new THREE.SphereGeometry(0.09, 10, 8), A.beacon, D1 + 0.25, DY + 2.3, T.z2 - 0.4).userData.keep = true; box(0.05, 2.3, 0.05, M2.steel, D1 + 0.25, DY + 1.15, T.z2 - 0.34);
@@ -1016,9 +1033,14 @@ var Aqua = (function () {
     // the feeder: a cable tray under the trusses down the length of the walk, and lamps hung off it
     box(T.x2 - T.x1 + 6, 0.05, 0.3, M2.steel, (T.x1 + T.x2) / 2 - 1, H.h - 1.9, 60.0); var fd = cyl(0.045, 0.045, T.x2 - T.x1 + 6, M.rubber, (T.x1 + T.x2) / 2 - 1, H.h - 1.84, 60.0, null, 8); fd.rotation.z = PI / 2;
     A.lamps = [];
+    /* The lamps over the walks: green enamel shades on long flexes.  The first seven each have their own bulb (they flicker
+       and die one by one from the west end in the blackout); the later ones are on the same circuits as their nearest
+       neighbour by x, and share its bulb's material (so they flicker and die with it). */
+    var shadeM = std(0x2f5a3a, 0.6, { side: THREE.DoubleSide, metalness: 0.3 }), bulbs = [];
     [[136.5, 55, Y], [136.5, 68, Y], [130.9, 60, Y], [124.7, 60, Y], [117.5, 60, Y], [108, 57, Y], [108, 64, Y], [128.2, 52.1, Y], [127.5, 66.7, Y], [120.6, 50.2, YL], [117.8, 53.4, YL], [127.0, 68.6, YL]].forEach(function (lp, n) {
-      var ly = lp[2] + 2.9; cyl(0.008, 0.008, H.h - 2 - ly, M.dark, lp[0], (H.h - 2 + ly) / 2, lp[1], null, 4); mesh(new THREE.ConeGeometry(0.28, 0.22, 12, 1, true), std(0x2f5a3a, 0.6, { side: THREE.DoubleSide, metalness: 0.3 }), lp[0], ly, lp[1]);
-      var bm = basic(0x1c1508, { fog: false }); mesh(new THREE.SphereGeometry(0.075, 8, 8), bm, lp[0], ly - 0.08, lp[1]).userData.keep = true; A.lamps.push({ mat: bm, x: lp[0], z: lp[1], ph: n * 1.7 });
+      var ly = lp[2] + 2.9; cyl(0.008, 0.008, H.h - 2 - ly, M.dark, lp[0], (H.h - 2 + ly) / 2, lp[1], null, 4); mesh(new THREE.ConeGeometry(0.28, 0.22, 12, 1, true), shadeM, lp[0], ly, lp[1]);
+      var bm; if (n < 7) { bm = basic(0x1c1508, { fog: false }); A.lamps.push({ mat: bm, x: lp[0], z: lp[1], ph: n * 1.7 }); bulbs.push([lp[0], bm]); } else { var bx = bulbs[0]; bulbs.forEach(function (b) { if (Math.abs(b[0] - lp[0]) < Math.abs(bx[0] - lp[0])) bx = b; }); bm = bx[1]; }
+      mesh(new THREE.SphereGeometry(0.075, 8, 8), bm, lp[0], ly - 0.08, lp[1]).userData.keep = true;
       ceilings.push({ x1: lp[0] - 0.3, x2: lp[0] + 0.3, z1: lp[1] - 0.3, z2: lp[1] + 0.3, y: ly - 0.12 });
     });
     light('cwE', 0xffd9a0, 136.5, Y + 2.5, 60, 16, 1.4); light('cwM', 0xffd9a0, 124.7, Y + 2.5, 60, 16, 1.4); light('cwW', 0xffd9a0, 108, Y + 2.5, 60, 15, 1.4); light('emerg', 0xff2a1a, 122, Y + 2, 60, 30, 1.2);

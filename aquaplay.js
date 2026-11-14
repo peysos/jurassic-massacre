@@ -193,7 +193,7 @@
   function tileXY(c, r) { return [MX + (1.5 - c) * TS, MY - r * TS]; }
   A.ready = function () { var st = S(); return !!(st.pump && maniFlow && maniFlow.solved); };
   (function () {
-    var q, tHandleM = std(0x7a1a14, 0.75, { bumpMap: bump(8), bumpScale: 0.004 }), plateM = std(0x596268, 0.6, { metalness: 0.5, map: metalTex }), pipeM = std(0x8a7a3a, 0.5, { metalness: 0.6, map: rustTex }), flangeM = std(0x9aa0a4, 0.4, { metalness: 0.8, map: metalTex });
+    var q, plateM = std(0x596268, 0.6, { metalness: 0.5, map: metalTex }), pipeM = std(0x8a7a3a, 0.5, { metalness: 0.6, map: rustTex }), flangeM = std(0x9aa0a4, 0.4, { metalness: 0.8, map: metalTex });
     box(COLS * TS + 0.3, ROWS * TS + 0.3, 0.05, plateM, MX, MY - TS, MZ + 0.075);
     for (q = 0; q < COLS * ROWS; q++) {
       var c = q % COLS, r = (q / COLS) | 0, xy = tileXY(c, r), Gp = new THREE.Group(), inner = dyn(new THREE.Group()); Gp.position.set(xy[0], xy[1], MZ + 0.03); Gp.rotation.y = PI; scene.add(Gp); Gp.add(inner);
@@ -205,7 +205,7 @@
       cyl(0.066, 0.066, 0.03, flangeM, TS / 2 - 0.015, 0, 0.07, pL, 12).rotation.z = PI / 2; cyl(0.066, 0.066, 0.03, flangeM, 0, TS / 2 - 0.015, 0.07, pL, 12);
       var gl = basic(0x10181a, { fog: false }); mesh(new THREE.SphereGeometry(0.026, 10, 8), gl, 0, 0, 0.125, inner).userData.keep = true;                // a sight glass: it shows oil when the coupling is under pressure
       // its T-handle: a spindle out of the hub and a rubber-gripped bar across it, to take hold of and turn
-      cyl(0.011, 0.014, 0.06, flangeM, 0, 0, 0.17, inner, 10).rotation.x = PI / 2; var tb = cyl(0.017, 0.017, 0.22, tHandleM, 0, 0, 0.205, inner, 12); tb.rotation.z = PI / 2;
+      cyl(0.011, 0.014, 0.06, flangeM, 0, 0, 0.17, inner, 10).rotation.x = PI / 2; var tb = cyl(0.017, 0.017, 0.22, flangeM, 0, 0, 0.205, inner, 12); tb.rotation.z = PI / 2;      // (all steel: one material with the flange, so each coupling stays one draw)
       [-1, 1].forEach(function (e) { cyl(0.019, 0.019, 0.012, flangeM, e * 0.114, 0, 0.205, inner, 12).rotation.z = PI / 2; }); cyl(0.022, 0.022, 0.03, flangeM, 0, 0, 0.205, inner, 12).rotation.x = PI / 2;
       tiles.push({ g: inner, I: pI, L: pL, glass: gl, a: 0, ol: null, turn: null });
     }
@@ -477,6 +477,16 @@
   }
   /* Try a place out, without showing it: put her there reared, wound back, and at the end of the strike, solve the neck each time,
      and see that it is clear of every walk.  (One place a frame, while she is still under water swimming there.) */
+  /* Looking for a place to come up, while she is still out of sight under the water: the candidates (findRise) tried one a
+     frame (riseClear).  Returns the first that is clear; 0 while still looking; null when there is none from here (then, on a
+     low walk, she rams it from underneath; otherwise she waits and looks again). */
+  var seek = null, seekP = new V3();
+  function seekRise(px, pz, py) {
+    if (!seek || dist(seek.px, seek.pz, px, pz) > 1.2 || Math.abs(seek.py - py) > 0.5) seek = { px: px, pz: pz, py: py, c: findRise(px, pz, py) || [], i: 0 };
+    if (seek.i >= seek.c.length) { seek = null; return null; }
+    var c = seek.c[seek.i++]; if (riseClear(c, px, pz, py)) { seek = null; seekP.set(px, py, pz); return c; }
+    return 0;
+  }
   var vSave = { segs: [], head: new THREE.Euler() }, LUNGE = 0.25, LUNGE_P = 0.4, STRIKE_END = [0.8, 0.15];          // (her reach: measured, b13.mjs + A.dbg.rc)
   function riseClear(c, px, pz, py) {
     var q, ok = true, ty = py + 1.45, tdx = px - c[2], tdz = pz - c[3], tl = Math.hypot(tdx, tdz) || 1; tdx /= tl; tdz /= tl;
@@ -484,11 +494,13 @@
     var sv = [B.x, B.y, B.z, B.rot, B.pitch, NS[0], NS[1], NS[2]]; for (q = 0; q < NECK; q++) (vSave.segs[q] = vSave.segs[q] || new THREE.Euler()).copy(U.segs[q].rotation); vSave.head.copy(U.head.rotation);
     var lowR = py < CW - 0.5; B.x = c[0]; B.z = c[1]; B.y = T.water - 0.6; B.pitch = lowR ? 0.2 : 0.55; B.rot = Math.atan2(px - c[0], pz - c[1]); plesMesh.position.set(B.x, B.y, B.z); plesMesh.rotation.set(-B.pitch, B.rot, 0);
     nsAvoid = true; nsYaw = 0.7;
-    var SS = STRIKE_END, tg = [[hX, hiY, hZ, true], [hX - tdx * 0.5, hiY + 0.3, hZ - tdz * 0.5, false], [px - tdx * SS[0], ty + SS[1], pz - tdz * SS[0], false]];
+    var SS = STRIKE_END, tg = [], nX = c[2], nZ = c[3];
+    [0.0, 0.3, 0.55, 0.8].forEach(function (rk) { tg.push([lerp(nX, hX, rk), lerp(T.water - 0.6, hiY, rk), lerp(nZ, hZ, rk), rk === 0]); });          // the way up, as the rise will take it
+    tg.push([hX, hiY, hZ, false], [hX - tdx * 0.5, hiY + 0.3, hZ - tdz * 0.5, false], [px - tdx * SS[0], ty + SS[1], pz - tdz * SS[0], false]);
     A.rcLog = [];
     for (q = 0; q < tg.length && ok; q++) {
-      if (q === 2) { B.x += Math.sin(B.rot) * LUNGE; B.z += Math.cos(B.rot) * LUNGE; B.y += 0.3; B.pitch = lowR ? 0.12 : LUNGE_P; plesMesh.position.set(B.x, B.y, B.z); plesMesh.rotation.set(-B.pitch, B.rot, 0); }     // the strike: she lunges as she strikes
-      var e = neckSolve(tg[q][0], tg[q][1], tg[q][2], px, ty, pz, tg[q][3]), nb = neckBlocked(true), lowT = py < CW - 0.5; A.rcLog.push([q, +e.toFixed(2), nb]); if (nb || e > (lowT ? 1.7 : q === 2 ? 0.9 : 1.2)) ok = false;      // (low down, close to the water, her reach is a curl: she gets near, and the strike decides)
+      if (q === tg.length - 1) { B.x += Math.sin(B.rot) * LUNGE; B.z += Math.cos(B.rot) * LUNGE; B.y += 0.3; B.pitch = lowR ? 0.12 : LUNGE_P; plesMesh.position.set(B.x, B.y, B.z); plesMesh.rotation.set(-B.pitch, B.rot, 0); }     // the strike: she lunges as she strikes
+      var e = neckSolve(tg[q][0], tg[q][1], tg[q][2], px, ty, pz, tg[q][3]), nb = neckBlocked(true), lowT = py < CW - 0.5; A.rcLog.push([q, +e.toFixed(2), nb]); if (nb || (q >= 4 && e > (lowT ? 1.7 : q === tg.length - 1 ? 0.9 : 1.2))) ok = false;      // (on the way up only clearance counts)      // (low down, close to the water, her reach is a curl: she gets near, and the strike decides)
     }
     nsAvoid = false; nsYaw = 0;
     B.x = sv[0]; B.y = sv[1]; B.z = sv[2]; B.rot = sv[3]; B.pitch = sv[4]; NS[0] = sv[5]; NS[1] = sv[6]; NS[2] = sv[7]; for (q = 0; q < NECK; q++) U.segs[q].rotation.copy(vSave.segs[q]); U.head.rotation.copy(vSave.head);
@@ -499,7 +511,9 @@
   function guardPose() {                                             // after posing her: if the neck is in a walk, put back the last pose that was clear (she is stopped by it)
     if (!neckBlocked()) { var c = lastClear || (lastClear = { segs: [], head: new THREE.Euler(), p: new V3(), r: new THREE.Euler() }); c.ok = true; c.b = [B.x, B.y, B.z, B.rot, B.pitch]; c.p.copy(plesMesh.position); c.r.copy(plesMesh.rotation); for (var q = 0; q < NECK; q++) (c.segs[q] = c.segs[q] || new THREE.Euler()).copy(U.segs[q].rotation); c.head.copy(U.head.rotation); return true; }
     if (!lastClear || !lastClear.ok) return false;
-    var L = lastClear; B.x = L.b[0]; B.y = L.b[1]; B.z = L.b[2]; B.rot = L.b[3]; B.pitch = L.b[4]; plesMesh.position.copy(L.p); plesMesh.rotation.copy(L.r);       // (the whole of her, as she was: the body's roll too)
+    var L = lastClear, moved = Math.hypot(L.b[0] - B.x, L.b[2] - B.z) > 0.6;
+    if (moved) { lastClear = null; return false; }                                                    // (she has swum on since: nothing to go back to)
+    B.x = L.b[0]; B.y = L.b[1]; B.z = L.b[2]; B.rot = L.b[3]; B.pitch = L.b[4]; plesMesh.position.copy(L.p); plesMesh.rotation.copy(L.r);       // (the whole of her, as she was: the body's roll too)
     for (var q2 = 0; q2 < NECK; q2++) U.segs[q2].rotation.copy(L.segs[q2]); U.head.rotation.copy(L.head); return false;
   }
   function walkAt(x, z, y) { var L = walkList(); for (var q = 0; q < L.length; q++) { var w = L[q]; if (x >= w.x1 - 0.1 && x <= w.x2 + 0.1 && z >= w.z1 - 0.1 && z <= w.z2 + 0.1 && Math.abs(y - w.y) < 0.9) return w; } return null; }
@@ -510,13 +524,14 @@
      it stops following and draws back further, the jaws wide (the third: the strike is coming, at where you are now); then the
      strike, a fifth of a second; then she pulls her head back to where it came up, and goes down there — never across a walk. */
   function startRise(kind) {
-    var px = player.x, pz = player.z, own = walkAt(px, pz, player.y), sp = findRise(px, pz, player.y);
+    var px = player.x, pz = player.z, own = walkAt(px, pz, player.y), sp = seekRise(px, pz, player.y);
+    if (sp === 0) return false;                                       // (still looking: one place tried a frame, out of sight under the water)
     if (!sp) {                                                       // nowhere to rear from: on a low walk she rams it from underneath instead (it shakes; it holds)
       lashT = 1.2; siegeT = 1.2;
       if (kind === 'walk' && own && own.y < CW - 0.5) { B.state = 'ram'; B.ramT = 0; B.ramP = [px + player.vx * 0.5, pz + player.vz * 0.5, own.y]; B.hit = false; ripple(B.ramP[0], B.ramP[1]); Sound.tone(70, 40, 1.2, 0.2, 'sine'); Sound.noise(1.0, 600, 0.22); }
       return false;
     }
-    B.state = 'rise'; B.kind = kind; B.riseT = 0; B.locked = false; B.hit = false; B.cands = sp; B.ci = 0; B.ok = false; B.rise = sp[0]; B.low = player.y < CW - 0.5; B.aborted = false; B.hist = []; B.solved = false;
+    B.state = 'rise'; B.kind = kind; B.riseT = 0; B.locked = false; B.hit = false; B.ok = true; B.rise = sp; B.low = player.y < CW - 0.5; B.aborted = false; B.hist = []; B.solved = false; B.there = false; B.appT = 0;
     Sound.noise(0.9, 900, 0.3); Sound.noise(1.2, 4200, 0.12, 0.2); Sound.tone(180, 90, 0.9, 0.12, 'sawtooth');
     return true;
   }
@@ -554,24 +569,27 @@
       tdx /= tl; tdz /= tl;
       var hiY = Math.min(ty + (py < CW - 0.5 ? 0.4 : 0.9), T.water + 6.6), hX = nX + tdx * (tl - 2.6), hZ = nZ + tdz * (tl - 2.6);          // high, drawn back, two and a half metres off you
       if (B.state === 'rise') {
-        if (!B.ok) {                                                 // still choosing where to come up (one place tried a frame)
-          if (B.ci >= B.cands.length) {                             // nowhere clear: she does not come up — on a low walk she rams it from underneath instead
-            var ow = walkAt(px, pz, py); B.hist = null;
-            if (B.kind === 'walk' && ow && ow.y < CW - 0.5) { B.state = 'ram'; B.ramT = 0; B.ramP = [px + player.vx * 0.5, pz + player.vz * 0.5, ow.y]; B.hit = false; ripple(B.ramP[0], B.ramP[1]); Sound.tone(70, 40, 1.2, 0.2, 'sine'); Sound.noise(1.0, 600, 0.22); }
-            else { B.state = 'sink'; sinkT = 0.6; lashT = 1.5 + Math.random(); siegeT = 1.5; }
-            return false;
-          }
-          if (riseClear(B.cands[B.ci], px, pz, py)) { B.ok = true; B.rise = B.cands[B.ci]; R = B.rise; nX = R[2]; nZ = R[3]; tdx = px - nX; tdz = pz - nZ; tl = Math.hypot(tdx, tdz) || 1; tdx /= tl; tdz /= tl; hX = nX + tdx * (tl - 2.6); hZ = nZ + tdz * (tl - 2.6); } else B.ci++;
+        /* first she gets to the place, fast and under the surface (the rise does not start until she is there) */
+        if (!B.there) {
+          B.appT = (B.appT || 0) + dt; var ax = R[0] - B.x, az = R[1] - B.z, dTo = Math.hypot(ax, az), stp = Math.min(dTo, 5.0 * dt);
+          if (dTo > 0.02) { B.x += ax / dTo * stp; B.z += az / dTo * stp; }
+          var face = dTo > 0.8 ? Math.atan2(ax, az) : Math.atan2(px - B.x, pz - B.z), tr2 = clamp(angDiff(face, B.rot), -3.2 * dt, 3.2 * dt); B.rot += tr2; B.turn = damp(B.turn || 0, tr2 / Math.max(dt, 1e-3), 3, dt);
+          B.sp = damp(B.sp || 0, dTo > 0.1 ? 4.5 : 0.5, 3, dt); B.y = damp(B.y, T.water - 1.4, 2, dt); B.pitch = damp(B.pitch || 0, 0, 3, dt);
+          neckPose(0, -0.35, 0.2, Math.min(1, dt * 4)); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.15, 3, dt);          // (head down: low under the surface, under anything at the waterline)
+          if (dTo < 0.05 && Math.abs(angDiff(Math.atan2(px - B.x, pz - B.z), B.rot)) < 0.25) B.there = true;
+          else if (B.appT > 4) { B.state = 'sink'; sinkT = 0.5; lashT = 1.5; B.appT = 0; return false; }
+          if (!B.there) { poseBeast(dt, 2); keepNeckIn(); keepTailIn(); return false; }
         }
-        B.riseT += dt; if (!B.ok) B.riseT = Math.min(B.riseT, 0.44);
+        B.riseT += dt;
         var app = seg(B.riseT, 0, 0.55), rk = seg(B.riseT, 0.45, 1.1), wind = seg(B.riseT, TELk - LOCK, TELk - LOCK + 0.3);
-        swimTo(R[0], T.water - 0.6, R[1], 4.2, dt, 2.4); B.pitch = damp(B.pitch || 0, B.low ? 0.05 + 0.15 * rk : 0.15 + 0.4 * rk, 3, dt);
+        B.x = R[0]; B.z = R[1]; B.y = damp(B.y, T.water - 0.6, 3, dt); B.sp = 0; B.pitch = damp(B.pitch || 0, B.low ? 0.05 + 0.15 * rk : 0.15 + 0.4 * rk, 3, dt);
         B.rot += angDiff(Math.atan2(px - B.x, pz - B.z), B.rot) * Math.min(1, dt * 3);
+        if (!B.locked && dist(px, pz, seekP.x, seekP.z) > 2.2) { B.state = 'recoil'; B.rcT = 0; lashT = 1.0; }                      // you have gone too far from where she meant to come up: she starts again
         if (!B.locked) strikeP.set(px + player.vx * ld * LOCK, ty, pz + player.vz * ld * LOCK);
         if (B.riseT >= TELk - LOCK && !B.locked) { B.locked = true; B.hi = [hX, hiY, hZ]; if (inRefuge(px, pz, py)) strikeP.set(px, ty, pz); Sound.tone(520, 180, 0.35, 0.16, 'sawtooth'); Sound.noise(0.25, 3400, 0.18); }
         if (B.locked) { hX = B.hi[0]; hiY = B.hi[1]; hZ = B.hi[2]; }
         ht.set(lerp(nX, hX - tdx * 0.5 * wind, rk), lerp(T.water - 0.6, hiY + 0.3 * wind, rk), lerp(nZ, hZ - tdz * 0.5 * wind, rk));
-        nsAvoid = true; nsYaw = 0.7; neckSolve(ht.x, ht.y, ht.z, px, ty, pz, !B.solved); nsAvoid = false; nsYaw = 0; B.solved = true;
+        nsAvoid = true; nsYaw = 0.7; neckSolve(ht.x, ht.y, ht.z, px, ty, pz, !B.solved); if (neckBlocked()) neckSolve(ht.x, ht.y, ht.z, px, ty, pz, true); nsAvoid = false; nsYaw = 0; B.solved = true;      // (stuck against a walk: search again from the start)
         U.jaw.rotation.x = damp(U.jaw.rotation.x, lerp(0.15, 0.5, rk) + wind * 0.38, 5, dt);
         if (rk > 0 && !B.broke) { B.broke = true; spray(nX, T.water, nZ, 12, 1.4); ripple(nX, nZ); if (AquaSound.on) AquaSound.slap(nX, nZ, 1.2); Sound.noise(0.8, 1600, 0.3); }
         if (app > 0 && !B.bulge) { B.bulge = true; ripple(nX, nZ); }
@@ -601,15 +619,16 @@
           var hp2 = Hh[idx]; B.x = hp2[0]; B.y = hp2[1]; B.z = hp2[2]; B.rot = hp2[3]; B.pitch = hp2[4]; NS[0] = hp2[5]; NS[1] = hp2[6]; NS[2] = hp2[7];
           poseBeast(dt, 2); plesMesh.position.y = hp2[10]; plesMesh.rotation.z = hp2[11]; neckPose(NS[0], NS[1], NS[2], 1); U.head.rotation.set(hp2[8], hp2[9], 0); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.12, 4, dt);
           if (idx < 30 && !B.splashed) { B.splashed = true; spray(nX, T.water, nZ, 8, 1.1); ripple(nX, nZ); Sound.noise(0.7, 1200, 0.28); }
-          keepTailIn(); return false;
+          keepTailIn(); guardPose(); return false;
         }
         B.state = 'sink'; sinkT = 1.0; B.hit = false; B.hi = null; B.hist = null; B.solved = B.broke = B.bulge = B.splashed = false; lashT = (diffName === 'easy' ? 8 : diffName === 'hard' ? 4.2 : 5.6) * (B.low ? 0.75 : 1) + Math.random() * 2.4; siegeT = 3.2 + Math.random() * 1.4;
       }
       poseBeast(dt, 2); keepTailIn();
-      if (B.state === 'strike') guardPose();
+      if (B.state !== 'rise') guardPose();
       if (B.state === 'rise' || B.state === 'strike') {
-        if (!neckBlocked()) { (B.hist = B.hist || []).push([B.x, B.y, B.z, B.rot, B.pitch, NS[0], NS[1], NS[2], U.head.rotation.x, U.head.rotation.y, plesMesh.position.y, plesMesh.rotation.z]); guardPose(); }
-        else if (B.state === 'rise') { B.state = 'recoil'; B.rcT = 0; var Hb = B.hist; if (Hb && Hb.length) { var lp = Hb[Hb.length - 1]; B.x = lp[0]; B.y = lp[1]; B.z = lp[2]; B.rot = lp[3]; B.pitch = lp[4]; NS[0] = lp[5]; NS[1] = lp[6]; NS[2] = lp[7]; poseBeast(0, 2); plesMesh.position.y = lp[10]; plesMesh.rotation.z = lp[11]; neckPose(NS[0], NS[1], NS[2], 1); U.head.rotation.set(lp[8], lp[9], 0); } }      // (no clear pose from here: she gives the strike up, from the last clear one)
+        if (!neckBlocked()) { B.blockT = 0; (B.hist = B.hist || []).push([B.x, B.y, B.z, B.rot, B.pitch, NS[0], NS[1], NS[2], U.head.rotation.x, U.head.rotation.y, plesMesh.position.y, plesMesh.rotation.z]); guardPose(); }
+        else if (B.state === 'rise' && (B.blockT = (B.blockT || 0) + dt) < 0.4) guardPose();                               // (held where she was clear for a moment)
+        else if (B.state === 'rise') { B.blockT = 0; B.state = 'recoil'; B.rcT = 0; var Hb = B.hist; if (!Hb || !Hb.length) guardPose(); else { var lp = Hb[Hb.length - 1]; B.x = lp[0]; B.y = lp[1]; B.z = lp[2]; B.rot = lp[3]; B.pitch = lp[4]; NS[0] = lp[5]; NS[1] = lp[6]; NS[2] = lp[7]; poseBeast(0, 2); plesMesh.position.y = lp[10]; plesMesh.rotation.z = lp[11]; neckPose(NS[0], NS[1], NS[2], 1); U.head.rotation.set(lp[8], lp[9], 0); } }      // (no clear pose from here: she gives the strike up, from the last clear one)
       }
       return false;
     }
@@ -686,12 +705,14 @@
     var T2 = 0, DUR = 2.9, ev = {}, c0 = camera.position.clone(), yaw0 = camera.rotation.y, pitch0 = camera.rotation.x, fov0 = camera.fov, CN, sc = $('scare'), hp = new V3();
     function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
     var dx = B.x - c0.x, dz = B.z - c0.z, dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl; var yaw1 = yaw0 + angDiff(Math.atan2(-dx, -dz), yaw0), wet = whereDied === 'water', PULL = wet ? 0.6 : whereDied === 'dive' ? 1.7 : 1.1, first = true, away = new V3();
+    if (!wet) { for (PULL = Math.max(PULL, 1.3); PULL < 4; PULL += 0.15) if (!underWalk(c0.x + dx * PULL, c0.z + dz * PULL, 0.5)) break; }        // out past the rail and clear of anything under you before you go down
     Scares.sting(); Hands.over = null;
     startCine(CN = { pulse: 0, update: function (dt) {
       T2 += dt; A.wu.uTime.value += dt;
       var whip = easeOut(clamp(T2 / 0.2, 0, 1)), loom = seg(T2, 0.05, 0.5), bite = seg(T2, 0.55, 0.7), drag = seg(T2, 0.72, 2.3), fin = seg(T2, DUR - 0.75, DUR - 0.25), sh = 0.3 + loom * 0.4 + bite * 0.5;
       // you: taken off whatever you stood on (out over the rail first, then down) and under
-      var pull = (1 - (1 - drag) * (1 - drag)) * PULL, cx = c0.x + dx * pull, cz = c0.z + dz * pull, cy = lerp(c0.y, T.water - 2.2, drag * drag) + Math.sin(drag * PI) * (wet ? 0 : 0.5);
+      var out1 = wet ? drag : seg(drag, 0, 0.4), down = wet ? drag * drag : Math.pow(seg(drag, 0.36, 1), 1.6);            // (off a walk: up and out over the rail first, and only then down)
+      var pull = (1 - (1 - out1) * (1 - out1)) * PULL, cx = c0.x + dx * pull, cz = c0.z + dz * pull, cy = lerp(c0.y, T.water - 2.2, down) + (wet ? 0 : Math.sin(out1 * PI * 0.5) * 0.45 * (1 - down));
       // her: the body out in the water in front of you, backing off and sinking as she drags; the neck brought up and over so
       // that the mouth arrives in front of your eyes, facing you, and stays there
       var lg = Scares.lunge(T2, DUR), want = Math.max(0.66, lerp(3.4, 1.2, loom) - bite * 0.25 - lg * 0.45); sh += lg * 0.9;
