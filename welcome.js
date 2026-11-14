@@ -15,13 +15,29 @@ var Welcome = (function () {
   var IX1 = X1 + T, IX2 = X2 - T, IZ1 = Z1 + T, IZ2 = Z2 - T, RX1 = PX + 0.2, DZ1 = 142.0, DZ2 = 143.6, DH = 2.15, DZ = (DZ1 + DZ2) / 2;
   var WIN = [[138.5, 140.9], [144.7, 147.1]];
   Wc.rect = { x1: X1, x2: X2, z1: Z1, z2: Z2 };
-  var mats = {};
-  function C(hex, rough, metal) { var k = hex + '|' + (rough || 0.8) + '|' + (metal || 0); return mats[k] || (mats[k] = std(hex, rough || 0.8, metal ? { metalness: metal } : undefined)); }       // one material per colour: they batch
+  /* The small things in flat colours (cups, coats, leaflets, chair frames: sixty-odd colours) all end up on three materials:
+     a palette texture, with each mesh's UVs parked on the texel of its colour.  C() hands out a stand-in per colour while
+     things are being built; palette() swaps them at the end.  (Three, not one: matt, glossy, and metal.) */
+  var mats = {}, palTex = (function () { var c = document.createElement('canvas'); c.width = c.height = 64; var t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.userData = { g: c.getContext('2d'), n: 0, at: {} }; return t; })();
+  var palM = [std(0xffffff, 0.82, { map: palTex }), std(0xffffff, 0.3, { map: palTex }), std(0xffffff, 0.45, { map: palTex, metalness: 0.55 })];
+  function C(hex, rough, metal) { var cls = metal ? 2 : (rough || 0.8) <= 0.35 ? 1 : 0, k = hex + '|' + cls, m = mats[k]; if (!m) { m = mats[k] = std(hex, rough || 0.8, metal ? { metalness: metal } : undefined); m.userData.pal = { hex: hex, cls: cls }; } return m; }
+  function palette() {
+    var U = palTex.userData, seen = new Set();
+    scene.traverse(function (o) {
+      var p = o.isMesh && !o.isInstancedMesh && !Array.isArray(o.material) && o.material.userData.pal; if (!p) return;
+      var k = U.at[p.hex]; if (k === undefined) { k = U.at[p.hex] = U.n++; U.g.fillStyle = '#' + ('000000' + p.hex.toString(16)).slice(-6); U.g.fillRect((k % 16) * 4, ((k / 16) | 0) * 4, 4, 4); }
+      if (o.geometry === sphGeo || seen.has(o.geometry)) o.geometry = o.geometry.clone(); seen.add(o.geometry);
+      var uv = o.geometry.attributes.uv, u = ((k % 16) * 4 + 2) / 64, v = 1 - (((k / 16) | 0) * 4 + 2) / 64; for (var q2 = 0; q2 < uv.count; q2++) uv.setXY(q2, u, v);
+      o.material = palM[p.cls]; var inside = false; for (var a = o.parent; a; a = a.parent) if (a === inner) inside = true;
+      if (!inside) o.userData.noCast = true;                 // out of doors these are cups and chair legs: nothing whose shadow is missed
+    });
+    palTex.needsUpdate = true;
+  }
   function solid(x1, x2, z1, z2, sees) { boxes.push({ x1: Math.min(x1, x2), x2: Math.max(x1, x2), z1: Math.min(z1, z2), z2: Math.max(z1, z2), solid: !sees }); }
   function ring(x, z, r) { circles.push({ x: x, z: z, r: r }); }
   function grp(x, z, rot, y) { var g = new THREE.Group(); g.position.set(x, y || 0, z); g.rotation.y = rot || 0; scene.add(g); return g; }
   function label(lines, w, h, bg, fg, x, y, z, rotY, pw, border) { var m = mesh(new THREE.PlaneGeometry(w, h), std(0xffffff, 0.75, { map: textTex(lines, pw || 256, Math.round((pw || 256) * h / w), bg, fg, border || null, false) }), x, y, z); m.rotation.y = rotY || 0; m.userData.noCast = true; return m; }
-  var ZAX = new THREE.Vector3(0, 0, 1);
+  var ZAX = new THREE.Vector3(0, 0, 1), seeV = new THREE.Vector3();
 
   /* Every sign and sheet of paper inside is a patch of one canvas, so all of them are one material (and one draw). */
   var AW = 2048, AH = 1024, atlas = (function () {
@@ -310,7 +326,7 @@ var Welcome = (function () {
     Wc.flags = []; var flagM = { '#254a30': std(0xffffff, 0.9, { map: flagTex('#254a30'), alphaTest: 0.5, side: THREE.DoubleSide }), '#8d1f18': std(0xffffff, 0.9, { map: flagTex('#8d1f18'), alphaTest: 0.5, side: THREE.DoubleSide }) };
     [[-12.6, '#254a30'], [-15.0, '#8d1f18'], [-17.4, '#254a30']].forEach(function (f, n) {
       cyl(0.045, 0.07, 7.2, steel, f[0], 3.6, 147.8, null, 8); cyl(0.2, 0.24, 0.3, M.concrete, f[0], 0.15, 147.8, null, 10); mesh(new THREE.SphereGeometry(0.08, 8, 6), M.gold, f[0], 7.25, 147.8); ring(f[0], 147.8, 0.22);
-      var fg = dyn(new THREE.Group()); fg.position.set(f[0] + 0.05, 6.5 - n * 0.9, 147.8); scene.add(fg); var geo = new THREE.PlaneGeometry(1.5, 0.9, 8, 4); geo.translate(0.75, 0, 0); mesh(geo, flagM[f[1]], 0, 0, 0, fg);
+      var fg = dyn(new THREE.Group()); fg.position.set(f[0] + 0.05, 6.5 - n * 0.9, 147.8); scene.add(fg); var geo = new THREE.PlaneGeometry(1.5, 0.9, 8, 4); geo.translate(0.75, 0, 0); mesh(geo, flagM[f[1]], 0, 0, 0, fg).userData.noCast = true;
       geo.userData = { base: geo.attributes.position.array.slice(), ph: n * 2.1 }; Wc.flags.push(geo);
     });
     // ----- the photo point: Trixie, the park's fibreglass Triceratops, on her plinth -----
@@ -350,13 +366,13 @@ var Welcome = (function () {
     // ----- the café terrace: three tables under faded parasols, chairs every way but upright, a coffee kiosk -----
     var parTex = canvasTex(128, function (g, S) { for (var n = 0; n < 8; n++) { g.fillStyle = n % 2 ? '#d8d2c2' : '#2f6a4a'; g.beginPath(); g.moveTo(S / 2, S / 2); g.arc(S / 2, S / 2, S / 2, n * PI / 4, (n + 1) * PI / 4); g.fill(); } g.fillStyle = 'rgba(200,190,160,.3)'; g.fillRect(0, 0, S, S); blotch(g, S, ['#3a3a2a', '#5a5a44'], 14, 6, 26, 0.4); });
     var parGeo = new THREE.ConeGeometry(1.5, 0.5, 8, 1, true), PU = parGeo.attributes.uv, PP = parGeo.attributes.position; for (q = 0; q < PU.count; q++) { var pr = PP.getY(q) > 0 ? 0 : 0.5, pa = Math.atan2(PP.getZ(q), PP.getX(q)); PU.setXY(q, 0.5 + Math.cos(pa) * pr, 0.5 + Math.sin(pa) * pr); }
-    var parM = std(0xffffff, 0.9, { map: parTex, side: THREE.DoubleSide }), tabM = std(0xc9c4b4, 0.5, { metalness: 0.3, bumpMap: bump(2), bumpScale: 0.01 }), chM = C(0x2f5a3a, 0.6, 0.3);
+    var parM = std(0xffffff, 0.9, { map: parTex, side: THREE.DoubleSide }), tabM = C(0x9a968a, 0.5, 0.3), chM = C(0x2f5a3a, 0.6, 0.3), crock = C(0xb0ada0, 0.7);
     function cafeChair(x, z, rot, down) { var g = grp(x, z, rot); if (down) { g.rotation.x = 1.52; g.position.y = 0.22; } box(0.4, 0.03, 0.4, chM, 0, 0.44, 0, g); box(0.4, 0.38, 0.03, chM, 0, 0.66, -0.19, g); [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]].forEach(function (l) { cyl(0.012, 0.012, 0.44, steel, l[0], 0.22, l[1], g, 5); }); }
     [[-19.4, 134.6, 0], [-15.2, 133.6, 1], [-21.0, 138.6, 2]].forEach(function (t, n) {
       cyl(0.55, 0.55, 0.03, tabM, t[0], 0.74, t[1], null, 20); cyl(0.03, 0.03, 0.72, steel, t[0], 0.37, t[1], null, 8); cyl(0.3, 0.32, 0.03, steel, t[0], 0.015, t[1], null, 14); ring(t[0], t[1], 0.58);
       var pg = grp(t[0], t[1], n); if (n === 1) { pg.rotation.z = 1.35; pg.position.set(t[0] + 0.5, 0.4, t[1] + 0.9); } cyl(0.022, 0.022, 2.4, steel, 0, 1.2, 0, pg, 6); mesh(parGeo, parM, 0, 2.3, 0, pg);
       cafeChair(t[0] + 0.85, t[1] + 0.1, -PI / 2, n === 0); cafeChair(t[0] - 0.8, t[1] - 0.2, PI / 2 + 0.3, false); cafeChair(t[0] + 0.1, t[1] + 0.95, PI + 0.2, n === 2);
-      cyl(0.035, 0.03, 0.09, white, t[0] + 0.15, 0.8, t[1] - 0.1, null, 10); if (n !== 1) cyl(0.09, 0.09, 0.012, white, t[0] - 0.15, 0.762, t[1] + 0.15, null, 12);
+      cyl(0.035, 0.03, 0.09, crock, t[0] + 0.15, 0.8, t[1] - 0.1, null, 10); if (n !== 1) cyl(0.09, 0.09, 0.012, crock, t[0] - 0.15, 0.762, t[1] + 0.15, null, 12);
     });
     WB.cart(-22.4, 133.0, PI / 2, 'COFFEE'); WB.bin(-18.0, 136.9, true); WB.bin(-12.2, 136.4);
     // ----- pushchair and wheelchair hire: a lean-to against the wall by the gate -----
@@ -369,9 +385,8 @@ var Welcome = (function () {
     })();
     // ----- today's times on a sandwich board, queue lines up to the booths, machines against the shop -----
     var sb = grp(-9.0, 139.4, 1.2), sbM = std(0xffffff, 0.8, { map: textTex(['TODAY', 'RAPTORS 11:00', 'OCEAN HALL 12:00', 'T. REX 13:00', 'KEEPER TALK 14:00'], 256, 392, '#17140e', '#e2b93b', null) }); [1, -1].forEach(function (s) { var p = new THREE.Group(); p.rotation.x = s * -0.28; p.position.z = s * 0.16; sb.add(p); box(0.7, 1.1, 0.03, woodM, 0, 0.55, 0, p); var f = mesh(new THREE.PlaneGeometry(0.62, 0.95), sbM, 0, 0.57, s * 0.017, p); f.rotation.y = s > 0 ? 0 : PI; f.userData.noCast = true; }); ring(-9.0, 139.4, 0.45);
-    var posts = [], belt = C(0x7a1f1a, 0.8);
-    [-4.2, -1.4, 1.4, 4.2].forEach(function (x, n) { [118.9, 120.6, 122.3].forEach(function (z, m) { posts.push([x, 0.475, z, 1, 1, 1]); ring(x, z, 0.12); if (m < 2 && !(n === 1 && m === 1)) { var dn = n === 2 && m === 0, b = box(0.045, 0.04, dn ? 1.78 : 1.7, belt, x, dn ? 0.47 : 0.88, z + 0.85); b.rotation.x = dn ? 0.5 : 0; b.userData.noCast = true; } }); });
-    inst(new THREE.CylinderGeometry(0.032, 0.032, 0.95, 8), steel, posts); inst(new THREE.CylinderGeometry(0.15, 0.17, 0.04, 12), steel, posts.map(function (p) { return [p[0], 0.02, p[2]]; }));
+    var belt = C(0x7a1f1a, 0.8);
+    [-4.2, -1.4, 1.4, 4.2].forEach(function (x, n) { [118.9, 120.6, 122.3].forEach(function (z, m) { cyl(0.032, 0.032, 0.95, steel, x, 0.475, z, null, 8).userData.noCast = true; cyl(0.15, 0.17, 0.04, steel, x, 0.02, z, null, 12).userData.noCast = true; ring(x, z, 0.12); if (m < 2 && !(n === 1 && m === 1)) { var dn = n === 2 && m === 0, b = box(0.045, 0.04, dn ? 1.78 : 1.7, belt, x, dn ? 0.47 : 0.88, z + 0.85); b.rotation.x = dn ? 0.5 : 0; b.userData.noCast = true; } }); });
     WB.vending(13.2, 120.2, PI, '#1b3f8a'); WB.vending(14.8, 120.2, PI, '#8a1b1b'); WB.picnic(19.6, 118.3, 0.12); WB.bench(22.6, 117.6, 0);
     makeSign('SCHOOL PARTIES ASSEMBLE HERE', 16.6, 116.9, 0, 4.2, 2.3, '#e8e2d0', true);
     // ----- a skip in the alley behind the gift shop, a bin and a bench by the Welcome Center's door -----
@@ -386,11 +401,26 @@ var Welcome = (function () {
     WB.bin(X1 - 0.7, 140.95); WB.bench(X1 - 0.75, 139.5, -PI / 2);
   })();
 
+  palette();
+
   // ---------- hooks ----------
   Wc.inside = function (x, z) { return x > X1 && x < X2 && z > Z1 && z < Z2; };
+  /* The inside is drawn when you are in it, or when you are out in front and the doorway is in view: the windows are
+     blind, so there is no other way to see in.  (Asked before every frame, so it holds in cinematics as well.) */
+  var casters = null, castOn = true;
+  Wc.see = function () {
+    var cx = camera.position.x, cz = camera.position.z, within = Wc.inside(cx, cz);
+    if (within !== castOn && W.batches !== undefined) {              // the furniture throws shadows for the torch only while you are in with it
+      if (!casters) { casters = []; inner.traverse(function (o) { if (o.isMesh && o.castShadow) casters.push(o); }); }
+      castOn = within; for (var n = 0; n < casters.length; n++) casters[n].castShadow = within;
+    }
+    if (within) inner.visible = true;
+    else if (cx > X1 + 0.3 || cz < 108 || cx < -30) inner.visible = false;
+    else { var ddx = X1 - cx, ddz = DZ - cz, dl = Math.hypot(ddx, ddz) || 1; camera.getWorldDirection(seeV); inner.visible = dl < 3 || ((seeV.x * ddx + seeV.z * ddz) / dl > 0.25 && (dl < 16 || ddx / dl > 0.5) && dl < 46); }      // (in view, and not a far-off sliver seen at a slant)
+  };
+  beforeRender.push(Wc.see);
   Wc.step = function (dt) {
-    var cx = camera.position.x, cz = camera.position.z, on = !!(P && P.pow0), t = playTime;
-    inner.visible = cz > 104 && cx > -40;
+    var cx = camera.position.x, cz = camera.position.z, on = !!(P && P.pow0), t = playTime; Wc.see();
     var near = inner.visible && cz > 122 && cx > -12, f = Math.sin(t * 19) + Math.sin(t * 7.3 + 1) > -1.1 ? 1 : 0.15, lit = on && near;
     Wc.light.intensity = lit ? 0.75 * (0.6 + 0.4 * f) : 0; Wc.light2.intensity = lit ? 0.42 : 0;
     Wc.tubes[0].color.setHex(on ? (f > 0.5 ? 0xf4f7ff : 0x6a6e74) : 0x1c1c1a); Wc.tubes[2].color.setHex(on ? 0xf4f7ff : 0x1c1c1a); Wc.bulbs[0].color.setHex(on ? 0xdfeeff : 0x1c1c1a); Wc.lampM.color.setHex(on ? 0xffe6b0 : 0x1c1c1a);

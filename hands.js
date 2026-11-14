@@ -226,7 +226,8 @@ var Hands = (function () {
     G.userData.cap = capG; G.userData.capPivot = capPivot; G.userData.ring = ring;
     var capMesh = lathe([[0.0001, 0], [0.0118, 0], [0.0142, 0.002], [0.0146, 0.004], [0.0146, 0.021], [0.0136, 0.023]], body); ring.add(capMesh);
     var bore = std(0x0a0a0b, 0.55, { metalness: 0.7, side: THREE.BackSide }), boreIn = std(0x0a0a0b, 0.6, { metalness: 0.6 }), white = std(0xd8d4c8, 0.6);
-    function inG(m, parent) { m.castShadow = false; parent.add(m); return m; }
+    G.userData.inside = [];                               // what only shows with the lid open: not drawn (a dozen draws) until a reload begins
+    function inG(m, parent, open) { m.castShadow = false; parent.add(m); if (!open) { m.visible = false; G.userData.inside.push(m); } return m; }
     var b1 = inG(new THREE.Mesh(new THREE.CylinderGeometry(0.0127, 0.0127, 0.07, 22, 1, true), bore), G); b1.rotation.x = PI / 2; b1.position.z = -0.058;                 // the bore
     inG(new THREE.Mesh(new THREE.RingGeometry(0.0127, 0.0137, 24), smooth), G).position.z = -0.02295;                                                               // its rim
     var b2 = inG(new THREE.Mesh(new THREE.CircleGeometry(0.0127, 18), boreIn), G); b2.position.z = -0.093;
@@ -448,7 +449,8 @@ var Hands = (function () {
      drop out, comes back with a fresh one, pushes it home and screws the cap back on.  Everything the left hand touches is
      keyed in the torch's own space, so the pieces line up however the view is moving. */
   var RELOAD = 3.1;
-  H.reload = function (done) { if (clipT >= 0) return false; clipT = 0; clip = { done: done, ev: {} }; return true; };
+  function breech(on) { var L = torch.userData.inside; for (var n = 0; n < L.length; n++) L[n].visible = on; }
+  H.reload = function (done) { if (clipT >= 0) return false; clipT = 0; clip = { done: done, ev: {} }; breech(true); return true; };
   /* A true pinch.  The thumb and the index finger close on a cylinder of radius rc until the pads of both lie on its surface,
      exactly opposite one another.  The joint angles are found once by walking the hand's real bones (not guessed), so
      whatever is pinched is touched.  Returns the pose and where the cylinder then sits in the hand (right-hand space):
@@ -751,7 +753,7 @@ var Hands = (function () {
       if (once('shut', 2.27)) { Sfx.play('rocker', { vol: 0.5, rate: 0.85, fallback: function () { Sound.clunk(); } }); Sound.noise(0.04, 2400, 0.12); }
       if (once('lock', 2.64)) Sfx.play('rocker', { vol: 0.55, rate: 1.1, fallback: function () { Sound.tone(1300, 800, 0.03, 0.12, 'square'); } });
       clipT += dt;
-      if (clipT >= RELOAD) { clipT = -1; H.spare.visible = H.spent.visible = false; ringG.rotation.z = 0; cap.quaternion.identity(); rlFall = null; var cd = clip.done; clip = null; if (cd) cd(); }
+      if (clipT >= RELOAD) { clipT = -1; breech(false); H.spare.visible = H.spent.visible = false; ringG.rotation.z = 0; cap.quaternion.identity(); rlFall = null; var cd = clip.done; clip = null; if (cd) cd(); }
     } else if (use) {
       var u = use; u.t += dt; u.alive -= dt;
       if (u.alive <= 0 && !u.leaving) { u.leaving = true; u.out = 0; }

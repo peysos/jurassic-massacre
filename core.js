@@ -180,7 +180,9 @@ function buildComposer(msaa) {
   }
 }
 buildComposer(true);
+var beforeRender = [];      // things that decide what is drawn from where the camera is (so they hold in cinematics too)
 function renderFrame(t, pulse) {
+  for (var i = 0; i < beforeRender.length; i++) beforeRender[i]();
   if (composer) { gradePass.uniforms.time.value = t % 100; gradePass.uniforms.pulse.value = pulse || 0; composer.render(); }
   else renderer.render(scene, camera);
 }
@@ -275,11 +277,49 @@ var gfxName = 'high';
 // ---------- collision world ----------
 var boxes = [];    // {x1,x2,z1,z2,off,solid}   solid = blocks line of sight (walls, buildings);  y1,y2 (optional): only between these heights
 var circles = [];  // {x,z,r,top}               top: only blocks things standing lower than this
+/* Broad phase.  Boxes are only ever added and never move in x or z, so they are sorted once into 8 m squares (and again
+   whenever there are more of them); resolve() and inBox() then look only at the few near the point.  Their extents are kept
+   in flat arrays as well: the objects come in several shapes (with off, solid, y1/y2, or none of them), and reading those in
+   a loop over six hundred was the slowest thing either function did. */
+var BG = { n: -1, cs: 8, m: 3.5, w: 1, h: 1, x0: 0, z0: 0, cells: [], all: [], X1: null, X2: null, Z1: null, Z2: null }, BG_NONE = [];
+function boxGrid() {
+  var n = boxes.length, i, b, x, z, k, lo = Infinity, hi = -Infinity, lz = Infinity, hz = -Infinity;
+  BG.n = n; BG.X1 = new Float64Array(n); BG.X2 = new Float64Array(n); BG.Z1 = new Float64Array(n); BG.Z2 = new Float64Array(n); BG.all = [];
+  for (i = 0; i < n; i++) { b = boxes[i]; BG.all.push(i); BG.X1[i] = b.x1; BG.X2[i] = b.x2; BG.Z1[i] = b.z1; BG.Z2[i] = b.z2; lo = Math.min(lo, b.x1); hi = Math.max(hi, b.x2); lz = Math.min(lz, b.z1); hz = Math.max(hz, b.z2); }
+  if (!n) { lo = hi = lz = hz = 0; }
+  lo = Math.max(lo, -600) - BG.m; hi = Math.min(hi, 600) + BG.m; lz = Math.max(lz, -600) - BG.m; hz = Math.min(hz, 600) + BG.m;
+  BG.x0 = lo; BG.z0 = lz; BG.w = Math.max(1, Math.ceil((hi - lo) / BG.cs)); BG.h = Math.max(1, Math.ceil((hz - lz) / BG.cs)); BG.cells = new Array(BG.w * BG.h);
+  for (i = 0; i < n; i++) {
+    var a1 = clamp(Math.floor((BG.X1[i] - BG.m - lo) / BG.cs), 0, BG.w - 1), a2 = clamp(Math.floor((BG.X2[i] + BG.m - lo) / BG.cs), 0, BG.w - 1), c1 = clamp(Math.floor((BG.Z1[i] - BG.m - lz) / BG.cs), 0, BG.h - 1), c2 = clamp(Math.floor((BG.Z2[i] + BG.m - lz) / BG.cs), 0, BG.h - 1);
+    for (z = c1; z <= c2; z++) for (x = a1; x <= a2; x++) { k = z * BG.w + x; (BG.cells[k] || (BG.cells[k] = [])).push(i); }
+  }
+}
+var CG = { n: -1, cs: 8, w: 1, h: 1, x0: 0, z0: 0, cells: [], all: [], X: null, Z: null, R: null };      // the same for the round things (trunks, posts, bins)
+function circleGrid() {
+  var n = circles.length, i, c, x, z, k, lo = Infinity, hi = -Infinity, lz = Infinity, hz = -Infinity, m = BG.m;
+  CG.n = n; CG.X = new Float64Array(n); CG.Z = new Float64Array(n); CG.R = new Float64Array(n); CG.all = [];
+  for (i = 0; i < n; i++) { c = circles[i]; CG.all.push(i); CG.X[i] = c.x; CG.Z[i] = c.z; CG.R[i] = c.r; lo = Math.min(lo, c.x - c.r); hi = Math.max(hi, c.x + c.r); lz = Math.min(lz, c.z - c.r); hz = Math.max(hz, c.z + c.r); }
+  if (!n) { lo = hi = lz = hz = 0; }
+  lo = Math.max(lo, -600) - m; hi = Math.min(hi, 600) + m; lz = Math.max(lz, -600) - m; hz = Math.min(hz, 600) + m;
+  CG.x0 = lo; CG.z0 = lz; CG.w = Math.max(1, Math.ceil((hi - lo) / CG.cs)); CG.h = Math.max(1, Math.ceil((hz - lz) / CG.cs)); CG.cells = new Array(CG.w * CG.h);
+  for (i = 0; i < n; i++) {
+    var e = CG.R[i] + m, a1 = clamp(Math.floor((CG.X[i] - e - lo) / CG.cs), 0, CG.w - 1), a2 = clamp(Math.floor((CG.X[i] + e - lo) / CG.cs), 0, CG.w - 1), c1 = clamp(Math.floor((CG.Z[i] - e - lz) / CG.cs), 0, CG.h - 1), c2 = clamp(Math.floor((CG.Z[i] + e - lz) / CG.cs), 0, CG.h - 1);
+    for (z = c1; z <= c2; z++) for (x = a1; x <= a2; x++) { k = z * CG.w + x; (CG.cells[k] || (CG.cells[k] = [])).push(i); }
+  }
+}
+function boxesNear(x, z, reach) {      // indices of the boxes that could be within `reach` of a point
+  if (BG.n !== boxes.length) boxGrid();
+  if (!(reach <= 1.6)) return BG.all;                // (wide things are few: they take the plain loop, and the squares keep 1.9 m in hand for being pushed)
+  var cx = Math.floor((x - BG.x0) / BG.cs), cz = Math.floor((z - BG.z0) / BG.cs);
+  return cx < 0 || cz < 0 || cx >= BG.w || cz >= BG.h ? BG_NONE : BG.cells[cz * BG.w + cx] || BG_NONE;
+}
 function resolve(p, r, y, mode) {      // mode 1: walls, fences and buildings only (no trunks, no park edge); 2: only what is tall enough to block a view
-  var i, b, c, cx, cz, dx, dz, d;
-  for (i = 0; i < boxes.length; i++) {
+  var i, b, c, cx, cz, dx, dz, d, q, sx = p.x, sz = p.z, L = boxesNear(sx, sz, r), lim = BG.m - r, X1 = BG.X1, X2 = BG.X2, Z1 = BG.Z1, Z2 = BG.Z2;
+  for (q = 0; q < L.length; q++) {
+    i = L[q];
+    if (p.x < X1[i] - r || p.x > X2[i] + r || p.z < Z1[i] - r || p.z > Z2[i] + r) continue;
     b = boxes[i];
-    if (b.off || (mode === 2 && !b.solid) || p.x < b.x1 - r || p.x > b.x2 + r || p.z < b.z1 - r || p.z > b.z2 + r) continue;
+    if (b.off || (mode === 2 && !b.solid)) continue;
     if (b.y1 !== undefined && (y + 1.6 < b.y1 || y + 0.35 > b.y2)) continue;          // on another floor (y is where the feet are)
     cx = clamp(p.x, b.x1, b.x2); cz = clamp(p.z, b.z1, b.z2);
     dx = p.x - cx; dz = p.z - cz; d = dx * dx + dz * dz;
@@ -289,14 +329,18 @@ function resolve(p, r, y, mode) {      // mode 1: walls, fences and buildings on
       var l = p.x - b.x1, rr = b.x2 - p.x, t = p.z - b.z1, bt = b.z2 - p.z, m = Math.min(l, rr, t, bt);
       if (m === l) p.x = b.x1 - r; else if (m === rr) p.x = b.x2 + r; else if (m === t) p.z = b.z1 - r; else p.z = b.z2 + r;
     }
+    if (L !== BG.all && (Math.abs(p.x - sx) > lim || Math.abs(p.z - sz) > lim)) { p.x = sx; p.z = sz; L = BG.all; q = -1; }      // thrown out of what its square covers (it began deep in something): do it the long way
   }
   if (mode) return;
-  for (i = 0; i < circles.length; i++) {
-    c = circles[i];
-    if (c.top !== undefined && y >= c.top - 0.05) continue;
-    dx = p.x - c.x; dz = p.z - c.z; d = dx * dx + dz * dz;
-    var rs = r + c.r;
-    if (d < rs * rs) { d = Math.sqrt(d) || 0.001; p.x = c.x + dx / d * rs; p.z = c.z + dz / d * rs; }
+  if (CG.n !== circles.length) circleGrid();
+  var CX = CG.X, CZ = CG.Z, CR = CG.R, rs;
+  sx = p.x; sz = p.z; L = r <= 1.6 ? (cx = Math.floor((sx - CG.x0) / CG.cs), cz = Math.floor((sz - CG.z0) / CG.cs), cx < 0 || cz < 0 || cx >= CG.w || cz >= CG.h ? BG_NONE : CG.cells[cz * CG.w + cx] || BG_NONE) : CG.all;
+  for (q = 0; q < L.length; q++) {
+    i = L[q]; dx = p.x - CX[i]; dz = p.z - CZ[i]; d = dx * dx + dz * dz; rs = r + CR[i];
+    if (d >= rs * rs) continue;
+    c = circles[i]; if (c.top !== undefined && y >= c.top - 0.05) continue;
+    d = Math.sqrt(d) || 0.001; p.x = c.x + dx / d * rs; p.z = c.z + dz / d * rs;
+    if (L !== CG.all && (Math.abs(p.x - sx) > lim || Math.abs(p.z - sz) > lim)) { p.x = sx; p.z = sz; L = CG.all; q = -1; }
   }
   p.x = clamp(p.x, -WORLD + 1.5, WORLD - 1.5);
   p.z = clamp(p.z, -WORLD + 1.5, WORLD - 1.5);
@@ -321,7 +365,8 @@ function onPath(x, z, m) {
   return false;
 }
 function inBox(x, z, m, y) {        // y (optional): where the feet are; boxes that belong to one floor only count from that floor
-  for (var k = 0; k < boxes.length; k++) { var b = boxes[k]; if (b.off) continue; if (b.y1 !== undefined && (y === undefined || y + 1.6 < b.y1 || y + 0.35 > b.y2)) continue; if (x > b.x1 - m && x < b.x2 + m && z > b.z1 - m && z < b.z2 + m) return true; }
+  var L = boxesNear(x, z, m), X1 = BG.X1, X2 = BG.X2, Z1 = BG.Z1, Z2 = BG.Z2;
+  for (var q = 0; q < L.length; q++) { var k = L[q]; if (!(x > X1[k] - m && x < X2[k] + m && z > Z1[k] - m && z < Z2[k] + m)) continue; var b = boxes[k]; if (b.off) continue; if (b.y1 !== undefined && (y === undefined || y + 1.6 < b.y1 || y + 0.35 > b.y2)) continue; return true; }
   return false;
 }
 // how far from (x, z) along (dx, dz), up to max, something r wide can be put without standing in a wall, fence or building
