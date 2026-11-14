@@ -7,7 +7,7 @@
 'use strict';
 
 var Body = (function () {
-  var B = {}, root = new THREE.Group(), THIGH = 0.46, SHIN = 0.44;
+  var B = {}, root = sleepWhenHidden(new THREE.Group()), THIGH = 0.46, SHIN = 0.44;
   root.visible = false; root.userData.keep = true; scene.add(dyn(root)); B.root = root;
   // ---------- cloth and leather ----------
   var cargo = canvasTex(256, function (g, S) {                       // olive drill: a diagonal weave, faded on the creases, mud at random

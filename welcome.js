@@ -297,7 +297,7 @@ var Welcome = (function () {
   })();
 
   // everything since the shell goes into one group that is drawn only when it could be seen; the lights stay in the scene
-  var inner = new THREE.Group(); inner.userData.keep = true; inner.userData.batchInside = true; Wc.inner = inner;
+  var inner = sleepWhenHidden(new THREE.Group()); inner.userData.keep = true; inner.userData.batchInside = true; Wc.inner = inner;
   while (scene.children.length > n0) inner.add(scene.children[n0]);
   scene.add(inner);
   Wc.light = dyn(new THREE.PointLight(0xfff0d2, 0, 15, 1.5)); Wc.light.position.set(14.6, 2.6, 142.8); scene.add(Wc.light);

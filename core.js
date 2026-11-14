@@ -180,6 +180,10 @@ function buildComposer(msaa) {
   }
 }
 buildComposer(true);
+/* A part of the world that is switched off whole (a building's inside, the levels of the aquarium you are not on, your legs)
+   is not walked while it is off: three.js would otherwise still update every matrix in it, every frame.  Nothing is lost:
+   what is fixed keeps its place, and what moves is brought up to date by the first frame it is shown in again. */
+function sleepWhenHidden(g) { g.updateMatrixWorld = function (force) { if (this.visible) THREE.Object3D.prototype.updateMatrixWorld.call(this, force); }; return g; }
 var beforeRender = [];      // things that decide what is drawn from where the camera is (so they hold in cinematics too)
 function renderFrame(t, pulse) {
   for (var i = 0; i < beforeRender.length; i++) beforeRender[i]();

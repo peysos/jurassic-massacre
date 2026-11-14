@@ -17,7 +17,7 @@ var Aqua = (function () {
      seen (nothing culls a room behind a wall otherwise).  Lights stay in the scene: the light pool owns them. */
   function gather(name) {
     var g = groups[name] || (groups[name] = new THREE.Group()), keepers = [];
-    g.userData.keep = true; g.userData.batchInside = true;
+    g.userData.keep = true; g.userData.batchInside = true; if (!g.parent) sleepWhenHidden(g);
     while (scene.children.length > n0) { var c = scene.children[n0]; if (c.isLight) { scene.remove(c); keepers.push(c); } else g.add(c); }
     if (!g.parent) scene.add(g); keepers.forEach(function (c) { scene.add(c); }); n0 = scene.children.length; return g;
   }

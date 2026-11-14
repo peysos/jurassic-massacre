@@ -16,7 +16,7 @@ var Staff = (function () {
   S.room = { x1: RX1, x2: RX2, z1: RZ1, z2: RZ2 }; S.link = { x1: LX1, x2: LX2, z1: LZ1, z2: LZ2 };
   /* Everything behind the shop's back wall is gathered into one group at the end, kept out of the static batching and only
      drawn when it could be seen (from inside it, or from the shop with the door open): nothing culls it behind walls. */
-  var n0 = scene.children.length, wing = new THREE.Group(); wing.userData.keep = true; wing.userData.batchInside = true; S.wing = wing;
+  var n0 = scene.children.length, wing = sleepWhenHidden(new THREE.Group()); wing.userData.keep = true; wing.userData.batchInside = true; S.wing = wing;
 
   // ---------- surfaces ----------
   // walls: painted blockwork, a dark green dado to a metre, scuffed by chairs and trolleys, grubby at hand height
