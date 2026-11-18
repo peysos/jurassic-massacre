@@ -411,7 +411,7 @@ var Hands = (function () {
   H.use = function (key, o) {
     if (use && use.key === key && !use.leaving) { use.alive = o && o.dur ? use.alive : 0.16; if (o && o.spin !== undefined) use.spin = o.spin; return use; }
     use = { key: key, t: 0, alive: o.dur || 0.16, oneShot: !!o.dur, point: o.point, pose: POSE[o.pose] || POSE.point, tip: TIP[o.tip || o.pose] || TIP.point, rot: o.rot || [0.1, 0.25, 0.4],
-      move: o.move, onTouch: o.onTouch, touched: false, leaving: false, out: 0, press: o.press || 0, spin: 0, body: !!o.body, poseAt: o.poseAt, rotAt: o.rotAt, outT: o.outT || 0.34, quatAt: o.quatAt, anatomical: o.anatomical, from: { pos: Lcur.pos.clone(), q: Lcur.q.clone(), wq: Lcur.wq.clone(), pose: Lcur.pose.slice() }, reach: o.reach || 0.24, prop: o.prop };
+      move: o.move, onTouch: o.onTouch, touched: false, leaving: false, out: 0, press: o.press || 0, spin: 0, body: !!o.body, poseAt: o.poseAt, rotAt: o.rotAt, outT: o.outT || 0.34, from: { pos: Lcur.pos.clone(), q: Lcur.q.clone(), wq: Lcur.wq.clone(), pose: Lcur.pose.slice() }, reach: o.reach || 0.24, prop: o.prop };
     return use;
   };
   /* Pushing a door open with the flat of the left hand.  lp is a point on the door's face and ln the face's outward normal
@@ -421,14 +421,14 @@ var Hands = (function () {
   var dpN = new V(), dpF = new V(), dpX = new V(), dpL = new V(), dpM = new THREE.Matrix4(), dpQ = new Q(), dpC = new Q(), dpE = new THREE.Euler(0, 0, 0, 'YXZ');
   H.pushDoor = function (key, door, lp, ln, onTouch, o) {
     o = o || {};
-    var reach = o.reach || 0.34, hold = o.hold || 0.3, t0 = null, frozen = null, pt = new V(), rot = [0, 0, 0], worldQ = new Q(), P0 = lp.clone(), N0 = ln.clone();
+    var reach = o.reach || 0.34, hold = o.hold || 0.3, t0 = null, frozen = null, pt = new V(), rot = [0, 0, 0], P0 = lp.clone(), N0 = ln.clone();
     function place() {
       door.updateMatrixWorld(true); pt.copy(P0).applyMatrix4(door.matrixWorld); dpN.copy(N0).transformDirection(door.matrixWorld); pt.addScaledVector(dpN, 0.004);
       dpL.set(-Math.cos(player.yaw), 0, Math.sin(player.yaw));                                   // your left
       dpF.set(0, 1, 0).addScaledVector(dpL, 0.3); dpF.addScaledVector(dpN, -dpF.dot(dpN)).normalize();   // fingers up the door, leaning out to the left
       dpX.crossVectors(dpF, dpN);                                                                 // the thumb's side
       dpQ.setFromRotationMatrix(dpM.makeBasis(dpX, dpN, dpF.negate()));                         // (left hand: thumb +x, back +y, fingers -z)
-      worldQ.copy(dpQ); dpQ.premultiply(dpC.copy(camera.quaternion).invert()); dpE.setFromQuaternion(dpQ, 'YXZ'); rot[0] = dpE.x; rot[1] = dpE.y; rot[2] = dpE.z;
+      dpQ.premultiply(dpC.copy(camera.quaternion).invert()); dpE.setFromQuaternion(dpQ, 'YXZ'); rot[0] = dpE.x; rot[1] = dpE.y; rot[2] = dpE.z;
     }
     return H.use(key, { pose: 'push', tip: 'palm', rot: rot, dur: reach + hold, reach: reach, outT: o.outT || 0.45, onTouch: onTouch,
       point: function () {
@@ -437,7 +437,7 @@ var Hands = (function () {
         else pt.copy(frozen);                                                                     // let go: the door swings on without the hand
         return pt;
       },
-      rotAt: function () { return rot; }, anatomical: o.anatomical, quatAt: o.anatomical ? function () { return dpC.copy(camera.quaternion).invert().multiply(worldQ); } : null });
+      rotAt: function () { return rot; } });
   };
   H.busy = function () { return !!(use && !use.leaving) || clipT >= 0; };
   H.current = function () { return use; };            // (the frame checks in .dev look at the action in progress)
@@ -573,22 +573,6 @@ var Hands = (function () {
     g.position.copy(Ea); g.quaternion.setFromUnitVectors(ZP, to.multiplyScalar(1 / (len || 1))); g.userData.tube.scale.z = Math.max(0.05, len);
   }
 
-  var swimBlend = 0, swimTime = 0, swimArms = {
-    L: { pos: new V(), q: new Q() }, R: { pos: new V(), q: new Q() }
-  };
-  var swimEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  function swimArm(side) {
-    var sign = side === 'R' ? 1 : -1, o = swimArms[side];
-    var t = (swimTime + (side === 'R' ? 0 : 0.5)) % 1;
-    var reach = sstep(t / 0.22), pull = sstep((t - 0.23) / 0.46), reset = sstep((t - 0.68) / 0.32);
-    o.pos.set(sign * (0.21 + 0.11 * pull * (1 - reset)), -0.22 + 0.15 * reach - 0.27 * pull + 0.12 * reset,
-      -0.23 - 0.34 * reach + 0.31 * pull);
-    o.q.setFromEuler(swimEuler.set(lerp(0.1, 0.72, pull) - 0.12 * reach,
-      sign * (0.07 + 0.39 * pull * (1 - reset)), sign * (-0.1 - 0.62 * pull * (1 - reset)), 'YXZ'));
-    o.pose = POSE.push; o.k = swimBlend;
-    return o;
-  }
-
   // ---------- every frame ----------
   var aimCur = [0, 0, 0, 0, 0, 0], sway = { x: 0, y: 0, vx: 0, vy: 0 }, lastYaw = null, lastPitch = 0, bobK = 0, runK = 0, block = 0, landT = 0, RQ = new Q(), RP = new V(), tailW = new V();
   var leanW = new V(), leanWant = new V(), lv = new V(), lq = new Q(), carryK = 0, carrySw = 0, carryV = 0, freeK = 0;
@@ -615,8 +599,6 @@ var Hands = (function () {
     var bl = 0; if (c.x !== undefined) { var fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw); bl = inBox(c.x + fx * 0.74, c.z + fz * 0.74, 0.02, c.y || 0) ? 1 : inBox(c.x + fx * 0.6, c.z + fz * 0.6, 0.02, c.y || 0) ? 1 : 0; }
     block = damp(block, bl, 10, dt);
     offBlend = damp(offBlend, lightOn || clipT >= 0 ? 0 : 1, 6, dt);
-    swimBlend = damp(swimBlend, c.swimming && !use && !H.over && clipT < 0 ? clamp((speed - 0.15) / 1.25, 0, 1) : 0, 7, dt);
-    if (swimBlend > 0.01) swimTime += dt * (0.48 + speed * 0.32);
 
     /* --- leaning in: when a hand is sent somewhere beyond arm's length, the body bends toward it (the camera moves) --- */
     leanWant.set(0, 0, 0);
@@ -678,9 +660,9 @@ var Hands = (function () {
     } else hQ.copy(bQ).multiply(WRISTQ);
     /* A cinematic may take a hand over (H.over.R / .L = { pos, q, pose, k }: where the wrist goes and how the hand is turned, in
        camera space, blended in by k) and may put the torch away (H.over.noTorch). */
-    var ovR = H.over && H.over.R && H.over.R.k > 0 ? H.over.R : swimBlend > 0.01 && !H.over ? swimArm('R') : null;
+    var ovR = H.over && H.over.R && H.over.R.k > 0 ? H.over.R : null;
     if (ovR) { rW.lerp(ovR.pos, ovR.k); hQ.slerp(ovR.q, ovR.k); bQ.slerp(ovR.q, ovR.k); if (ovR.pose) pose = mixPose(pose, ovR.pose, ovR.k, ovPose); }
-    torch.visible = !(H.over && H.over.noTorch) && swimBlend < 0.38;
+    torch.visible = !(H.over && H.over.noTorch);
     solveArm('R', rW, hQ, bQ, ovR ? lerp(0.75, 1.3, ovR.k) : 0.75, rootQ, wristQ);
     R.root.position.copy(rW); R.root.quaternion.copy(rootQ); R.hand.quaternion.copy(wristQ); applyPose(R, pose);
     // --- the torch itself: lens, flare, the pieces that come apart ---
@@ -782,13 +764,10 @@ var Hands = (function () {
       var pt = u.point ? u.point() : null;
       if (pt) {
         var hv = new V().copy(pt); if (u.move) hv.add(u.move(u.t, u)); camera.worldToLocal(hv);
-        tmpE.set(u.rot[0], u.rot[1], u.rot[2] + (u.spin || 0), 'YXZ'); var uq = u.quatAt ? u.quatAt().clone() : new Q().setFromEuler(tmpE); if (u.body) uq.premultiply(pitchQ);
+        tmpE.set(u.rot[0], u.rot[1], u.rot[2] + (u.spin || 0), 'YXZ'); var uq = new Q().setFromEuler(tmpE); if (u.body) uq.premultiply(pitchQ);
         var to = u.tip.clone(); to.x = -to.x; to.applyQuaternion(uq);
         var inn = easeIO(clamp(u.t / u.reach, 0, 1)), pr = u.press ? Math.sin(clamp((u.t - u.reach) / 0.16, 0, 1) * PI) * u.press : 0;
         hv.sub(to); hv.z -= pr;
-        if (u.anatomical && hv.distanceTo(SHO.L) > FORE + UPPER - 0.008) {
-          hv.sub(SHO.L).setLength(FORE + UPPER - 0.008).add(SHO.L);
-        }
         if (!u.touched && u.t >= u.reach) { u.touched = true; if (u.onTouch) u.onTouch(); }
         if (u.leaving) { u.out += dt; var o2 = easeIO(clamp(u.out / u.outT, 0, 1)); tp = hv.clone().lerp(tp, o2); tq = uq.clone().slerp(tq, o2); tPose = mixPose(u.pose, tPose, o2, []); if (u.out >= u.outT) use = null; }
         else { tp = u.from.pos.clone().lerp(hv, inn); tq = u.from.q.clone().slerp(uq, inn); tPose = mixPose(u.from.pose, u.pose, inn, []); }
@@ -813,10 +792,10 @@ var Hands = (function () {
       lastHold = { pos: tp.clone(), q: tq.clone(), pose: tPose.slice(), k: Ho.k, ho: Ho };
       if (Ho.k === 0 && Ho.want === 0 && Ho.done) { var dn = Ho.done; H.hold = null; dn(); } else if (Ho.k === 0 && Ho.want === 0) H.hold = null;
     } else lastHold = null;
-    var ovL = H.over && H.over.L && H.over.L.k > 0 ? H.over.L : swimBlend > 0.01 && !H.over ? swimArm('L') : null;
+    var ovL = H.over && H.over.L && H.over.L.k > 0 ? H.over.L : null;
     if (ovL) { tp = tp.clone().lerp(ovL.pos, ovL.k); tq = tq.clone().slerp(ovL.q, ovL.k); if (ovL.pose) tPose = mixPose(tPose, ovL.pose, ovL.k, []); }
     Lcur.pos.copy(tp); Lcur.q.copy(tq); Lcur.pose = tPose;
-    solveArm('L', tp, tq, tq, use && use.anatomical ? PI : ovL ? lerp(0.95, 1.3, ovL.k) : 0.95, rootQ, wristQ);
+    solveArm('L', tp, tq, tq, ovL ? lerp(0.95, 1.3, ovL.k) : 0.95, rootQ, wristQ);
     L.root.position.copy(tp); L.root.quaternion.copy(rootQ); L.hand.quaternion.copy(wristQ); applyPose(L, tPose);
     UA.L.visible = UA.R.visible = true;
     /* A cinematic can take the staff card out of the hand's frame and place it exactly (in the swipe slot): it rides on the

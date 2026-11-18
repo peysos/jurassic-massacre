@@ -11,7 +11,7 @@
 'use strict';
 
 var Aqua = (function () {
-  var A = { lights: {}, mats: {}, tanks: [], anim: [], beastSolids: [] }, G = GAL, H = HALL, T = POOL, EM = Entrance.M, i, k;
+  var A = { lights: {}, mats: {}, tanks: [], anim: [] }, G = GAL, H = HALL, T = POOL, EM = Entrance.M, i, k;
   var n0 = scene.children.length, groups = {};
   /* Everything is built into the scene and then gathered, part by part, into groups that are only drawn when they could be
      seen (nothing culls a room behind a wall otherwise).  Lights stay in the scene: the light pool owns them. */
@@ -24,15 +24,6 @@ var Aqua = (function () {
   A.groups = groups;
   function solid(x1, x2, z1, z2, y1, y2, sees) { var b = { x1: Math.min(x1, x2), x2: Math.max(x1, x2), z1: Math.min(z1, z2), z2: Math.max(z1, z2), solid: !sees }; if (y1 !== undefined && y1 !== null) { b.y1 = y1; b.y2 = y2; } boxes.push(b); return b; }
   A.solid = solid;
-  function beastProp(model) {
-    model.updateWorldMatrix(true, true);
-    model.traverse(function (child) {
-      if (!child.isMesh) return;
-      var b = new THREE.Box3(), v = new THREE.Vector3(), points = child.geometry.attributes.position;
-      for (var i = 0; i < points.count; i++) b.expandByPoint(v.fromBufferAttribute(points, i).applyMatrix4(child.matrixWorld));
-      A.beastSolids.push({ x1: b.min.x, x2: b.max.x, y1: b.min.y, y2: b.max.y, z1: b.min.z, z2: b.max.z });
-    });
-  }
   function light(name, color, x, y, z, range, decay) { var l = dyn(new THREE.PointLight(color, 0, range, decay || 1.4)); l.position.set(x, y, z); scene.add(l); A.lights[name] = l; l.userData.base = 0; return l; }
 
   // ---------- floors ----------
@@ -186,10 +177,7 @@ var Aqua = (function () {
     var len = Math.hypot(x2 - x1, z2 - z1), n = Math.max(1, Math.round(len / (o.step || 1.5))), hh = o.h || 1.06, q, ang = Math.atan2(x2 - x1, z2 - z1), pitch = Math.atan2(y2 - y1, len), L3 = Math.hypot(len, y2 - y1);
     for (q = 0; q <= n; q++) { var t = q / n; railPosts.push([lerp(x1, x2, t), lerp(y1, y2, t) + hh / 2, lerp(z1, z2, t), 1, hh, 1]); }
     [hh, hh * 0.52].concat(o.kick ? [0.09] : []).forEach(function (yy, n2) { railBars.push([(x1 + x2) / 2, (y1 + y2) / 2 + yy, (z1 + z2) / 2, n2 === 2 ? 0.4 : n2 ? 0.7 : 1, n2 === 2 ? 3.2 : n2 ? 0.7 : 1, L3, -pitch, ang, 0]); });
-    if (o.collide !== false) {
-      var w = 0.07, railBox = solid(Math.min(x1, x2) - w, Math.max(x1, x2) + w, Math.min(z1, z2) - w, Math.max(z1, z2) + w, Math.min(y1, y2) - 0.2, Math.max(y1, y2) + hh + 0.5, true);
-      if (o.beast) A.beastSolids.push({ x1: railBox.x1, x2: railBox.x2, z1: railBox.z1, z2: railBox.z2, y1: Math.min(y1, y2), y2: Math.max(y1, y2) + hh + 0.04 });
-    }
+    if (o.collide !== false) { var w = 0.07; solid(Math.min(x1, x2) - w, Math.max(x1, x2) + w, Math.min(z1, z2) - w, Math.max(z1, z2) + w, Math.min(y1, y2) - 0.2, Math.max(y1, y2) + hh + 0.5, true); }
   }
   A.rail = rail; A.wb = wb; A.sheet = sheet; A.flat = flat;
   /* Labels: every printed sign, plate and stencil in the building is drawn into one atlas and shares one material (one draw for
@@ -308,7 +296,6 @@ var Aqua = (function () {
     flat(H.x1, 146.5, H.z1, H.z2, HHh, M2.dark, 4, false);
     [106, 114, 122, 130, 138].forEach(function (x) { box(0.22, 0.22, H.z2 - H.z1, EM.rustSteel, x, HHh - 0.3, 60); box(0.2, 0.2, H.z2 - H.z1, EM.rustSteel, x, HHh - 1.7, 60); for (var z = H.z1 + 1.5; z < H.z2; z += 3.1) { var d = box(0.1, 1.9, 0.1, EM.rustSteel, x, HHh - 1.0, z); d.rotation.x = ((z * 10 | 0) % 2 ? 1 : -1) * 0.75; } });
     for (q = 0; q < 6; q++) box(146.5 - H.x1, 0.14, 0.14, EM.rustSteel, (H.x1 + 146.5) / 2, HHh - 0.12, H.z1 + 2.6 + q * 5.2);
-    var gripPaint = std(0xab8e3b, 0.92, { map: metalTex, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     // the two ramps: concrete wedges with the mural's blue carried up them, a lean rail a pace off the glass, a handrail on the wall
     [[H.z1, T.z1, -1], [T.z2, H.z2, 1]].forEach(function (r) {
       var z1 = r[0], z2 = r[1], cz = (z1 + z2) / 2, gz = r[2] < 0 ? z2 : z1, wz = r[2] < 0 ? z1 : z2;
@@ -322,10 +309,7 @@ var Aqua = (function () {
       rail(RX1 + 0.3, gz + r[2] * 0.75, RX2, gz + r[2] * 0.75, slope * 0.3, MEZ, { step: 2 });                                             // the lean rail
       box(rlen, 0.06, 0.06, M2.rail, (RX1 + RX2) / 2, MEZ / 2 + 0.95, wz - r[2] * 0.09).rotation.z = ang;                           // the handrail on the wall
       for (var p3 = 0; p3 <= 8; p3++) { var px = RX1 + p3 * 3; box(0.04, 0.04, 0.1, M2.rail, px, slope * (px - RX1) + 0.95, wz - r[2] * 0.05); }
-      for (p3 = 1; p3 < 6; p3++) {
-        var st = mesh(new THREE.PlaneGeometry(0.46, RW - 0.9), gripPaint, RX1 + p3 * 4, slope * p3 * 4 + 0.019, cz - r[2] * 0.3);
-        st.quaternion.copy(top.quaternion); st.userData.noCast = true;
-      }
+      for (p3 = 1; p3 < 6; p3++) { var st = box(0.5, 0.012, RW - 0.9, M.yellow, RX1 + p3 * 4, slope * p3 * 4 + 0.012, cz - r[2] * 0.3); st.rotation.z = ang; st.userData.noCast = true; }     // grip strips, mostly worn off
     });
     // the rear gallery, three metres up behind the tank
     // (round the lift shaft, x 136..139 by z H.z1..47.5: the car goes up through here, so the slab stops at its walls)
@@ -417,12 +401,10 @@ var Aqua = (function () {
     var rockG = jitter(new THREE.IcosahedronGeometry(1, 2), 0.28);
     [[113.5, 52.5, 2.2, 1.6], [115, 54.4, 1.3, 1.0], [125.8, 68.9, 2.2, 1.7], [123.4, 69.6, 1.4, 1.1], [125.4, 51.3, 1.8, 1.9], [112.6, 68.4, 1.8, 1.3], [121, 50.6, 1.4, 0.9], [118.6, 69.7, 1.4, 1.0], [118, 61, 0.9, 0.5], [123.5, 58.5, 1.0, 0.5]].forEach(function (r, n) {
       var rm = mesh(rockG, wetRock, r[0], T.floor + r[3] * 0.45, r[1]); rm.scale.set(r[2], r[3], r[2] * (0.8 + (n % 3) * 0.2)); rm.rotation.set(n * 0.7, n * 1.9, n * 0.4);
-      beastProp(rm);
     });
     var cage = new THREE.Group(); cage.position.set(125.5, T.floor + 0.55, 63.5); cage.rotation.set(0.35, 0.6, 1.2); scene.add(cage);
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) { box(0.06, 2.0, 0.06, wetSteel, c[0] * 0.7, 0, c[1] * 0.7, cage); box(0.06, 0.06, 1.46, wetSteel, c[0] * 0.7, c[1], 0, cage); box(1.46, 0.06, 0.06, wetSteel, 0, c[0], c[1] * 0.7, cage); });
     for (q = 0; q < 5; q++) { box(0.03, 2.0, 0.03, wetSteel, -0.7 + q * 0.35, 0, 0.7, cage); box(0.03, 2.0, 0.03, wetSteel, 0.7, 0, -0.7 + q * 0.35, cage); }
-    beastProp(cage);
     for (q = 0; q < 7; q++) { var rb = mesh(new THREE.TorusGeometry(0.75 - Math.abs(q - 3) * 0.07, 0.045, 5, 12, PI), wetBone, 117.4 + q * 0.34, T.floor + 0.3, 65.8); rb.rotation.set(0.2, PI / 2, 0); }      // a ribcage, half in the sand
     mesh(sphGeo, wetBone, 116.6, T.floor + 0.42, 65.9).scale.set(0.7, 0.5, 0.5); box(1.5, 0.09, 0.09, wetBone, 120.6, T.floor + 0.32, 66.3).rotation.y = 0.3;
     [[121.8, 55.2], [129, 61], [114.5, 62.3], [124, 66.5]].forEach(function (b, n) { cyl(0.05, 0.05, 0.9 + n * 0.2, wetBone, b[0], T.floor + 0.34, b[1], null, 6).rotation.set(1.5, n * 1.3, 0.2); });
@@ -504,14 +486,7 @@ var Aqua = (function () {
     /* From above: looking straight down you see into it (dark, deep, the sand a ghost under seven metres of water); toward the
        far side it turns to a mirror of the roof and the lamps.  (Opacity rises with the angle: a Fresnel term, in the shader.) */
     A.surfMat = new THREE.MeshStandardMaterial({ color: 0x062830, roughness: 0.06, metalness: 0.3, transparent: true, opacity: 0.8, depthWrite: false, normalMap: ripN, normalScale: new THREE.Vector2(0.6, 0.6), envMap: envTex, envMapIntensity: 1.0 });
-    A.surfClear = { value: 0 };
-    A.surfMat.onBeforeCompile = function (sh) {
-      sh.uniforms.aqClarity = A.surfClear;
-      sh.fragmentShader = 'uniform float aqClarity;\n' + sh.fragmentShader.replace('#include <tonemapping_fragment>',
-        'float frs = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 2.5);\n' +
-        'gl_FragColor.rgb *= 0.55 + 0.75 * frs; gl_FragColor.a = mix(mix(0.42, 0.95, frs), 0.22, aqClarity);\n' +
-        '#include <tonemapping_fragment>');
-    };
+    A.surfMat.onBeforeCompile = function (sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <tonemapping_fragment>', 'float frs = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 2.5);\n gl_FragColor.rgb *= 0.55 + 0.75 * frs; gl_FragColor.a = mix(0.42, 0.95, frs);\n#include <tonemapping_fragment>'); };
     A.surfMat.customProgramCacheKey = function () { return 'aqsurf'; };
     var surf = mesh(new THREE.PlaneGeometry(TW - 0.3, TD - 0.3), A.surfMat, cx, T.water, cz); surf.rotation.x = -PI / 2; surf.renderOrder = 3; surf.userData.noCast = true;
     var ct = causTex.clone(); ct.needsUpdate = true; ct.repeat.set(9, 8.2);
@@ -550,7 +525,6 @@ var Aqua = (function () {
     // where you can be in it: afloat
     floor(T.x1 + 0.25, T.x2 - 0.25, T.z1 + 0.25, T.z2 - 0.25, T.swim, null, null, 'water');
     light('tank', 0x58c6d2, T.x1 - 3.5, 2.6, cz, 26, 1.1); light('tankN', 0x4ab4c4, cx, 2.8, T.z1 - 2.2, 20, 1.2); light('tankS', 0x4ab4c4, cx, 2.8, T.z2 + 2.2, 20, 1.2); light('tankE', 0x4ab4c4, T.x2 + 2.6, 5.2, cz, 18, 1.2);
-    light('trip', 0xa9e4ff, cx, 3.5, cz, 10, 1.18);
   })();
   gather('hall');
 
@@ -716,15 +690,6 @@ var Aqua = (function () {
     }
     var stA = Math.atan2(3.2, 4.48), stL = Math.hypot(4.48, 3.2);
     [[LA1 + 0.07, MEZ, -1], [LA2 - 0.07, MEZ, -1], [LB1 + 0.07, -0.2, 1], [LB2 - 0.07, -0.2, 1]].forEach(function (r) { var st = box(stL, 0.22, 0.05, EM.rustSteel, (SX1 + SX2) / 2, r[1] - 1.6 - 0.14, r[0]); st.rotation.z = r[2] * stA; var hr = box(stL, 0.045, 0.045, M2.rail, (SX1 + SX2) / 2, r[1] - 1.6 + 0.95, r[0]); hr.rotation.z = r[2] * stA; });
-    // Close the blind side of the first landing and the space beneath each flight with the stringer's concrete backing.
-    wb(WX, SX1 + 0.02, B, 5.7, LA2, LB1, bw, 4, 4, [B - 0.2, 5.7]);
-    wb(WX + 0.03, SX1, -0.48, 2.76, LB1, LB2, bw, 4, 4, [-0.48, 2.76]);
-    for (var treadIndex = 0; treadIndex < 16; treadIndex++) {
-      var xA = SX1 + treadIndex * 0.28, xB = xA + 0.28, treadA = MEZ - (treadIndex + 1) * 0.2;
-      var treadB = B + treadIndex * 0.2;
-      solid(xA, xB, LA1, LA2, B - 0.1, treadA - 0.42, true);
-      if (treadB - 0.45 > B) solid(xA, xB, LB1, LB2, B - 0.1, treadB - 0.45, true);
-    }
     // the shaft the stairs run in: concrete, a wall between the two flights
     wb(WX, EX, B, 5.7, 58.4, LA1, bw, 4, 4, true); wb(WX, EX, B, 5.7, LB2, 62.2, bw, 4, 4, true); wb(SX1, SX2, B, 5.7, LA2, LB1, bw, 4, 4, true);
     sheet('x', EX - 0.012, -1, LA1, LB2, B, 5.7, bw, 4, 4); sheet('x', WX + 0.012, 1, LA1, LB2, CEIL, 5.7, bw, 4, 4, [[SD.z1, SD.z2, MEZ, MEZ + 2.1]]); sheet('x', WX + 0.262, 1, LA1, LB2, B, CEIL, bw, 4, 4, [[LB1, LB2, B, B + 2.2]]);
@@ -733,9 +698,7 @@ var Aqua = (function () {
     solid(WX - 0.5, WX, LA1 - 0.2, LA2 + 0.2, B - 0.2, MEZ - 0.2); solid(WX - 0.5, WX, LB1, LB2, B + 2.3, CW - 0.2); solid(WX - 0.5, WX, LA2, LB1, B - 0.2, CW - 0.2);           // the wall at the head of the basement, by floor
     A.stairLamp = basic(0x221206, { fog: false }); box(0.3, 0.12, 0.2, M.dark, EX - 0.08, 1.9, 60.3); mesh(new THREE.SphereGeometry(0.1, 10, 8), A.stairLamp, EX - 0.16, 1.9, 60.3).userData.keep = true;
     light('stair', 0xffb060, EX - 0.9, 1.7, 60.3, 13, 1.5); light('stairLow', 0xff4030, 139.2, B + 2.2, 61.2, 9, 1.6);
-    label(['DANGER · STEEP STEPS', 'HOLD THE RAIL'], 0.87, 0.31, '#812e25', '#f3e6c3', WX + 0.45, MEZ + 1.48, LA1 + 0.019, 0, 320, '#f3e6c3');
-    label(['PLANT ACCESS ↓', 'PUMP ROOM · SOUTH CORRIDOR'], 1.2, 0.36, '#17140e', '#e2b93b', EX - 0.025, 1.23, 60.93, -PI / 2, 384, '#e2b93b');
-    label(['TURN LEFT AT THE BOTTOM', 'HYDRAULICS / PUMP ROOM'], 1.34, 0.32, '#302921', '#dab767', WX + 0.027, B + 1.74, 61.15, PI / 2, 384, '#dab767');
+    label(['PLANT ROOM  ↓', 'LIFT  ·  PUMPS  ·  FEED STORE'], 1.3, 0.42, '#17140e', '#e2b93b', WX + 0.02, MEZ + 1.7, 58.75, PI / 2, 384, '#e2b93b');
     // ---- the basement ----
     var bx1 = T.x2 + 0.5, bx2 = EX, bz1 = H.z1, bz2 = H.z2, PX = WX;                               // PX: the partition between the long hall under the gallery and the rooms east of it
     floor(bx1, bx2, bz1, bz2, B, null, null, 'hard'); flat(bx1, bx2, bz1, bz2, B, bf, 4);
@@ -748,21 +711,10 @@ var Aqua = (function () {
     [[bz1, 52.0], [53.1, 58.4], [62.2, 66.0], [67.1, bz2]].forEach(function (w) { wb(PX, PX + 0.25, B, CEIL, w[0], w[1], bw, 4, 4, [B - 0.2, CEIL]); });
     A.doorsB.forEach(function (d) { wb(PX, PX + 0.25, B + 2.1, CEIL, d[0], d[1], bw, 4, 4); box(0.3, 2.1, 0.08, M2.blue, PX + 0.125, B + 1.05, d[0] - 0.03); box(0.3, 2.1, 0.08, M2.blue, PX + 0.125, B + 1.05, d[1] + 0.03); box(0.3, 0.08, d[1] - d[0] + 0.14, M2.blue, PX + 0.125, B + 2.14, (d[0] + d[1]) / 2); });
     label(['FEED STORE'], 0.9, 0.2, '#17140e', '#e2b93b', PX - 0.012, B + 2.4, 52.55, -PI / 2, 256); label(['PUMP ROOM', 'LIFT HYDRAULICS'], 0.9, 0.3, '#17140e', '#e2b93b', PX - 0.012, B + 2.45, 66.55, -PI / 2, 256);
-    // Both leaves are spaced off their frames and parked against stops inside their own rooms.
-    A.doorsB.forEach(function (d, i) {
-      var hingeZ = d[0] + 0.075, g = new THREE.Group();
-      g.position.set(PX + 0.285, B + 0.032, hingeZ); g.rotation.y = PI / 2; scene.add(g);
-      box(0.058, 1.99, 0.94, M2.blue, 0, 1.0, 0.47, g);
-      [0.19, 1.82].forEach(function (y) {
-        box(0.072, 0.032, 0.96, EM.rustSteel, 0, y, 0.47, g);
-        cyl(0.025, 0.025, 0.17, M2.steel, 0.01, y, -0.012, g, 8);
-      });
-      [-1, 1].forEach(function (side) {
-        box(0.013, 0.19, 0.1, M2.steel, 0.033 * side, 1.01, 0.76, g);
-        box(0.078, 0.025, 0.12, M2.rail, 0.048 * side, 1.06, 0.72, g);
-      });
-      solid(PX + 0.26, PX + 1.24, hingeZ - 0.03, hingeZ + 0.03, B, B + 2.035, true);
-    });
+    // each room door: one stands open, the other hangs off a hinge
+    var d1 = new THREE.Group(); d1.position.set(PX + 0.25, B, 53.1); d1.rotation.y = -1.9; scene.add(d1); box(0.05, 2.05, 1.06, M2.blue, 0, 1.03, -0.53, d1); box(0.07, 0.12, 0.03, M2.rail, 0.04, 1.0, -0.95, d1);
+    var d2 = new THREE.Group(); d2.position.set(PX + 0.25, B, 66.0); d2.rotation.set(0.0, 1.35, 0.07); scene.add(d2); box(0.05, 2.05, 1.06, M2.blue, 0, 1.03, 0.53, d2); box(0.07, 0.12, 0.03, M2.rail, 0.04, 1.0, 0.95, d2);
+    solid(PX + 0.3, PX + 0.75, 53.1, 54.2, B - 0.2, CEIL, true); solid(PX + 0.3, PX + 0.6, 65.0, 66.0, B - 0.2, CEIL, true);
     // the observation ports into the bottom of the tank: armoured glass in riveted steel, at the height of your face
     var portGlass = new THREE.MeshStandardMaterial({ color: 0x9fd8d8, transparent: true, opacity: 0.14, roughness: 0.05, metalness: 0, depthWrite: false, envMap: envTex, envMapIntensity: 0.7, map: canvasTex(128, function (g, S) { g.fillStyle = '#fff'; g.fillRect(0, 0, S, S); for (var n = 0; n < 300; n++) { g.fillStyle = 'rgba(50,110,60,' + (0.2 + Math.random() * 0.5) + ')'; var e = Math.random() < 0.5; g.beginPath(); g.arc(e ? Math.random() * S : (Math.random() < 0.5 ? 0 : S) + (Math.random() - 0.5) * 30, e ? (Math.random() < 0.5 ? 0 : S) + (Math.random() - 0.5) * 30 : Math.random() * S, 2 + Math.random() * 6, 0, 7); g.fill(); } }) });
     A.ports.forEach(function (p2, n) {
@@ -793,64 +745,16 @@ var Aqua = (function () {
     [[146.3, 48], [146.3, 51.5]].forEach(function (sh2) { for (q = 0; q < 4; q++) box(0.4, 0.03, 2.6, M2.steel, sh2[0] - 0.2, B + 0.4 + q * 0.5, sh2[1]); [-1.28, 1.28].forEach(function (o) { box(0.04, 2.0, 0.04, M2.rail, sh2[0] - 0.02, B + 1.0, sh2[1] + o); box(0.04, 2.0, 0.04, M2.rail, sh2[0] - 0.38, B + 1.0, sh2[1] + o); }); });
     solid(145.85, 146.5, 46.6, 52.9, B - 0.2, CEIL, true);
     for (q = 0; q < 9; q++) { var bk = cyl(0.13, 0.11, 0.24, std([0x3a5f8a, 0xd8d2c2, 0x8a2a22][q % 3], 0.6), 146.1, B + 0.53 + (q % 3) * 0.5, 47.1 + q * 0.6, null, 10); if (q % 4 === 3) { bk.rotation.z = 1.5; bk.position.y += 0.02; } }
-    [[140.55, 46.55], [140.55, 47.31]].forEach(function (p, i) {
-      var x = p[0], z = p[1], body = std(0x4e5551, 0.78, { map: rustTex, metalness: 0.42 });
-      cyl(0.29, 0.24, 0.63, body, x, B + 0.32, z, null, 18);
-      [0.05, 0.22, 0.46, 0.635].forEach(function (height) { cyl(0.296, 0.296, 0.025, M2.steel, x, B + height, z, null, 18); });
-      label(['FROZEN BAIT', 'LOT 0' + (i + 3)], 0.25, 0.13, '#968b6d', '#292b26', x - 0.289, B + 0.36, z, -PI / 2, 128);
-      circles.push({ x: x, z: z, r: 0.30, top: B + 0.66 });
-    });
-    [141, 142.9, 144.8].forEach(function (x) {
-      box(1.58, 0.06, 0.04, M2.steel, x, B + 0.88, 45.539);
-      box(0.26, 0.035, 0.068, M2.rail, x, B + 0.816, 45.57);
-      for (var n = 0; n < 7; n++) box(0.052, 0.03, 0.008, M2.dark, x + 0.35 + n * 0.047, B + 0.167, 45.527);
-    });
-    label(['CHILLER OFFLINE', 'DISCARD ALL STOCK'], 0.7, 0.26, '#654638', '#dfd3aa', 141.68, B + 1.62, bz1 + 0.025, 0, 256);
     label(['FEED LOG — E. PLATYURUS', 'MON  herring 40 kg', 'WED  squid 25 kg', 'FRI  half a cow', 'she is still hungry'], 0.9, 0.9, '#e9e6da', '#23201a', 140.1, B + 1.6, bz1 + 0.02, 0, 320);
     // ---- the pump room: the lift's hydraulic set, the manifold that feeds its ram, drums and filters ----
     A.pumpAt = { x: 145.3, z: 67.4 }; A.maniAt = { x: 143.0, z: bz2 - 0.12 };
-    var pg2 = new THREE.Group(); pg2.position.set(A.pumpAt.x - 0.63, B, A.pumpAt.z); scene.add(pg2);
-    var iron = std(0x35505b, 0.61, { metalness: 0.54, map: rustTex, bumpMap: bump(5), bumpScale: 0.014 });
-    var bare = M2.steel, seal = M.rubber, burnt = EM.rustSteel;
-    function inLine(radius, length, mat, x, y, z, segments) {
-      var part = cyl(radius, radius, length, mat, x, y, z, pg2, segments || 18); part.rotation.z = PI / 2; return part;
-    }
-    function flange(radius, x, y, z) {
-      inLine(radius, 0.1, burnt, x, y, z);
-      for (var i = 0; i < 8; i++) { var a = i * PI / 4; inLine(0.034, 0.033, bare, x - 0.061, y + Math.sin(a) * radius * 0.81, z + Math.cos(a) * radius * 0.81, 6); }
-    }
-    box(2.85, 0.19, 1.65, M2.conc, 0, 0.095, 0, pg2);
-    [-0.57, 0.57].forEach(function (z) {
-      box(2.66, 0.095, 0.16, burnt, 0, 0.235, z, pg2);
-      [-1.2, -0.4, 0.55, 1.16].forEach(function (x) { cyl(0.038, 0.038, 0.055, bare, x, 0.303, z, pg2, 6); });
-    });
-    box(2.62, 0.38, 1.3, iron, 0, 0.48, 0, pg2);
-    box(2.64, 0.065, 1.32, burnt, 0, 0.702, 0, pg2);
-    [-0.75, 0.74].forEach(function (x) { box(0.36, 0.18, 0.65, iron, x, 0.78, 0, pg2); });
-    inLine(0.31, 0.95, iron, -0.64, 1.12, 0); inLine(0.34, 0.105, burnt, -1.14, 1.12, 0);
-    for (q = 0; q < 12; q++) inLine(0.338, 0.019, iron, -1.04 + q * 0.071, 1.12, 0);
-    box(0.33, 0.18, 0.31, iron, -0.65, 1.48, -0.06, pg2);
-    inLine(0.139, 0.48, seal, 0.06, 1.12, 0); flange(0.204, -0.12, 1.12, 0); flange(0.205, 0.27, 1.12, 0);
-    inLine(0.38, 0.37, iron, 0.54, 1.16, 0); flange(0.42, 0.79, 1.16, 0);
-    cyl(0.13, 0.15, 0.59, iron, 0.63, 1.65, 0, pg2, 14); cyl(0.22, 0.22, 0.1, burnt, 0.63, 1.89, 0, pg2, 14);
-    inLine(0.146, 0.36, iron, 0.82, 1.95, 0); flange(0.205, 1.015, 1.95, 0);
-    cyl(0.134, 0.134, 0.63, iron, 1.15, 2.19, 0, pg2, 16); cyl(0.164, 0.164, 0.075, burnt, 1.15, 2.43, 0, pg2, 16);
-    cyl(0.07, 0.07, 0.45, bare, -0.88, 0.96, -0.44, pg2, 12); cyl(0.108, 0.108, 0.07, burnt, -0.88, 1.2, -0.44, pg2, 16);
-    var gaugeFace = new THREE.Group(); gaugeFace.position.set(0.68, 1.61, -0.33); pg2.add(gaugeFace);
-    cyl(0.124, 0.124, 0.072, burnt, 0, 0, 0, gaugeFace, 20).rotation.x = PI / 2;
-    atlasMesh(0.2, 0.2, textTex(['PRESSURE', '0    120', 'bar'], 128, 128, '#d4ccb9', '#211f1b'), 0, 0, -0.038, gaugeFace).rotation.y = PI;
-    A.pumpGauge = dyn(box(0.009, 0.08, 0.005, M.red, 0, 0, -0.042, gaugeFace)); A.pumpGauge.geometry.translate(0, 0.036, 0);
-    A.pumpFan = dyn(new THREE.Group()); A.pumpFan.position.set(-1.208, 1.12, 0); pg2.add(A.pumpFan);
-    for (q = 0; q < 7; q++) { var fb = box(0.013, 0.19, 0.069, iron, 0, 0, 0, A.pumpFan); fb.rotation.x = q * PI * 2 / 7; fb.translateY(0.13); }
-    var fanGuard = mesh(new THREE.TorusGeometry(0.278, 0.017, 6, 26), bare, -1.235, 1.12, 0, pg2); fanGuard.rotation.y = PI / 2;
-    for (q = -4; q <= 4; q++) {
-      var rad = q * 0.06;
-      box(0.012, 2 * Math.sqrt(0.264 * 0.264 - rad * rad), 0.012, bare, -1.239, 1.12, rad, pg2);
-    }
-    atlasMesh(0.72, 0.21, textTex(['SALTMARSH HYDRAULICS', 'HPU–04  ·  118 bar'], 256, 74, '#181d1e', '#c9ccc3'), 0, 0.49, -0.658, pg2).rotation.y = PI;
-    solid(A.pumpAt.x - 2.05, A.pumpAt.x + 0.79, A.pumpAt.z - 0.82, A.pumpAt.z + 0.82, B, B + 2.56, true);
-    box(2.2, 0.035, 0.13, M2.steel, 142.8, B + 0.027, 68.45);
-    label(['SUPPLY SKID · KEEP CLEAR'], 1.2, 0.13, '#514939', '#dbbb69', 143.02, B + 0.022, 68.58, 0, 320).rotation.x = -PI / 2;
+    var pg2 = new THREE.Group(); pg2.position.set(A.pumpAt.x, B, A.pumpAt.z); scene.add(pg2);
+    box(1.5, 0.5, 0.9, std(0x2f4a5a, 0.6, { metalness: 0.4, map: rustTex }), 0, 0.3, 0, pg2); box(1.6, 0.06, 1.0, M2.steel, 0, 0.03, 0, pg2);                                    // the oil tank
+    var mot = cyl(0.2, 0.2, 0.6, std(0x35506a, 0.5, { metalness: 0.5 }), -0.3, 0.8, 0, pg2, 16); mot.rotation.z = PI / 2; for (q = 0; q < 8; q++) cyl(0.215, 0.215, 0.015, M.dark, -0.52 + q * 0.065, 0.8, 0, pg2, 16).rotation.z = PI / 2;
+    A.pumpFan = dyn(new THREE.Group()); A.pumpFan.position.set(-0.64, 0.8, 0); pg2.add(A.pumpFan); for (q = 0; q < 6; q++) { var fb = box(0.012, 0.17, 0.05, M2.steel, 0, 0, 0, A.pumpFan); fb.rotation.x = q * PI / 3; fb.translateY(0.09); }
+    cyl(0.12, 0.12, 0.3, M2.steel, 0.2, 0.8, 0, pg2, 12).rotation.z = PI / 2; cyl(0.04, 0.04, 0.5, M2.steel, 0.45, 1.0, 0, pg2, 8); cyl(0.11, 0.11, 0.04, M2.white, 0.45, 1.3, 0.02, pg2, 16).rotation.x = PI / 2;
+    A.pumpGauge = dyn(box(0.008, 0.08, 0.004, M.red, 0.45, 1.33, 0.045, pg2)); A.pumpGauge.geometry.translate(0, 0.03, 0); A.pumpGauge.position.y = 1.3;
+    solid(A.pumpAt.x - 0.85, A.pumpAt.x + 0.85, A.pumpAt.z - 0.55, A.pumpAt.z + 0.55, B - 0.2, CEIL, true);
     // its starter, on the east wall
     var stx = EX - 0.02, stz = 69.5; box(0.14, 0.6, 0.42, std(0x8a8f8c, 0.6, { metalness: 0.4 }), stx - 0.07, B + 1.4, stz); label(['HYDRAULIC PUMP', 'LIFT No. 1'], 0.36, 0.14, '#17140e', '#e2b93b', stx - 0.145, B + 1.62, stz, -PI / 2, 256);
     A.startBtn = dyn(cyl(0.035, 0.035, 0.03, std(0x1f8a3a, 0.5), stx - 0.15, B + 1.42, stz - 0.09, null, 12)); A.startBtn.rotation.z = PI / 2; cyl(0.035, 0.035, 0.03, std(0x8a1f1a, 0.5), stx - 0.15, B + 1.42, stz + 0.09, null, 12).rotation.z = PI / 2;
@@ -874,15 +778,7 @@ var Aqua = (function () {
     [[x1, z1], [x2, z1], [x1, z2], [x2, z2]].forEach(function (c) { box(0.14, CW + 2.6 - B, 0.14, EM.rustSteel, c[0] + (c[0] < cx ? 0.07 : -0.07), (B + CW + 2.6) / 2, c[1] + (c[1] < cz ? 0.07 : -0.07)); });
     meshM.map.repeat.set(8, 24); var pm = mesh(new THREE.PlaneGeometry(z2 - z1, CW + 2.4 - MEZ), meshM, x1, (CW + 2.4 + MEZ) / 2, cz); pm.rotation.y = PI / 2; pm.userData.noCast = true;
     var pm2 = mesh(new THREE.PlaneGeometry(x2 - x1, CW - MEZ), meshM.clone(), cx, (MEZ + CW) / 2, z2); pm2.material.map = meshM.map.clone(); pm2.material.map.needsUpdate = true; pm2.material.map.repeat.set(8, 14); pm2.userData.noCast = true;
-    [MEZ + 0.04, 4.9, 6.6, CW + 2.5].forEach(function (y) { box(0.08, 0.08, z2 - z1, EM.rustSteel, x1, y, cz); box(x2 - x1, 0.08, 0.08, EM.rustSteel, cx, y, z2 + 0.03); });
-    A.landingGates = [B, CW].map(function (y, i) {
-      var door = dyn(new THREE.Group()); door.position.set(cx, y, z2 + 0.015); scene.add(door);
-      box(2.16, 0.1, 0.092, EM.rustSteel, 0, 1.89, 0, door);
-      box(2.16, 0.14, 0.092, EM.rustSteel, 0, 0.21, 0, door);
-      for (var bar = 0; bar < 12; bar++) box(0.028, 1.67, 0.04, EM.rustSteel, -1.045 + bar * 0.19, 1.03, 0, door);
-      atlasMesh(0.57, 0.2, textTex(['LANDING INTERLOCK', 'WAIT FOR CAR'], 256, 90, '#341f16', '#d5ba7d'), 0, 1.38, 0.057, door);
-      return door;
-    });
+    [MEZ + 0.04, 4.9, 6.6, CW, CW + 2.4].forEach(function (y) { box(0.08, 0.08, z2 - z1, EM.rustSteel, x1, y, cz); box(x2 - x1, 0.08, 0.08, EM.rustSteel, cx, y, z2); });
     /* Between the basement's ceiling and the gallery's floor the car runs in a concrete shaft: four walls, the edge of each
        slab showing as it goes past, the floor's name stencilled at each one; and a wall on its east side right to the top. */
     var shaftM = M2.conc;
@@ -896,28 +792,15 @@ var Aqua = (function () {
     // the ram and the car
     cyl(0.22, 0.24, 1.2, M2.steel, cx, B - 0.5, cz, null, 16); A.ram = dyn(cyl(0.11, 0.11, 1, std(0xc8ced2, 0.15, { metalness: 0.95, envMap: envTex }), cx, B, cz, null, 16)); A.ram.geometry.translate(0, 0.5, 0);
     var car = A.car = dyn(new THREE.Group()); car.position.set(cx, B, cz); scene.add(car);
-    var CWd = 2.46, CH = 2.3; box(CWd, 0.08, CWd, M2.steel, 0, 0.04, 0, car); mesh(new THREE.PlaneGeometry(CWd - 0.1, CWd - 0.1), M2.grate, 0, 0.085, 0, car).rotation.x = -PI / 2;
+    var CWd = 2.5, CH = 2.3; box(CWd, 0.08, CWd, M2.steel, 0, 0.04, 0, car); mesh(new THREE.PlaneGeometry(CWd - 0.1, CWd - 0.1), M2.grate, 0, 0.085, 0, car).rotation.x = -PI / 2;
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) { box(0.07, CH, 0.07, M.yellow, c[0] * (CWd / 2 - 0.035), CH / 2, c[1] * (CWd / 2 - 0.035), car); });
     [0.95, CH].forEach(function (y) { box(CWd, 0.06, 0.06, M.yellow, 0, y, -CWd / 2 + 0.03, car); box(0.06, 0.06, CWd, M.yellow, -CWd / 2 + 0.03, y, 0, car); box(0.06, 0.06, CWd, M.yellow, CWd / 2 - 0.03, y, 0, car); });
     box(CWd, 0.06, 0.06, M.yellow, 0, CH, CWd / 2 - 0.03, car);
     var cm = M.chain.clone(); cm.map = chainTex.clone(); cm.map.needsUpdate = true; cm.map.repeat.set(12, 11);
     [[0, -CWd / 2 + 0.03, 0], [-CWd / 2 + 0.03, 0, PI / 2], [CWd / 2 - 0.03, 0, PI / 2]].forEach(function (pn) { var m = mesh(new THREE.PlaneGeometry(CWd, CH), cm, pn[0], CH / 2, pn[1], car); m.rotation.y = pn[2]; m.userData.noCast = true; });
     mesh(new THREE.PlaneGeometry(CWd, CWd), cm, 0, CH + 0.03, 0, car).rotation.x = PI / 2;
-    // Tambour leaves fold against the inner side jambs. Their envelope stays inside the car throughout the ride.
-    A.gate = [-1, 1].map(function (side) {
-      var panels = [];
-      for (var k = 0; k < 3; k++) {
-        var gl = dyn(new THREE.Group()); car.add(gl);
-        box(0.4, 0.055, 0.048, M2.steel, 0, 0.16, 0, gl); box(0.4, 0.055, 0.048, M2.steel, 0, 2.06, 0, gl);
-        [-0.185, 0.185].forEach(function (x) { box(0.032, 1.93, 0.04, EM.rustSteel, x, 1.11, 0, gl); });
-        mesh(new THREE.PlaneGeometry(0.373, 1.86), cm, 0, 1.11, 0, gl).userData.noCast = true;
-        panels.push(gl);
-      }
-      return { side: side, panels: panels };
-    });
-    box(2.36, 0.036, 0.115, M2.steel, 0, 0.078, 1.17, car);
-    box(2.38, 0.042, 0.09, M2.steel, 0, 2.16, 1.17, car);
-    [x1 + 0.39, x2 - 0.39].forEach(function (x) { box(0.13, 0.07, 0.26, M2.steel, x, B + 0.035, z2); box(0.13, 0.07, 0.26, M2.steel, x, CW + 0.035, z2); });
+    // its gate: two mesh leaves that part
+    A.gate = [-1, 1].map(function (sd) { var gl = dyn(new THREE.Group()); gl.position.set(sd * CWd / 4, 0, CWd / 2 - 0.03); car.add(gl); box(CWd / 2, 0.05, 0.05, M.yellow, 0, 0.12, 0, gl); box(CWd / 2, 0.05, 0.05, M.yellow, 0, CH - 0.2, 0, gl); box(0.05, CH - 0.3, 0.05, M.yellow, -sd * (CWd / 4 - 0.03), CH / 2 - 0.03, 0, gl); mesh(new THREE.PlaneGeometry(CWd / 2, CH - 0.35), cm, 0, CH / 2 - 0.03, 0, gl).userData.noCast = true; gl.userData.sd = sd; return gl; });
     // the pendant: a yellow box on a stalk, UP and DOWN
     var pd = new THREE.Group(); pd.position.set(CWd / 2 - 0.16, 1.25, 0.55); car.add(pd); box(0.1, 0.3, 0.16, M.yellow, 0, 0, 0, pd); cyl(0.012, 0.012, 1.0, M.rubber, 0, 0.6, 0, pd, 5);
     A.liftBtn = [dyn(cyl(0.028, 0.028, 0.024, std(0x1f8a3a, 0.5), -0.056, 0.07, 0, pd, 12)), dyn(cyl(0.028, 0.028, 0.024, std(0x8a1f1a, 0.5), -0.056, -0.07, 0, pd, 12))]; A.liftBtn.forEach(function (b) { b.rotation.z = PI / 2; });
@@ -940,8 +823,7 @@ var Aqua = (function () {
     A.deckFn = deck;
     // the east deck, over the rear gallery: where the lift lets you out
     deck(T.x2, H.x2 + 0.5, 47.5, H.z2, M2.grate, 0.3); deck(T.x2, 136, H.z1, 47.5, M2.grate, 0.3);
-    beam(T.x2, 47, 135.92, 47);
-    for (q = 1; q < 8; q++) beam(T.x2, 47 + q * 4, H.x2 + 0.5, 47 + q * 4); beam(T.x2 + 0.05, H.z1, T.x2 + 0.05, H.z2); beam(H.x2 + 0.4, 47.5, H.x2 + 0.4, H.z2);
+    for (q = 0; q < 8; q++) beam(T.x2, 47 + q * 4, H.x2 + 0.5, 47 + q * 4); beam(T.x2 + 0.05, H.z1, T.x2 + 0.05, H.z2); beam(H.x2 + 0.4, 47.5, H.x2 + 0.4, H.z2);
     rail(T.x2 + 0.1, H.z1, T.x2 + 0.1, 59.3, Y, Y, { kick: 1 }); rail(T.x2 + 0.1, 60.7, T.x2 + 0.1, H.z2, Y, Y, { kick: 1 });
     wb(H.x2 + 0.5, H.x2 + 0.75, Y - 0.3, H.h, 47.5, H.z2, M2.conc, 4, 4, [Y - 0.5, H.h]); wb(136, H.x2 + 0.75, Y + 2.5, H.h, H.z1, 47.5, M2.conc, 4, 4);
     solid(H.x2, H.x2 + 0.75, H.z1, 47.5, Y - 0.5, H.h, true); solid(136 - 0.1, 136 + 0.1, H.z1, 47.5, Y - 0.5, H.h, true);
@@ -960,16 +842,15 @@ var Aqua = (function () {
     function hangerAt(x, z, y) { cyl(0.016, 0.016, H.h - y - 1.7, M2.rail, x, (y + H.h - 1.7) / 2, z, null, 5); }
     function edgeRail(x1, z1, x2, z2, y, gaps) {                       // a rail along one edge, leaving the gaps open
       var along = Math.abs(x2 - x1) > Math.abs(z2 - z1), a1 = along ? x1 : z1, a2 = along ? x2 : z2, cuts = (gaps || []).slice().sort(function (p2, q2) { return p2[0] - q2[0]; }), a = a1;
-      function seg2(u1, u2) { if (u2 - u1 < 0.15) return; if (along) rail(u1, z1, u2, z1, y, y, { kick: 1, beast: true }); else rail(x1, u1, x1, u2, y, y, { kick: 1, beast: true }); }
+      function seg2(u1, u2) { if (u2 - u1 < 0.15) return; if (along) rail(u1, z1, u2, z1, y, y, { kick: 1 }); else rail(x1, u1, x1, u2, y, y, { kick: 1 }); }
       cuts.forEach(function (c) { seg2(a, c[0]); a = Math.max(a, c[1]); }); seg2(a, a2);
     }
     var W = A.WALKS = [
-      { n: 'S1', x1: 128.6, x2: T.x2, z1: 59.3, z2: 60.7, y: Y, r: { n: [[128.9, 130.6], [131.6, 132.8]], s: [[129.67, 130.61], [131.0, 132.2]], w: 'bar', e: null } },
-      { n: 'S2', x1: 122.4, x2: 125.8, z1: 59.3, z2: 60.7, y: Y, r: { n: [[124.2, 125.4]], s: [[124.2, 125.4]], w: 'bar', e: 'bar' } },
+      { n: 'S1', x1: 128.6, x2: T.x2, z1: 59.3, z2: 60.7, y: Y, r: { n: [[128.9, 130.6], [131.6, 132.8]], s: [[131.0, 132.2]], w: 'bar', e: null } },
+      { n: 'S2', x1: 122.4, x2: 125.8, z1: 59.3, z2: 60.7, y: Y, r: { n: [], s: [[124.2, 125.4]], w: 'bar', e: 'bar' } },
       { n: 'S3', x1: 113.4, x2: 120.6, z1: 59.3, z2: 60.7, y: Y, r: { n: [[117.4, 118.2]], s: [[116.4, 118.1]], w: null, e: 'bar' } },
-      { n: 'NW', x1: 131.6, x2: 132.8, z1: 55.7, z2: 59.3, y: Y, r: { n: 'bar', s: null, w: [], e: [] } },
-      { n: 'GN', x1: 121.6, x2: 132.8, z1: 51.4, z2: 52.8, y: Y, r: { n: [[124.6, 125.4]], s: [[124.2, 125.4]], w: 'bar', e: [] } },
-      { n: 'MN', x1: 124.2, x2: 125.4, z1: 52.8, z2: 59.3, y: Y, r: { n: null, s: null, w: [], e: [] } },
+      { n: 'NW', x1: 131.6, x2: 132.8, z1: 52.8, z2: 59.3, y: Y, r: { n: null, s: null, w: [], e: [] } },
+      { n: 'GN', x1: 121.6, x2: 132.8, z1: 51.4, z2: 52.8, y: Y, r: { n: [[124.6, 125.4]], s: [[131.6, 132.8]], w: 'bar', e: [] } },
       { n: 'SW', x1: 131.0, x2: 132.2, z1: 60.7, z2: 66.0, y: Y, r: { n: null, s: null, w: [], e: [] } },
       { n: 'J2', x1: 124.0, x2: 132.2, z1: 66.0, z2: 67.4, y: Y, r: { n: [[124.2, 125.4], [126.0, 127.7], [131.0, 132.2]], s: [[124.6, 125.4]], w: [], e: [] } },
       { n: 'JN', x1: 124.2, x2: 125.4, z1: 60.7, z2: 66.0, y: Y, r: { n: null, s: null, w: [], e: [] } },
@@ -1006,9 +887,6 @@ var Aqua = (function () {
       return g;
     }
     barrier(128.6, 59.3, 60.7, Y, -1); barrier(125.8, 59.3, 60.7, Y, 1); barrier(122.4, 59.3, 60.7, Y, -1); barrier(120.6, 59.3, 60.7, Y, 1); barrier(121.6, 51.4, 52.8, Y, -1);
-    barrier(55.7, 131.6, 132.8, Y, -1, true);
-    label(['NORTH GANTRY VIA SOUTH CROSSING', 'KEEPER ROUTE'], 1.02, 0.28, '#243336', '#e1d6ae', 131.6, Y + 1.34, 60.75, PI, 384);
-    label(['RETURN LOOP', 'NORTH GANTRY ↑'], 0.63, 0.24, '#243336', '#e1d6ae', 124.81, Y + 1.3, 60.72, 0, 256);
     // the west end of the spine: torn off where the last span came down (no barrier: this is where you go over)
     var lt = mesh(new THREE.PlaneGeometry(1.0, 1.4), M2.grate, 112.98, Y - 0.34, 60); lt.quaternion.setFromEuler(new THREE.Euler(0, 0, 0.72)).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-PI / 2, 0, 0))); lt.userData.noCast = true;
     var lbr = box(0.045, 0.045, 1.3, M2.rail, 112.9, Y + 0.6, 59.3); lbr.rotation.set(0.9, PI / 2, 0, 'YXZ');
@@ -1017,12 +895,8 @@ var Aqua = (function () {
     var c2 = box(2.2, 0.18, 0.1, EM.rustSteel, 119.4, T.water + 0.4, 52.4); c2.rotation.set(0.2, 0.3, -0.5); var c3 = mesh(new THREE.PlaneGeometry(2.0, 1.3), A.wetMats ? A.wetMats.steel : M2.grate, 119.6, T.water - 0.3, 52.0); c3.rotation.set(-PI / 2 + 0.4, 0, 0.3); c3.userData.noCast = true;
     // ---- the ladders between the levels: two stiles, rungs every 0.3 m, the top of the stiles bent over into handholds ----
     function ladder2(x, z, y1, y2, alongX) {                         // rungs along x (you climb facing z) or along z
-      var n = Math.round((y2 - y1) / 0.3), q2; [-0.24, 0.24].forEach(function (o) { box(0.045, y2 - y1 + 0.86, 0.045, M.yellow, x + (alongX ? o : 0), (y1 + y2 + 0.86) / 2, z + (alongX ? 0 : o)); var hh = mesh(new THREE.TorusGeometry(0.16, 0.022, 6, 10, PI), M.yellow, x + (alongX ? o : 0), y2 + 0.86, z + (alongX ? 0.0 : o) - 0.0); hh.rotation.y = alongX ? PI / 2 : 0; });
+      var n = Math.round((y2 - y1) / 0.3), q2; [-0.24, 0.24].forEach(function (o) { box(0.045, y2 - y1 + 1.0, 0.045, M.yellow, x + (alongX ? o : 0), (y1 + y2 + 1.0) / 2, z + (alongX ? 0 : o)); var hh = mesh(new THREE.TorusGeometry(0.16, 0.022, 6, 10, PI), M.yellow, x + (alongX ? o : 0), y2 + 1.0, z + (alongX ? 0.0 : o) - 0.0); hh.rotation.y = alongX ? PI / 2 : 0; });
       for (q2 = 0; q2 <= n; q2++) { var rg = cyl(0.014, 0.014, 0.48, M2.rail, x, y1 + 0.12 + q2 * (y2 - y1 - 0.2) / n, z, null, 6); if (alongX) rg.rotation.z = PI / 2; else rg.rotation.x = PI / 2; }
-      [0.19, 0.47, 0.75].forEach(function (height) {
-        var rg = cyl(0.014, 0.014, 0.48, M2.rail, x, y2 + height, z, null, 6);
-        rg.rotation[alongX ? 'z' : 'x'] = PI / 2;
-      });
       if (alongX) solid(x - 0.3, x + 0.3, z - 0.05, z + 0.05, y1 - 0.3, y2 + 0.4, true); else solid(x - 0.05, x + 0.05, z - 0.3, z + 0.3, y1 - 0.3, y2 + 0.4, true);
     }
     /* fz: which way you face to climb it; foot/top: where you stand on the lower and the upper walk */
@@ -1034,64 +908,23 @@ var Aqua = (function () {
     A.LADDERS.forEach(function (L) { ladder2(L.x, L.z, YL, Y, true); });
     // ---- refuges: steel cages opening off the walks, bars too close for her head.  KEEPER REFUGE on the plate over each. ----
     A.REFUGE = [{ x1: 128.9, x2: 130.6, z1: 57.8, z2: 59.3, side: -1, y: Y }, { x1: 116.4, x2: 118.1, z1: 60.7, z2: 62.2, side: 1, y: Y }, { x1: 126.0, x2: 127.7, z1: 64.5, z2: 66.0, side: -1, y: Y },
-      { x1: 118.4, x2: 119.8, z1: 54.0, z2: 55.7, side: 'e', y: YL }, { x1: 114.2, x2: 115.6, z1: 49.6, z2: 50.8, side: 'w', y: YL }];
-    var bars = [], cageSteel = std(0x758183, 0.48, { metalness: 0.72, map: metalTex, bumpMap: bump(4), bumpScale: 0.018 });
-    function cageDoor(R, open, thick) {
-      var axisX = open === 'n' || open === 's', w = axisX ? R.x2 - R.x1 : R.z2 - R.z1;
-      var root = dyn(new THREE.Group()), leaf = dyn(new THREE.Group()), depth = thick ? 0.08 : 0.045;
-      var angle = open === 'n' ? PI : open === 's' ? 0 : open === 'w' ? -PI / 2 : PI / 2;
-      var x = axisX ? (R.x1 + R.x2) / 2 : open === 'w' ? R.x1 : R.x2;
-      var z = axisX ? (open === 'n' ? R.z1 : R.z2) : (R.z1 + R.z2) / 2;
-      root.position.set(x, R.y, z); root.rotation.y = angle; scene.add(root);
-      leaf.position.x = -w / 2 + 0.055; root.add(leaf);
-      // This leaf swings into its own bay against the side wall. Stops and hinges stay on the jamb.
-      var span = w - 0.12;
-      [-0.012, span].forEach(function (edge) { box(0.056, 2.05, depth, cageSteel, edge, 1.065, 0, leaf); });
-      [0.05, 0.86, 2.07].forEach(function (y) { box(span + 0.035, 0.048, depth, cageSteel, span / 2, y, 0, leaf); });
-      if (thick) {
-        box(span - 0.035, 0.74, depth * 0.6, M2.blue, span / 2, 0.43, 0, leaf);
-        var glass = M.window.clone(); glass.opacity = 0.31; glass.depthWrite = false; glass.side = THREE.DoubleSide;
-        mesh(new THREE.PlaneGeometry(span - 0.08, 1.11), glass, span / 2, 1.47, 0, leaf);
-      }
-      for (var b = 1; b * 0.145 < span; b++) box(0.023, thick ? 1.19 : 2.01, 0.023, cageSteel, b * 0.145, thick ? 1.465 : 1.06, 0, leaf);
-      [0.22, 1.88].forEach(function (y) {
-        cyl(0.026, 0.026, 0.18, EM.rustSteel, leaf.position.x, y, 0, root, 8);
-        box(0.13, 0.075, 0.06, cageSteel, 0.026, y, 0.02, leaf);
-      });
-      var latch = span - 0.15;
-      box(0.17, 0.18, 0.07, EM.rustSteel, latch, 1.02, 0, leaf);
-      [-1, 1].forEach(function (side) { cyl(0.018, 0.018, 0.16, cageSteel, latch, 1.06, side * 0.085, leaf, 8).rotation.z = PI / 2; });
-      R.door = { leaf: leaf, root: root, latch: latch, x: x, z: z, nx: Math.sin(angle), nz: Math.cos(angle), open: 1, target: 1,
-        box: axisX ? solid(R.x1, R.x2, z - 0.037, z + 0.037, R.y, R.y + 2.12, true) : solid(x - 0.037, x + 0.037, R.z1, R.z2, R.y, R.y + 2.12, true) };
-      R.door.swept = { x1: 0, x2: 0, y1: R.y, y2: R.y + 2.11, z1: 0, z2: 0 };
-      R.door.width = span;
-      A.beastSolids.push(R.door.swept);
-      R.door.box.off = true;
-    }
+      { x1: 118.4, x2: 119.8, z1: 54.0, z2: 55.7, side: 'e', y: YL }, { x1: 114.2, x2: 115.6, z1: 49.6, z2: 50.8, side: 'w', y: YL },
+      { x1: 119.08, x2: 120.3, z1: 69.15, z2: 70.7, side: 'w', y: T.water + 0.16, noHang: true, dive: true }];          // (the last: the divers' cage at the west end of the dive station)
+    var bars = [];
     A.REFUGE.forEach(function (R) {
-      var y = R.y; if (R.side !== 'w') deckAt(R.x1, R.x2, R.z1, R.z2, y, plate, 1, 'grate'); hangerAt(R.x1, R.z1, y); hangerAt(R.x2, R.z2, y);
+      var y = R.y; if (!R.dive) deckAt(R.x1, R.x2, R.z1, R.z2, y, plate, 1, 'grate'); if (!R.noHang) { hangerAt(R.x1, R.z1, y); hangerAt(R.x2, R.z2, y); }
       var sides = R.side === 'e' ? ['e', 'n', 's'] : R.side === 'w' ? ['w', 'n', 's'] : R.side < 0 ? ['n', 'w', 'e'] : ['s', 'w', 'e'];       // the three closed sides
       sides.forEach(function (sd) {
         var x, z;
-        if (sd === 'n' || sd === 's') { z = sd === 'n' ? R.z1 : R.z2; for (x = R.x1; x <= R.x2 + 0.01; x += 0.17) bars.push([x, y + 1.1, z, 1, 2.2, 1]); A.beastSolids.push(solid(R.x1, R.x2, z - 0.06, z + 0.06, y, y + 2.21, true)); }
-        else { x = sd === 'w' ? R.x1 : R.x2; for (z = R.z1; z <= R.z2 + 0.01; z += 0.17) bars.push([x, y + 1.1, z, 1, 2.2, 1]); A.beastSolids.push(solid(x - 0.06, x + 0.06, R.z1, R.z2, y, y + 2.21, true)); }
+        if (sd === 'n' || sd === 's') { z = sd === 'n' ? R.z1 : R.z2; for (x = R.x1; x <= R.x2 + 0.01; x += 0.17) bars.push([x, y + 1.1, z, 1, 2.2, 1]); solid(R.x1, R.x2, z - 0.06, z + 0.06, y - 0.3, y + 2.6, true); }
+        else { x = sd === 'w' ? R.x1 : R.x2; for (z = R.z1; z <= R.z2 + 0.01; z += 0.17) bars.push([x, y + 1.1, z, 1, 2.2, 1]); solid(x - 0.06, x + 0.06, R.z1, R.z2, y - 0.3, y + 2.6, true); }
       });
       box(R.x2 - R.x1 + 0.1, 0.05, R.z2 - R.z1 + 0.1, plate, (R.x1 + R.x2) / 2, y + 2.22, (R.z1 + R.z2) / 2); ceilings.push({ x1: R.x1 - 0.1, x2: R.x2 + 0.1, z1: R.z1 - 0.1, z2: R.z2 + 0.1, y: y + 2.195 });
       var open = R.side === 'e' ? 'w' : R.side === 'w' ? 'e' : R.side < 0 ? 's' : 'n', lx = open === 'w' ? R.x1 : open === 'e' ? R.x2 : (R.x1 + R.x2) / 2, lz = open === 'n' ? R.z1 : open === 's' ? R.z2 : (R.z1 + R.z2) / 2;
       box(open === 'n' || open === 's' ? R.x2 - R.x1 + 0.1 : 0.08, 0.08, open === 'n' || open === 's' ? 0.08 : R.z2 - R.z1 + 0.1, M.yellow, lx, y + 2.2, lz);
-      cageDoor(R, open, false);
-      [0.045, 1.08, 2.16].forEach(function (h) {
-        [R.x1, R.x2].forEach(function (x) { box(0.058, 0.06, R.z2 - R.z1, cageSteel, x, y + h, (R.z1 + R.z2) / 2); });
-        var back = open === 'n' ? R.z2 : open === 's' ? R.z1 : null;
-        if (back !== null) box(R.x2 - R.x1, 0.06, 0.055, cageSteel, (R.x1 + R.x2) / 2, y + h, back);
-      });
-      [[R.x1, R.z1], [R.x2, R.z2]].forEach(function (p) {
-        box(0.1, 2.21, 0.1, EM.rustSteel, p[0], y + 1.11, p[1]);
-        box(0.17, 0.038, 0.17, cageSteel, p[0], y + 0.018, p[1]);
-      });
       label(['KEEPER REFUGE'], 1.2, 0.22, '#e2b93b', '#17140e', lx + (open === 'w' ? -0.02 : open === 'e' ? 0.02 : 0), y + 2.38, lz + (open === 'n' ? -0.02 : open === 's' ? 0.02 : 0), open === 'n' ? PI : open === 's' ? 0 : open === 'w' ? -PI / 2 : PI / 2, 256, '#17140e');
     });
-    WB.inst(new THREE.CylinderGeometry(0.016, 0.016, 1, 7), cageSteel, bars);
+    WB.inst(new THREE.CylinderGeometry(0.016, 0.016, 1, 5), M2.rail, bars);
     // things up there that a head can meet: the feeder's tray, the lamp shades (added below), the trusses' bottom chords
     ceilings.push({ x1: T.x1 - 6, x2: T.x2 + 3, z1: 59.7, z2: 60.3, y: H.h - 1.93 }); [106, 114, 122, 130, 138].forEach(function (x) { ceilings.push({ x1: x - 0.15, x2: x + 0.15, z1: H.z1, z2: H.z2, y: H.h - 1.8 }); });
     // the work platform over the front glass: chequer plate on two columns and brackets off the tank's frame
@@ -1117,21 +950,10 @@ var Aqua = (function () {
     // lockers, a board, buckets and poles: somebody's place of work
     for (q = 0; q < 3; q++) { wb(P1 + 0.12, P1 + 0.62, Y, Y + 1.85, 61.2 + q * 0.62, 61.78 + q * 0.62, M2.blue, 2, 2); box(0.02, 0.1, 0.03, M2.rail, P1 + 0.635, Y + 1.0, 61.7 + q * 0.62); if (q === 1) { var ld = box(0.03, 1.7, 0.56, M2.blue, P1 + 0.9, Y + 0.93, 62.44); ld.rotation.y = 1.1; } }
     solid(P1, P1 + 0.64, 61.2, 63.1, Y - 0.3, Y + 2.2, true);
-    // Maintenance locker beside the hall ladder, with steel caps and folded access card.
-    var kitX = P1 + 0.64, kitZ = 64.22;
-    box(0.84, 0.37, 0.49, M2.blue, kitX, Y + 0.19, kitZ);
-    box(0.88, 0.064, 0.52, EM.rustSteel, kitX, Y + 0.4, kitZ);
-    [-0.29, 0.29].forEach(function (x) {
-      box(0.07, 0.11, 0.028, M2.steel, kitX + x, Y + 0.355, kitZ + 0.254);
-      box(0.087, 0.041, 0.51, M2.rail, kitX + x, Y + 0.034, kitZ);
-    });
-    box(0.24, 0.032, 0.035, M.rubber, kitX, Y + 0.455, kitZ);
-    solid(kitX - 0.43, kitX + 0.43, kitZ - 0.27, kitZ + 0.27, Y, Y + 0.64, true);
-    label(['HALL EXIT', 'KEEP BOTH HANDS ON RUNGS'], 0.68, 0.24, '#254445', '#dfcf9f', P1 + 0.028, Y + 1.29, 65.27, PI / 2, 256);
     var wbd = mesh(new THREE.PlaneGeometry(1.5, 1.0), std(0xffffff, 0.5, { map: canvasTex(512, function (g, S, HH2) {
       g.fillStyle = '#e6e8e2'; g.fillRect(0, 0, S, HH2); var hand = '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive'; g.fillStyle = '#1b3f8f'; g.font = 'bold 34px ' + hand; g.fillText('WALKWAY RULES', 20, 44);
       g.font = '24px ' + hand; ['1. TWO keepers. Always.', '2. Feed from the REFUGE. Never the rail.', '3. If she goes quiet, get in a cage.', '4. A light in her eye buys you seconds.'].forEach(function (l, n) { g.fillStyle = n === 2 ? '#a8231c' : '#1a1a1a'; g.fillText(l, 20, 92 + n * 40); });
-      g.fillStyle = '#a8231c'; g.font = 'bold 26px ' + hand; g.fillText('WEST SPAN IS OUT — DO NOT CROSS', 20, 276); g.fillStyle = '#1a1a1a'; g.font = '20px ' + hand; g.fillText('The winch interlock is in Containment Control.', 20, 312);
+      g.fillStyle = '#a8231c'; g.font = 'bold 26px ' + hand; g.fillText('WEST SPAN IS OUT — DO NOT CROSS', 20, 276); g.fillStyle = '#1a1a1a'; g.font = '20px ' + hand; g.fillText('ladder is winched up. Lower it from the dive station.', 20, 312);
       g.strokeStyle = 'rgba(40,40,40,.25)'; for (var n2 = 0; n2 < 30; n2++) { g.beginPath(); var x = Math.random() * S, y = Math.random() * HH2; g.moveTo(x, y); g.lineTo(x + 30 + Math.random() * 60, y + (Math.random() - 0.5) * 10); g.stroke(); } grime(g, S, HH2, 0.8);
     }, 1, 1, true, 340) }), P1 + 0.03, Y + 1.55, 57.6); wbd.rotation.y = PI / 2; wbd.userData.noCast = true; box(0.03, 1.08, 1.58, M2.rail, P1 + 0.012, Y + 1.55, 57.6); [56.9, 58.3].forEach(function (z) { box(0.04, 1.6, 0.04, M2.rail, P1 + 0.02, Y + 0.8, z); });
     /* Paint: three five-litre tins of the aquarium's blue, red and white.  Rolled steel with a rim top and bottom and two
@@ -1169,7 +991,7 @@ var Aqua = (function () {
        with a gate at the foot that only opens from inside. */
     function ladder(x, z, y1, y2, parent, ox) { var g2 = parent || scene, n = Math.round((y2 - y1) / 0.3); box(0.045, y2 - y1, 0.045, M.yellow, (ox || 0) + x, (y1 + y2) / 2, z - 0.24, g2); box(0.045, y2 - y1, 0.045, M.yellow, (ox || 0) + x, (y1 + y2) / 2, z + 0.24, g2); for (var r = 0; r <= n; r++) cyl(0.014, 0.014, 0.48, M2.rail, (ox || 0) + x, y1 + 0.12 + r * (y2 - y1 - 0.2) / n, z, g2, 6).rotation.x = PI / 2; }
     A.L1 = { x: T.x1 + 0.42, z: 64.6, top: Y, foot: T.water - 0.6 }; ladder(A.L1.x, A.L1.z, 6.9, Y + 1.1);
-    A.ladderDrop = dyn(new THREE.Group()); scene.add(A.ladderDrop); ladder(A.L1.x, A.L1.z, 0, 3.4, A.ladderDrop, 0); A.ladderDrop.userData.up = 6.6; A.ladderDrop.userData.down = T.water - 0.7;
+    A.ladderDrop = dyn(new THREE.Group()); scene.add(A.ladderDrop); ladder(A.L1.x, A.L1.z, 0, 3.4, A.ladderDrop, 0.05); A.ladderDrop.userData.up = 6.6; A.ladderDrop.userData.down = T.water - 0.7;
     box(0.5, 0.3, 0.3, M.yellow, A.L1.x - 0.2, Y + 1.3, A.L1.z + 0.5); cyl(0.1, 0.1, 0.36, M2.steel, A.L1.x - 0.2, Y + 1.3, A.L1.z + 0.5, null, 12).rotation.x = PI / 2;                    // its winch
     A.L2 = { x: P1 - 0.3, z: 66.35, top: Y, foot: 0 }; ladder(A.L2.x, A.L2.z, 0, Y + 1.1);
     for (q = 0; q < 10; q++) { var hp = mesh(new THREE.TorusGeometry(0.38, 0.016, 5, 14, PI * 1.5), M2.rail, A.L2.x - 0.3, 2.4 + q * 0.62, A.L2.z); hp.rotation.set(PI / 2, 0, PI * 0.75); }
@@ -1177,137 +999,57 @@ var Aqua = (function () {
     A.cageGate = dyn(new THREE.Group()); A.cageGate.position.set(A.L2.x - 0.72, 0, A.L2.z - 0.42); scene.add(A.cageGate); for (q = 0; q < 6; q++) box(0.02, 2.2, 0.02, M.yellow, 0, 1.1, q * 0.168, A.cageGate); box(0.03, 0.04, 0.86, M.yellow, 0, 2.2, 0.42, A.cageGate); box(0.03, 0.04, 0.86, M.yellow, 0, 0.1, 0.42, A.cageGate); box(0.05, 0.14, 0.08, M.gold, 0.02, 1.1, 0.8, A.cageGate);
     [[A.L2.x - 0.72, A.L2.z - 0.42], [A.L2.x - 0.72, A.L2.z + 0.42]].forEach(function (c) { box(0.05, 2.3, 0.05, M.yellow, c[0], 1.15, c[1]); });
     box(0.02, 2.2, 0.02, M.yellow, A.L2.x - 0.36, 1.1, A.L2.z - 0.42); box(0.02, 2.2, 0.02, M.yellow, A.L2.x - 0.36, 1.1, A.L2.z + 0.42); for (q = 0; q < 4; q++) { box(0.72, 0.02, 0.02, M.yellow, A.L2.x - 0.36, 0.3 + q * 0.62, A.L2.z - 0.42); box(0.72, 0.02, 0.02, M.yellow, A.L2.x - 0.36, 0.3 + q * 0.62, A.L2.z + 0.42); }
-    A.cageBox = solid(A.L2.x - 0.8, A.L2.x - 0.65, A.L2.z - 0.5, A.L2.z + 0.5, -0.3, 2.6, true);
-    [-0.43, 0.43].forEach(function (offset) { solid(A.L2.x - 0.74, A.L2.x + 0.07, A.L2.z + offset - 0.04, A.L2.z + offset + 0.04, -0.3, 2.6, true); });
+    A.cageBox = solid(A.L2.x - 0.8, A.L2.x + 0.1, A.L2.z - 0.5, A.L2.z + 0.5, -0.3, 2.6, true);
     label(['KEEPERS ONLY', 'GATE OPENS FROM INSIDE'], 0.6, 0.22, '#8d1f18', '#f1ecdd', A.L2.x - 0.74, 1.7, A.L2.z, -PI / 2, 256, '#f1ecdd');
-    // Water-level service islands. The only enclosed station is the control room on the south bridge.
-    var DY = T.water + 0.24;
-    var hub = { x1: 120.65, x2: 123.35, z1: 58.65, z2: 61.35, y: DY };
-    var zones = A.WATERPLANT = [
-      { x1: 111.1, x2: 114.4, z1: 58.5, z2: 61.5, y: DY, name: 'Feeding winch', dial: 'BAIT WINCH',
-        labels: ['HERRING', 'SQUID', 'MACKEREL'], lots: ['06', '14', '19'], x: 112.05, z: 60, yaw: -PI / 2, id: 0 },
-      { x1: 120.3, x2: 123.7, z1: 50.2, z2: 53.1, y: DY, name: 'Flow controls', dial: 'FLOW RETURN',
-        labels: ['NORTH', 'WEST', 'SOUTH'], x: 122, z: 51.02, yaw: PI, id: 1 },
-      { x1: 129.75, x2: 132.95, z1: 58.5, z2: 61.5, y: DY, name: 'Electrical station', dial: 'TRIP RELAY',
-        labels: ['R–12', 'R–17', 'R–24'], x: 132.05, z: 60, yaw: PI / 2, id: 2 }
-    ];
-    var D = A.DIVE = { x1: 119.65, x2: 124.35, z1: 67.15, z2: 70.45, y: DY, name: 'Control room' };
-    var bridges = [
-      { x1: 114.4, x2: hub.x1, z1: 59.29, z2: 60.71, y: DY },
-      { x1: 121.29, x2: 122.71, z1: 53.1, z2: hub.z1, y: DY },
-      { x1: hub.x2, x2: 129.75, z1: 59.29, z2: 60.71, y: DY },
-      { x1: 121.29, x2: 122.71, z1: hub.z2, z2: D.z1, y: DY }
-    ];
-    A.waterDecks = [hub, D].concat(zones, bridges);
-    A.waterDecks.forEach(function (zone) {
-      var lng = zone.x2 - zone.x1 >= zone.z2 - zone.z1;
-      deckAt(zone.x1, zone.x2, zone.z1, zone.z2, DY, plate, 0.9);
-      if (lng) {
-        [zone.z1 + 0.07, zone.z2 - 0.07].forEach(function (z) { beamAt(zone.x1, z, zone.x2, z, DY, 0.13); });
-        for (var x = zone.x1 + 0.45; x < zone.x2; x += 1.2) beamAt(x, zone.z1, x, zone.z2, DY - 0.085, 0.07);
-      } else {
-        [zone.x1 + 0.07, zone.x2 - 0.07].forEach(function (x) { beamAt(x, zone.z1, x, zone.z2, DY, 0.13); });
-        for (var z = zone.z1 + 0.45; z < zone.z2; z += 1.2) beamAt(zone.x1, z, zone.x2, z, DY - 0.085, 0.07);
-      }
-    });
-    // The tank-side corners are open at marked swim ladders. Ruptured rail sections give the animal striking lanes.
-    bridges.forEach(function (w, i) {
-      var lng = i % 2 === 0, a = lng ? w.x1 : w.z1, b = lng ? w.x2 : w.z2;
-      var gap = [[lerp(a, b, 0.28), lerp(a, b, 0.72)]];
-      if (lng) { edgeRail(w.x1, w.z1, w.x2, w.z1, DY, gap); edgeRail(w.x1, w.z2, w.x2, w.z2, DY, gap); }
-      else { edgeRail(w.x1, w.z1, w.x1, w.z2, DY, gap); edgeRail(w.x2, w.z1, w.x2, w.z2, DY, gap); }
-    });
-    zones.forEach(function (R) {
-      var platform = new THREE.Group(); platform.position.set(R.x, DY, R.z); platform.rotation.y = R.yaw; scene.add(platform);
-      // Marine-rated cabinet, pedestal, faceplate, viewing indicator and detented selector.
-      box(1.04, 0.1, 0.6, EM.rustSteel, 0, 0.05, 0, platform);
-      [-0.37, 0.37].forEach(function (x) {
-        box(0.075, 1.12, 0.083, cageSteel, x, 0.6, 0, platform);
-        [-0.18, 0.18].forEach(function (z) { cyl(0.025, 0.025, 0.034, cageSteel, x, 0.112, z, platform, 6); });
-      });
-      box(0.97, 0.67, 0.39, M2.blue, 0, 1.08, 0, platform);
-      box(0.99, 0.075, 0.48, EM.rustSteel, 0, 1.44, 0.02, platform);
-      box(0.91, 0.59, 0.028, cageSteel, 0, 1.085, -0.209, platform);
-      atlasMesh(0.73, 0.104, textTex([R.dial], 320, 47, '#212b2b', '#e5cd8a'), 0, 1.31, -0.226, platform).rotation.y = PI;
-      R.display = document.createElement('canvas'); R.display.width = 256; R.display.height = 64;
-      R.displayTex = new THREE.CanvasTexture(R.display); R.displayTex.encoding = THREE.sRGBEncoding;
-      mesh(new THREE.PlaneGeometry(0.59, 0.104), basic(0xffffff, { map: R.displayTex }), -0.055, 0.91, -0.226, platform).rotation.y = PI;
-      var indicator = R.signal = basic(0x9c5024, { fog: false }); indicator.userData.keep = true;
-      cyl(0.045, 0.045, 0.016, M.dark, -0.31, 1.12, -0.23, platform, 12).rotation.x = PI / 2;
-      mesh(new THREE.SphereGeometry(0.028, 9, 7), indicator, -0.31, 1.12, -0.241, platform).userData.keep = true;
-      R.selector = dyn(new THREE.Group()); R.selector.position.set(0.14, 1.08, -0.245); platform.add(R.selector);
-      cyl(0.095, 0.095, 0.062, M.dark, 0, 0, 0, R.selector, 16).rotation.x = PI / 2;
-      box(0.038, 0.124, 0.07, EM.rustSteel, 0, 0.023, -0.026, R.selector);
-      box(0.012, 0.046, 0.006, M.yellow, 0, 0.055, -0.061, R.selector);
-      R.useX = R.x - Math.sin(R.yaw) * 0.76; R.useZ = R.z - Math.cos(R.yaw) * 0.76;
-      var sx = R.id === 1 ? 0.54 : 0.3, sz = R.id === 1 ? 0.3 : 0.54;
-      var block = solid(R.x - sx, R.x + sx, R.z - sz, R.z + sz, DY, DY + 1.47, true);
-      A.beastSolids.push(block);
-
-    });
-    // The control room has a framed tank window across the north face, a clear sightline through the door and a sealed roof.
-    var wallH = 2.36, midX = (D.x1 + D.x2) / 2, midZ = (D.z1 + D.z2) / 2, slot = 0.72;
-    var shellM = std(0x44616a, 0.75, { metalness: 0.38, map: rustTex, bumpMap: bump(5), bumpScale: 0.016 });
-    [D.x1, D.x2].forEach(function (x) { wb(x - 0.06, x + 0.06, DY, DY + wallH, D.z1, D.z2, shellM, 3, 2.5); A.beastSolids.push(solid(x - 0.06, x + 0.06, D.z1, D.z2, DY - 0.1, DY + wallH, true)); });
-    wb(D.x1, D.x2, DY, DY + wallH, D.z2 - 0.06, D.z2 + 0.06, shellM, 3, 2.5);
-    A.beastSolids.push(solid(D.x1, D.x2, D.z2 - 0.06, D.z2 + 0.06, DY - 0.1, DY + wallH, true));
-    [[D.x1, midX - slot], [midX + slot, D.x2]].forEach(function (face) {
-      var yA = DY + 0.8, yB = DY + 1.98, span = face[1] - face[0], mx = (face[0] + face[1]) / 2;
-      box(span, 0.8, 0.12, shellM, mx, DY + 0.4, D.z1);
-      box(span, wallH - 1.98, 0.14, shellM, mx, DY + (wallH + 1.98) / 2, D.z1);
-      var win = M.window.clone(); win.opacity = 0.27; win.depthWrite = false; win.side = THREE.DoubleSide;
-      mesh(new THREE.PlaneGeometry(span - 0.075, yB - yA), win, mx, (yA + yB) / 2, D.z1);
-      [yA, yB].forEach(function (y) { box(span, 0.082, 0.16, EM.rustSteel, mx, y, D.z1); });
-      [face[0] + 0.04, mx, face[1] - 0.04].forEach(function (x) { box(0.075, yB - yA, 0.145, cageSteel, x, (yA + yB) / 2, D.z1); });
-      A.beastSolids.push(solid(face[0], face[1], D.z1 - 0.06, D.z1 + 0.06, DY - 0.1, DY + wallH, true));
-    });
-    box(D.x2 - D.x1 + 0.16, 0.13, D.z2 - D.z1 + 0.16, plate, midX, DY + wallH, midZ);
-    box(slot * 2, 0.22, 0.17, EM.rustSteel, midX, DY + 2.21, D.z1);
-    ceilings.push({ x1: D.x1, x2: D.x2, z1: D.z1, z2: D.z2, y: DY + wallH - 0.065 });
-    // cageDoor attaches the mechanism to its doorway bounds.
-    var controlDoorway = { x1: midX - slot, x2: midX + slot, z1: D.z1, z2: D.z2, y: DY };
-    cageDoor(controlDoorway, 'n', true); D.door = controlDoorway.door;
-    label(['OCEAN HALL', 'CONTAINMENT CONTROL'], 1.34, 0.21, '#273037', '#e4cb93', midX, DY + 2.17, D.z1 - 0.093, PI, 384);
-    var cab = new THREE.Group(); cab.position.set(D.x2 - 0.42, DY, D.z1 + 1.71); cab.rotation.y = PI / 2; scene.add(cab); A.cab = cab;
-    box(1.04, 1.71, 0.38, shellM, 0, 0.86, 0, cab);
-    box(1.12, 0.08, 0.47, cageSteel, 0, 1.75, 0, cab);
-    box(0.96, 0.98, 0.03, EM.rustSteel, 0, 1.09, -0.205, cab);
-    atlasMesh(0.81, 0.22, textTex(['EMERGENCY TRIP', 'CLOSE DOOR BEFORE ARMING'], 384, 104, '#4e2b23', '#f3d59b'), 0, 1.48, -0.225, cab).rotation.y = PI;
-    cyl(0.088, 0.088, 0.07, cageSteel, 0, 1.05, -0.24, cab, 16).rotation.x = PI / 2;
-    A.breaker = dyn(new THREE.Group()); A.breaker.position.set(0, 1.05, -0.26); cab.add(A.breaker);
-    box(0.052, 0.056, 0.39, M.red, 0, 0, -0.195, A.breaker);
-    cyl(0.025, 0.025, 0.44, M.rubber, 0, 0, -0.39, A.breaker, 16).rotation.z = PI / 2;
-    [-0.225, 0.225].forEach(function (x) { cyl(0.032, 0.032, 0.025, cageSteel, x, 0, -0.39, A.breaker, 12).rotation.z = PI / 2; });
-    A.BRK_GRIP = { half: 0.167, r: 0.025, z: -0.39 };
-    A.controlUse = new THREE.Vector3(0, 0, -0.93); cab.updateMatrixWorld(true); cab.localToWorld(A.controlUse);
-    solid(D.x2 - 0.65, D.x2 - 0.15, cab.position.z - 0.53, cab.position.z + 0.53, DY, DY + 1.8, true);
-    var boardCanvas = document.createElement('canvas'); boardCanvas.width = 768; boardCanvas.height = 480;
-    var boardTex = new THREE.CanvasTexture(boardCanvas); boardTex.encoding = THREE.sRGBEncoding;
-    var ledger = mesh(new THREE.PlaneGeometry(1.63, 1.02), std(0xffffff, 0.87, { map: boardTex }), D.x1 + 0.15, DY + 1.44, midZ);
-    ledger.rotation.y = PI / 2; A.controlLedger = boardCanvas; A.controlLedgerTex = boardTex;
-    box(0.043, 1.091, 1.71, EM.rustSteel, D.x1 + 0.12, DY + 1.44, midZ);
-    A.beacon = basic(0x402008, { fog: false });
-    mesh(new THREE.SphereGeometry(0.084, 12, 8), A.beacon, midX + 0.95, DY + wallH + 0.14, D.z1 + 0.16).userData.keep = true;
-    light('dive', 0xffb151, midX, DY + 2.09, D.z1 + 0.31, 12, 1.35);
-    A.swimEdges = [
-      { x: 122, z: 59.65, x1: hub.x1, x2: hub.x2, z1: hub.z1, z2: hub.z2, y: DY },
-      { x: 113.7, z: 61.25, x1: zones[0].x1, x2: zones[0].x2, z1: zones[0].z1, z2: zones[0].z2, y: DY },
-      { x: 122.91, z: 52, x1: zones[1].x1, x2: zones[1].x2, z1: zones[1].z1, z2: zones[1].z2, y: DY },
-      { x: 131.18, z: 61.1, x1: zones[2].x1, x2: zones[2].x2, z1: zones[2].z1, z2: zones[2].z2, y: DY }
-    ];
-    A.swimEdges.forEach(function (edge) {
-      var east = edge.x > 128, north = edge.z < 55;
-      var x = edge.x, z = north ? edge.z1 : edge.z2;
-      if (east) { x = edge.x2; z = edge.z; }
-            edge.edgeX = x; edge.edgeZ = z; edge.fromX = x + (east ? 0.55 : 0); edge.fromZ = z + (east ? 0 : north ? -0.55 : 0.55);
-      for (var r = 0; r < 4; r++) {
-        var rung = cyl(0.023, 0.023, 0.66, cageSteel, x, DY - 0.11 - r * 0.29, z, null, 8);
-        rung.rotation[east ? 'x' : 'z'] = PI / 2;
-      }
-      for (var e = -1; e <= 1; e += 2) {
-        box(0.055, 1.41, 0.055, cageSteel, x + (east ? 0 : e * 0.33), DY - 0.51, z + (east ? e * 0.33 : 0));
-      }
-    });
+    // the dive station: a platform at the water on the south side, an insulated mat, the cabinet with the tank's main breaker
+    var D1 = 119, D2 = 123, DZ = 68.4, DY = T.water + 0.16; A.DIVE = { x1: D1, x2: D2, z1: DZ, z2: T.z2 - 0.25, y: DY };
+    A.diveFloor = floor(D1, D2, DZ, T.z2 - 0.25, DY, null, null, 'grate');
+    var dp = mesh(new THREE.PlaneGeometry(D2 - D1, T.z2 - 0.25 - DZ), plate, (D1 + D2) / 2, DY, (DZ + T.z2 - 0.25) / 2); dp.rotation.x = -PI / 2; dp.userData.noCast = true;
+    box(D2 - D1, 0.2, 0.1, EM.rustSteel, (D1 + D2) / 2, DY - 0.11, DZ + 0.05); [D1 + 0.05, D2 - 0.05].forEach(function (x) { box(0.1, 0.2, T.z2 - 0.25 - DZ, EM.rustSteel, x, DY - 0.11, (DZ + T.z2 - 0.25) / 2); var st = box(0.1, 0.1, 3.2, A.wetMats.steel, x, DY - 1.4, DZ + 1.2); st.rotation.x = -0.9; });
+    var mat2 = mesh(new THREE.PlaneGeometry(1.5, 1.3), std(0x17181a, 0.95, { bumpMap: bump(10), bumpScale: 0.03 }), D2 - 1.0, DY + 0.012, T.z2 - 1.05); mat2.rotation.x = -PI / 2; mat2.userData.noCast = true;
+    label(['INSULATING MAT 1000 V'], 0.9, 0.12, '#17181a', '#e2b93b', D2 - 1.0, DY + 0.016, T.z2 - 0.5, 0, 256).rotation.x = -PI / 2;
+    var cab = new THREE.Group(); cab.position.set(D2 - 1.0, DY, T.z2 - 0.42); scene.add(cab); A.cab = cab;
+    box(0.9, 1.5, 0.3, std(0x8a8f8c, 0.6, { metalness: 0.4, map: rustTex }), 0, 0.95, 0, cab); box(0.96, 0.05, 0.36, M.dark, 0, 1.72, 0, cab); box(0.06, 0.4, 0.06, M2.steel, -0.3, 0.1, 0, cab); box(0.06, 0.4, 0.06, M2.steel, 0.3, 0.1, 0, cab);
+    atlasMesh(0.8, 0.26, textTex(['TANK LIGHTING & PLANT', 'MAIN FEEDER  480 V'], 384, 120, '#e2b93b', '#17140e', '#17140e', false), 0, 1.5, -0.152, cab).rotation.y = PI;
+    atlasMesh(0.8, 0.22, textTex(['DANGER  ISOLATE BEFORE DIVING', 'A FAULT PUTS THE WATER LIVE'], 384, 104, '#8d1f18', '#f1ecdd', '#f1ecdd', false), 0, 0.5, -0.152, cab).rotation.y = PI;
+    /* The tank's main breaker: a 480 V air circuit breaker of the old kind.  It is closed in three moves, and the plate on the
+       door says so: 1 the feeder isolator (out at the tank wall by the ladder) must be ON; 2 the closing spring must be charged
+       with the pump handle on the cabinet's right side (five strokes; the flag shows CHARGED); 3 the closing lever is hauled
+       down through its quarter turn against the latch.  The lever: a steel arm out of the door on a boss, a rubber-gripped
+       cross bar at its end for two hands. */
+    var steelP = std(0x5a6064, 0.5, { metalness: 0.6, map: metalTex }), grip = std(0x1a1a1a, 0.85, { bumpMap: bump(8), bumpScale: 0.004 }), redP = std(0x8a1f1a, 0.55);
+    cyl(0.09, 0.09, 0.06, steelP, 0, 1.12, -0.18, cab, 16).rotation.x = PI / 2;                                                       // the boss
+    A.breaker = dyn(new THREE.Group()); A.breaker.position.set(0, 1.12, -0.2); cab.add(A.breaker);
+    box(0.05, 0.05, 0.5, redP, 0, 0, -0.25, A.breaker); var cb2 = cyl(0.022, 0.022, 0.42, grip, 0, 0, -0.5, A.breaker, 12); cb2.rotation.z = PI / 2;      // the arm, the cross bar
+    [-1, 1].forEach(function (e) { cyl(0.026, 0.026, 0.02, steelP, e * 0.215, 0, -0.5, A.breaker, 12).rotation.z = PI / 2; });
+    A.BRK_GRIP = { half: 0.17, r: 0.022, z: -0.5 };                                                                                  // (where hands go on the bar, in the lever's frame)
+    // the spring: its pump handle on the right side, and the flag and dial in the door
+    // (the spring's charging lever: out of the door low on the left as you face it, a ratchet boss, an arm toward you with a grip across its end)
+    cyl(0.05, 0.05, 0.05, steelP, 0.3, 0.84, -0.17, cab, 14).rotation.z = PI / 2;
+    A.pumpH = dyn(new THREE.Group()); A.pumpH.position.set(0.3, 0.84, -0.2); A.pumpH.rotation.x = 0.5; cab.add(A.pumpH); A.pumpH.userData.rest = 0.5;
+    box(0.03, 0.03, 0.4, steelP, 0, 0, -0.2, A.pumpH); var ph2 = cyl(0.02, 0.02, 0.15, grip, 0, 0, -0.41, A.pumpH, 10); ph2.rotation.z = PI / 2; [-1, 1].forEach(function (e) { cyl(0.024, 0.024, 0.012, steelP, e * 0.08, 0, -0.41, A.pumpH, 10).rotation.z = PI / 2; });
+    A.PUMP_GRIP = new THREE.Vector3(0, 0, -0.41);
+    var dial = mesh(new THREE.CircleGeometry(0.07, 20), std(0xffffff, 0.5, { map: canvasTex(128, function (g, S) { g.fillStyle = '#e9e6da'; g.fillRect(0, 0, S, S); g.fillStyle = '#8d1f18'; g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 58, PI * 0.75, PI * 1.25); g.fill(); g.fillStyle = '#2f9a5a'; g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 58, PI * 1.85, PI * 2.25); g.fill(); g.fillStyle = '#e9e6da'; g.beginPath(); g.arc(64, 64, 40, 0, 7); g.fill(); g.fillStyle = '#17140e'; g.font = 'bold 15px Arial'; g.textAlign = 'center'; g.fillText('SPRING', 64, 92); }) }), 0.28, 1.36, -0.152, cab); dial.rotation.y = PI;
+    A.springN = dyn(box(0.006, 0.055, 0.004, M.dark, 0.28, 1.36, -0.156, cab)); A.springN.geometry.translate(0, 0.022, 0);
+    A.flag = basic(0x3a0a06, { fog: false }); mesh(new THREE.PlaneGeometry(0.14, 0.05), A.flag, 0.28, 1.25, -0.153, cab).rotation.y = PI;
+    // the order, on a plate on the door, and the lamps: ISOLATOR, SPRING, LIVE
+    atlasMesh(0.34, 0.2, textTex(['TO CLOSE:', '1  ISOLATOR ON (TANK WALL)', '2  CHARGE SPRING  ×5', '3  HAUL LEVER DOWN'], 256, 150, '#e9e2d0', '#17140e', '#17140e', false), -0.24, 1.42, -0.152, cab).rotation.y = PI;
+    A.isoLamp = basic(0x3a0a06, { fog: false }); A.brkLamp = basic(0x3a0a06, { fog: false }); A.ladLamp = basic(0x0a1a0c, { fog: false });
+    [[A.isoLamp, -0.33, 'ISOL'], [A.flag, null, null], [A.brkLamp, -0.2, 'LIVE'], [A.ladLamp, -0.07, 'WINCH']].forEach(function (L) { if (L[1] === null) return; mesh(new THREE.SphereGeometry(0.022, 8, 8), L[0], L[1], 1.25, -0.16, cab).userData.keep = true; atlasMesh(0.11, 0.035, textTex([L[2]], 96, 30, '#17140e', '#e2b93b', null, false), L[1], 1.205, -0.152, cab).rotation.y = PI; });
+    // the feeder isolator: a grey box on a bracket on the tank's west wall, at the waterline by the ladder, its big rotary handle
+    var iso = new THREE.Group(); iso.position.set(T.x1 + 0.08, T.water + 0.42, 62.6); iso.rotation.y = PI / 2; scene.add(iso); A.iso = iso;
+    box(0.5, 0.06, 0.12, A.wetMats.steel, 0, -0.32, -0.03, iso); box(0.06, 0.7, 0.06, A.wetMats.steel, -0.2, -0.05, -0.04, iso); box(0.06, 0.7, 0.06, A.wetMats.steel, 0.2, -0.05, -0.04, iso);
+    box(0.34, 0.42, 0.16, std(0x9aa0a0, 0.6, { metalness: 0.3, map: rustTex }), 0, 0.04, 0.05, iso); box(0.36, 0.03, 0.18, M.dark, 0, 0.27, 0.05, iso);
+    atlasMesh(0.3, 0.09, textTex(['FEEDER ISOLATOR', 'TANK MAIN  ·  480 V'], 256, 76, '#e2b93b', '#17140e', '#17140e', false), 0, 0.19, 0.131, iso);
+    cyl(0.07, 0.07, 0.02, std(0xe2b93b, 0.6), 0, -0.02, 0.135, iso, 20).rotation.x = PI / 2;
+    A.isoH = dyn(new THREE.Group()); A.isoH.position.set(0, -0.02, 0.15); iso.add(A.isoH); box(0.2, 0.045, 0.045, redP, 0, 0, 0.02, A.isoH); cyl(0.03, 0.03, 0.03, redP, 0, 0, 0.0, A.isoH, 12).rotation.x = PI / 2;
+    atlasMesh(0.06, 0.03, textTex(['OFF'], 64, 32, '#17140e', '#f1ecdd', null, false), -0.12, 0.08, 0.146, iso); atlasMesh(0.06, 0.03, textTex(['ON'], 64, 32, '#17140e', '#f1ecdd', null, false), 0.0, -0.13, 0.146, iso);
+    A.ISO_AT = new THREE.Vector3(T.x1 + 0.28, T.water + 0.4, 62.6);
+    solid(D2 - 1.5, D2 - 0.5, T.z2 - 0.62, T.z2 - 0.2, DY - 0.3, DY + 2, true);
+    A.beacon = basic(0x402008, { fog: false }); cyl(0.03, 0.03, 0.5, M2.steel, D1 + 0.25, DY + 2.0, T.z2 - 0.4, null, 6); mesh(new THREE.SphereGeometry(0.09, 10, 8), A.beacon, D1 + 0.25, DY + 2.3, T.z2 - 0.4).userData.keep = true; box(0.05, 2.3, 0.05, M2.steel, D1 + 0.25, DY + 1.15, T.z2 - 0.34);
+    light('dive', 0xffa030, (D1 + D2) / 2, DY + 1.9, T.z2 - 1.0, 13, 1.4);
+    rail(D1, T.z2 - 0.3, D1, DZ + 1.0, DY, DY, { collide: false }); rail(D2, T.z2 - 0.3, D2, DZ + 1.0, DY, DY, { collide: false });
+    label(['DIVE STATION', 'NO DIVER ENTERS ALONE'], 1.2, 0.3, '#1d4a58', '#e9e2d0', D1 + 1.2, DY + 1.9, T.z2 - 0.27, PI, 384, '#7fd6e8');
     // the feeder: a cable tray under the trusses down the length of the walk, and lamps hung off it
     box(T.x2 - T.x1 + 6, 0.05, 0.3, M2.steel, (T.x1 + T.x2) / 2 - 1, H.h - 1.9, 60.0); var fd = cyl(0.045, 0.045, T.x2 - T.x1 + 6, M.rubber, (T.x1 + T.x2) / 2 - 1, H.h - 1.84, 60.0, null, 8); fd.rotation.z = PI / 2;
     A.lamps = [];

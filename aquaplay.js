@@ -19,21 +19,14 @@
   A.mark();
   A.finish();
   A.newState = function (done) {
-    var s = { door: !!done, staff: done ? 3 : 0, pump: !!done, mani: newMani(), lift: done ? 1 : 0, top: !!done, fell: !!done, plant: newPlant(done), dead: !!done, power: !!done, ladder: !!done, gate: !!done, seen: {} };
+    var s = { door: !!done, staff: done ? 3 : 0, pump: !!done, mani: newMani(), lift: done ? 1 : 0, top: !!done, fell: !!done, iso: !!done, spring: done ? 5 : 0, dead: !!done, power: !!done, ladder: !!done, gate: !!done, seen: {} };
     if (done) solveMani(s.mani);
     return s;
   };
-  function newPlant(done) {
-    var clues = [0, 1, 2].map(function () { return Math.floor(Math.random() * 3); });
-    var relayTags = [0, 1, 2]; shuffle(relayTags);
-    clues[2] = relayTags[clues[1]];
-    return { clues: clues, relayTags: relayTags, selected: clues.map(function (n) { return done ? n : (n + 1 + Math.floor(Math.random() * 2)) % 3; }),
-      online: [!!done, !!done, !!done], briefed: false };
-  }
   A.started = function () { return !!S().door || inRect(player.x, player.z, AQ, 14); };
 
   // ================= the way in =================
-  var door = dyn(new THREE.Group()), doorA = 0, handleG = dyn(new THREE.Group());
+  var door = dyn(new THREE.Group()), doorA = 0, doorJ = 0, handleG = dyn(new THREE.Group());
   (function () {
     door.position.set(G.x1 - 0.045, 0, 59.52); scene.add(door);
     box(0.05, 2.06, 0.96, M2.blue, 0, 1.03, 0.48, door);
@@ -46,33 +39,14 @@
   var doorBox = A.solid(G.x1 - 0.5, G.x1, 59.5, 60.5), doorLeafBox = A.solid(G.x1, G.x1 + 0.96, 59.4, 59.56, null, null, true); doorLeafBox.off = true;
   A.gather('shell');
   function openDoor() {
-    var elapsed = 0, start = camera.position.clone(), yaw = camera.rotation.y, pitch = camera.rotation.x, reached = false;
-    var plate = new V3(-0.033, 1.22, 0.83), palm = at(door, plate.x, plate.y, plate.z), p = new V3();
-    var stand = new V3(G.x1 - 0.59, 1.62, 60.48);
-    startCine({ update: function (dt) {
-      elapsed += dt;
-      var k = seg(elapsed, 0, 0.54), weight = hump(elapsed, 0.57, 0.92, 1.05, 1.39);
-      p.copy(start).lerp(stand, k); p.x += weight * 0.055; p.y -= weight * 0.04;
-      var look = palm(), heading = Math.atan2(p.x - look.x, p.z - look.z), tilt = Math.atan2(look.y - p.y, Math.hypot(p.x - look.x, p.z - look.z));
-      setCam(p.x, p.y, p.z, lerp(pitch, tilt + 0.1, k), yaw + angDiff(heading, yaw) * k, -weight * 0.025);
-      player.yaw = player.cy = camera.rotation.y;
-      if (elapsed >= 0.52 && !reached) {
-        reached = true;
-        Hands.pushDoor('aqPush', door, plate, new V3(-1, 0, 0), function () {
-          S().door = true;
-          Sfx.play('door_open', { vol: 0.88, rate: 0.84 });
-        }, { reach: 0.34, hold: 0.18, outT: 0.38, anatomical: true });
-      }
-      A.step(dt, false, true);
-      Hands.update(dt, { yaw: camera.rotation.y, pitch: camera.rotation.x, grounded: true });
-      return elapsed >= 1.37;
-    }, end: function () {
-      player.x = stand.x; player.z = stand.z; player.vx = player.vz = 0;
-      player.cp = player.pitch = camera.rotation.x;
-      setState('playing'); lockPointer();
-      showMsg('Cold air comes through the doorway. It smells of salt and weed.', 4);
-    } });
+    stepTo(G.x1 - 1.02, 60.12, new V3(G.x1 - 0.1, 1.1, 60.3), 0.4);
+    Hands.use('aqHandle', { point: at(handleG, -0.045, 0, -0.07), pose: 'hook', tip: 'hook', rot: [0.2, 0.5, 0.25], dur: 0.62, reach: 0.34, press: 0.0, onTouch: function () { Sfx.play('locked_handle', { vol: 0.5, rate: 1.2, fallback: function () { Sound.clunk(); } }); handleT = 0.4; } });
+    after(0.72, function () {
+      Hands.pushDoor('aqPush', door, new V3(-0.027, 1.22, 0.74), new V3(-1, 0, 0), function () { S().door = true; doorJ = 1; Sfx.play('door_open', { vol: 0.8, rate: 0.82, fallback: function () { Sound.creak(0.9); } }); Sound.creak(0.7); Sound.noise(0.9, 500, 0.12); }, { reach: 0.36, hold: 0.34 });
+    });
+    after(1.5, function () { showMsg('It gives, scraping. The air that comes out is cold, and smells of salt and weed.', 5); });
   }
+  var handleT = 0;
 
   // ================= STAFF ONLY: a door that has to be kicked in =================
   var SD = A.staffDoor, sdFall = dyn(new THREE.Group()), sdHinge = new THREE.Group(), sdJ = 0, sdJv = 0, sdDown = 0, hasp = dyn(new THREE.Group()), lockG = dyn(new THREE.Group()), dust = [];
@@ -100,7 +74,7 @@
      forward and the leg snaps straight, so the heel and the flat of the sole go into the door beside the lock.  The shock comes
      back up the leg into you: the view jars, the door jumps on its hasp, dust comes off the frame.  The leg comes back, the
      boot goes down, you are standing again.  Twice the hasp holds.  The third time the screws come out of the frame and the
-     latch tears free. The slab pivots on its hinges and settles into a wall stop. */
+     door goes in flat, the boot following it through. */
   var K_HIP = 1.28, K_KNEE = -0.08, K_ANK = 0.3, K_TW = 0.32, K_AB = 0.06, EYE = new V3(0, 0.72, -0.05), kfP = new V3();
   function doorFaceX(z, y) {                           // the face of the STAFF ONLY door as it hangs now, where a boot at (z, y) meets it
     sdHinge.updateWorldMatrix(true, false); var best = SD.x, bd = 1e9;
@@ -113,7 +87,7 @@
     // the moment of contact, solved: where the hips have to be for the ball of the boot to land square on the face of the door
     Body.place(0, HIPY, 0, YAW, -0.04); Body.pose('R', K_HIP, K_KNEE, K_ANK, K_AB, K_TW); Body.root.updateMatrixWorld(true); Body.sole('R', sole);
     var faceX = doorFaceX(kz, sole.y), rx = faceX - sole.x - 0.003, rz = kz - sole.z, sx = rx - DRIVE;
-    var startX = c0.x, startZ = c0.z;                                                                    // (the body starts under the eyes)
+    var startX = c0.x - 0.05 * Math.sin(-yaw0) * 0, startZ = c0.z;                                                                    // (the body starts under the eyes)
     function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
     function chain(a0, a1, a2, a3, ch, th, rc, dn) { return lerp(lerp(lerp(a0, a1, ch), a2, th), lerp(a3, a0, dn), rc); }
     closePanel(); Hands.over = { L: { pos: new V3(), q: new Q4(), pose: Hands.POSE.relax, k: 0 } };
@@ -121,7 +95,7 @@
       T2 += dt;
       var inK = easeIO(clamp(T2 / 0.32, 0, 1)), ch = seg(T2, 0.14, 0.44), th = clamp((T2 - 0.44) / 0.08, 0, 1), rc = seg(T2, 0.6, 0.86), dn = seg(T2, 0.86, 1.22), hit = hump(T2, 0.515, 0.525, 0.56, 0.78);
       th = th * th * (3 - 2 * th);
-      var follow = n === 2 ? seg(T2, 0.52, 0.64) * 0.055 * (1 - rc) : 0;
+      var follow = n === 2 ? seg(T2, 0.52, 0.64) * 0.12 * (1 - rc) : 0;
       var hip = chain(0, 1.85, K_HIP, 1.55, ch, th, rc, dn), knee = chain(0, -2.05, K_KNEE, -1.75, ch, th, rc, dn), ank = chain(0, 0.42, K_ANK, 0.3, ch, th, rc, dn);
       var tw = chain(0, K_TW, K_TW, K_TW * 0.5, ch, th, rc, dn), ab = chain(0, 0.08, K_AB, 0.06, ch, th, rc, dn), lean = 0.1 * ch * (1 - th) - 0.04 * th * (1 - rc);
       var drive = th * (1 - rc) * DRIVE + follow, bx = lerp(startX, sx, inK) + drive, bz = lerp(startZ, rz, inK), by = HIPY - 0.035 * ch * (1 - dn);
@@ -134,48 +108,45 @@
       tgt.set(faceX, fy + lerp(1.12, 0.92, ch) - 0.05 * th, kz + 0.06);
       var yawT = Math.atan2(-(tgt.x - eye.x), -(tgt.z - eye.z)), pitT = Math.atan2(tgt.y - eye.y, Math.hypot(tgt.x - eye.x, tgt.z - eye.z));
       var yaw = lerp(yaw0, yaw0 + angDiff(yawT, yaw0), inK), pit = lerp(pitch0, pitT, inK) * (1 - seg(T2, 1.1, 1.5)) + seg(T2, 1.1, 1.5) * -0.06;
-      camera.position.set(eye.x - sh * Math.sin((T2 - 0.52) * 37) * 0.022, eye.y + sh * Math.sin((T2 - 0.52) * 29) * 0.018, eye.z);
-      camera.rotation.set(pit + hit * 0.045 + sh * Math.sin((T2 - 0.52) * 27) * 0.017, yaw + ch * 0.04 * (1 - dn), -ch * 0.025 * (1 - dn) + hit * 0.02);
+      camera.position.set(eye.x + (Math.random() - 0.5) * sh * 0.025 - hit * 0.02, eye.y + (Math.random() - 0.5) * sh * 0.025, eye.z + (Math.random() - 0.5) * sh * 0.02);
+      camera.rotation.set(pit + hit * 0.045 + (Math.random() - 0.5) * sh * 0.02, yaw + ch * 0.04 * (1 - dn), -ch * 0.025 * (1 - dn) + hit * 0.02);
       if (camera.fov !== prefs.fov) { camera.fov = prefs.fov; camera.updateProjectionMatrix(); }
       // the left arm comes out to balance; the torch hand comes in and up with the lean
       var o = Hands.over.L; o.k = ch * (1 - dn); o.pos.set(-0.38 - th * 0.05, -0.32 + ch * 0.05, -0.22); o.q.setFromEuler(new THREE.Euler(0.5, 0.5, 1.0, 'YXZ'));
       Hands.aim = [0.04 + 0.07 * ch * (1 - dn), 0.05 * ch * (1 - dn), 0.04, 0.14 * ch, -0.18 * ch, 0.16 * ch]; flashlight.intensity = player.light ? 2.0 : 0; Hands.fill.intensity = 0.5;
       Hands.update(dt, { speed: 0, yaw: camera.rotation.y, pitch: camera.rotation.x, phase: 0, grounded: true });
       if (once('grunt', 0.4)) Sfx.play('grunt', { vol: 0.34, rate: 0.95 + n * 0.06 });
-
+      if (once('whoosh', 0.44)) Sound.noise(0.12, 1800, 0.08);
       if (once('hit', 0.52)) {
-        Sfx.play(n === 2 ? 'aq_door_break' : 'aq_door_hit', { vol: 0.92, rate: 0.94 + n * 0.04 }); makeNoise(player.x, player.z, 30);
+        Sound.thud(1); Sound.noise(0.18, 1400, 0.6); Sound.tone(190, 70, 0.3, 0.4, 'square'); Sfx.play('gate_rattle', { vol: 0.5, rate: 0.7 + n * 0.1 }); makeNoise(player.x, player.z, 30);
         puff(SD.x, fy + 1.1, kz, n === 2 ? 9 : 4, 0.5, 0.1); puff(SD.x, fy + 2.1, kz, 3, 0.8, -0.2);
-        if (n < 2) { sdJv = -1.7 - n * 0.55; st.staff = n + 1; }
-        else { st.staff = 3; sdDown = 0.0001; }
+        if (n < 2) { sdJv = -2.6 - n * 1.2; st.staff = n + 1; if (n === 1) { Sound.clang(); Sound.noise(0.25, 3200, 0.3); } }
+        else { st.staff = 3; sdDown = 0.0001; Sound.clang(); Sound.noise(0.5, 2400, 0.5); }
       }
-      if (once('plant', 1.2)) Sfx.play('step_tile', { vol: 0.37 });
+      if (once('plant', 1.2)) Sound.step(0.16, 520);
       stepDoors(dt); stepDust(dt); CN.pulse = hit * 0.6;
       return T2 >= DUR;
     }, end: function () {
       Body.show(false); Body.torso(true); Hands.over = null; Hands.aim = null; player.x = camera.position.x; player.z = camera.position.z; player.y = fy; player.vx = player.vz = 0; player.yaw = player.cy = camera.rotation.y; player.pitch = player.cp = camera.rotation.x; setState('playing'); lockPointer();
-      showMsg(st.staff === 1 ? 'The latch bangs against the frame. The hasp holds.' : st.staff === 2 ? 'The staple pulls away from the jamb. One more kick.' : 'The screws tear free. The door swings in and hits its stop. Something below is still dripping.', st.staff === 3 ? 5.5 : 3);
+      showMsg(st.staff === 1 ? 'It jumps in its frame. The hasp holds.' : st.staff === 2 ? 'Wood splits round the staple. Once more.' : 'The door goes in flat and slides away down the stairs. Something below is still dripping.', st.staff === 3 ? 5.5 : 3);
     } });
   }
   function stepDoors(dt) {
     var st = S();
     // the way in: stiff, then it swings
-    var want = st.door ? 1 : 0; doorA = clamp(doorA + clamp(want - doorA, -dt / 1.9, dt / 1.9), 0, 1);
-    door.rotation.y = 1.49 * sstep(doorA * 1.27); doorBox.off = doorA > 0.3; doorLeafBox.off = doorA < 0.8;
+    var want = st.door ? 1 : 0; doorA = clamp(doorA + clamp(want - doorA, -dt / 1.9, dt / 1.9), 0, 1); doorJ = Math.max(0, doorJ - dt * 1.4);
+    door.rotation.y = 1.42 * (1 - Math.pow(1 - doorA, 2.4)) + Math.sin(doorJ * 40) * 0.006 * doorJ; doorBox.off = doorA > 0.3; doorLeafBox.off = doorA < 0.8;
+    handleT = Math.max(0, handleT - dt); handleG.rotation.x = -Math.sin(clamp(handleT / 0.4, 0, 1) * PI) * 0.6;
     // STAFF ONLY: ajar on its hasp; each kick opens the gap a little; then down
     sdJv += (-sdJ * 160 - sdJv * 9) * dt; sdJ += sdJv * dt;
-    var ajar = -(0.085 + Math.min(st.staff, 2) * 0.05) + clamp(sdJ, -0.23, 0.06);
-    if (st.staff >= 3) {
-      sdDown = Math.min(1, sdDown + dt / 0.84);
-      var swing = 1 - Math.pow(1 - sdDown, 2.5), settle = sdDown > 0.65 ? Math.sin((sdDown - 0.65) * 30) * (1 - sdDown) * 0.09 : 0;
-      ajar = lerp(-0.185, -1.48, swing) + settle;
-      sdHinge.rotation.z = -0.015 * swing;
-    } else sdHinge.rotation.z = 0;
-    sdHinge.rotation.y = ajar;
-    hasp.rotation.x = st.staff >= 3 ? 1.8 : st.staff === 2 ? 0.65 : 0;
-    lockG.rotation.z = st.staff >= 2 ? 0.68 : 0;
-    A.staple.visible = st.staff < 3;
-    A.staffBox.off = st.staff >= 3 && sdDown > 0.6;
+    var ajar = st.staff >= 3 ? 0 : -(0.085 + st.staff * 0.05) + clamp(sdJ, -0.3, 0.08);
+    if (st.staff >= 3 && sdDown < 1) sdDown = Math.min(1, (sdDown || 0.0001) + dt / 1.5);
+    var f = st.staff >= 3 ? sdDown : 0, fall = clamp(f / 0.42, 0, 1), slide = clamp((f - 0.42) / 0.58, 0, 1), fa = fall * fall;
+    sdHinge.rotation.y = ajar; sdFall.rotation.z = -(fa * (PI / 2 + 0.02) + (1 - Math.pow(1 - slide, 2)) * 0.56) + (fall >= 1 && slide < 0.25 ? Math.sin(slide * 40) * 0.02 : 0);
+    sdFall.position.x = SD.x + 0.08 + fa * 0.3 + (1 - Math.pow(1 - slide, 2)) * 1.3; sdFall.position.y = SD.y + fa * 0.03 - (1 - Math.pow(1 - slide, 2)) * 0.2;
+    if (f > 0.42 && !sdFall.userData.hit && f < 1) { sdFall.userData.hit = 1; Sound.clang(); Sound.thud(1); shake = Math.max(shake, 0.9); puff(SD.x + 1.2, SD.y + 0.2, 59.4, 10, 1.2, 0.2); makeNoise(player.x, player.z, 40); }
+    hasp.rotation.x = st.staff >= 2 ? 1.2 : 0; lockG.rotation.z = st.staff >= 2 ? 0.5 : 0; A.staple.visible = st.staff < 2;
+    A.staffBox.off = st.staff >= 3;
   }
 
   // ================= the pump and the manifold =================
@@ -183,9 +154,11 @@
      couplings on the pump room wall, every one of them left turned the wrong way.  Each is a straight or an elbow; aim at one
      and turn it a quarter.  With the pump running you can see how far the oil gets: it sprays from the first open end.
      Run it from FROM PUMP on the left to TO LIFT RAM on the right. */
-  var COLS = 4, ROWS = 3, TS = 0.44, MX = A.maniAt.x, MZ = A.maniAt.z, MY = BASE_Y + 2.1, tiles = [], hitList = [], srcStub, snkStub, sprays = [], gaugeN = null, maniFlow = null, leakP = new V3(), leakD = new V3(), pumpV = 0;
+  var COLS = 4, ROWS = 3, TS = 0.44, MX = A.maniAt.x, MZ = A.maniAt.z, MY = BASE_Y + 2.1, tiles = [], hitList = [], srcStub, snkStub, sprays = [], gaugeN = null, maniFlow = null, leakP = new V3(), leakD = new V3(), pumpV = 0, hissT = 0;
   var OPEN = { I: [10, 5, 10, 5], L: [3, 6, 12, 9] }, DXY = { 1: [0, -1], 2: [1, 0], 4: [0, 1], 8: [-1, 0] }, OPP = { 1: 4, 2: 8, 4: 1, 8: 2 };
-  function randomManifold() {
+  function newMani() {
+    var m, tries = 0;
+    do {
       var sr = (Math.random() * ROWS) | 0, tr = (Math.random() * ROWS) | 0, types = [], rot = [], want = [], r = sr, c, q;
       for (q = 0; q < COLS * ROWS; q++) { types.push(Math.random() < 0.5 ? 'I' : 'L'); rot.push((Math.random() * 4) | 0); want.push(-1); }
       for (c = 0; c < COLS; c++) {
@@ -198,42 +171,11 @@
         }
         r = ro;
       }
-    return { sr: sr, tr: tr, types: types, rot: rot, want: want };
-  }
-  // Each route enters and leaves a tile once. Search all feasible paths and count clockwise detents,
-  // including shortcuts left by the decoy couplings, before accepting a generated layout.
-  function manifoldDistance(m) {
-    var best = Infinity;
-    function visit(c, r, input, seen, turns) {
-      if (turns >= best || c < 0 || c >= COLS || r < 0 || r >= ROWS) return;
-      var cell = r * COLS + c, bit = 1 << cell;
-      if (seen & bit) return;
-      var options = OPEN[m.types[cell]], n = m.types[cell] === 'I' ? 2 : 4;
-      for (var i = 0; i < n; i++) {
-        var ports = options[(m.rot[cell] + i) % n], out = ports & ~input;
-        if (!(ports & input)) continue;
-        if (out === 2 && c === COLS - 1 && r === m.tr) best = Math.min(best, turns + i);
-        else visit(c + DXY[out][0], r + DXY[out][1], OPP[out], seen | bit, turns + i);
-      }
-    }
-    visit(0, m.sr, 8, 0, 0);
-    return best;
-  }
-  function newMani() {
-    var band = diffName === 'hard' ? [10, 14] : diffName === 'easy' ? [4, 6] : [7, 10];
-
-    for (var trial = 0; trial < 96; trial++) {
-      var m = randomManifold(), visible = flowOf(m), d = manifoldDistance(m);
-      var bad = Math.max(band[0] - d, d - band[1], 0);
-      // Leave the first connection readable on easy and normal. In hard, the inlet can be the first leak.
-      if (bad === 0 && (diffName === 'hard' || visible.live.length)) return m;
-    }
-    var fixed = { sr: 0, tr: 2, types: ['I', 'L', 'I', 'I', 'I', 'L', 'L', 'I', 'I', 'I', 'L', 'I'],
-      rot: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], want: [0, 2, -1, -1, -1, 0, 2, -1, -1, -1, 0, 0] };
-    // The fixed route is east, south, east, south, east, east. The four detented elbows tune its length.
-    var scramble = diffName === 'hard' ? [3, 3, 3, 2, 0] : diffName === 'easy' ? [1, 1, 1, 1, 0] : [2, 2, 2, 2, 0];
-    [1, 5, 6, 10, 11].forEach(function (cell, index) { fixed.rot[cell] = (fixed.want[cell] + 4 - scramble[index]) % 4; });
-    return fixed;
+      var keep = DIFF.levers === 3 ? 0.4 : diffName === 'hard' ? 0 : 0.15;                 // easy leaves some of them right
+      for (q = 0; q < want.length; q++) if (want[q] >= 0) rot[q] = Math.random() < keep ? want[q] : want[q] + 1 + ((Math.random() * (types[q] === 'I' ? 1 : 3)) | 0);
+      m = { sr: sr, tr: tr, types: types, rot: rot, want: want };
+    } while (flowOf(m).solved && tries++ < 20);
+    return m;
   }
   function solveMani(m) { for (var q = 0; q < m.want.length; q++) if (m.want[q] >= 0) m.rot[q] = m.want[q]; }
   function flowOf(m) {
@@ -274,7 +216,7 @@
     // the ram's pressure gauge, over the manifold
     cyl(0.16, 0.16, 0.05, M2.white, MX, MY + 0.62, MZ + 0.04, null, 20).rotation.x = PI / 2; var gf = mesh(new THREE.CircleGeometry(0.145, 20), std(0xffffff, 0.5, { map: canvasTex(128, function (g, S2) { g.fillStyle = '#e9e6da'; g.fillRect(0, 0, S2, S2); g.strokeStyle = '#17140e'; g.lineWidth = 3; for (var n = 0; n <= 10; n++) { var a = PI * 0.75 + n / 10 * PI * 1.5; g.beginPath(); g.moveTo(64 + Math.cos(a) * 46, 64 + Math.sin(a) * 46); g.lineTo(64 + Math.cos(a) * 56, 64 + Math.sin(a) * 56); g.stroke(); } g.strokeStyle = '#2f9a5a'; g.lineWidth = 7; g.beginPath(); g.arc(64, 64, 51, PI * 1.9, PI * 2.25); g.stroke(); g.fillStyle = '#17140e'; g.font = 'bold 13px Arial'; g.textAlign = 'center'; g.fillText('RAM  bar', 64, 96); }) }), MX, MY + 0.62, MZ + 0.012); gf.rotation.y = PI; gf.userData.noCast = true;
     gaugeN = dyn(box(0.01, 0.12, 0.004, M.red, MX, MY + 0.62, MZ + 0.006)); gaugeN.geometry.translate(0, 0.045, 0);
-    var st2 = softTex('rgba(236,243,245,.68)', 'rgba(189,205,212,.13)'); for (q = 0; q < 12; q++) { var sp = dyn(new THREE.Sprite(new THREE.SpriteMaterial({ map: st2, transparent: true, depthWrite: false, opacity: 0 }))); sp.visible = false; scene.add(sp); sprays.push(sp); }
+    var st2 = softTex('rgba(226,216,170,.8)', 'rgba(200,180,110,.25)'); for (q = 0; q < 6; q++) { var sp = dyn(new THREE.Sprite(new THREE.SpriteMaterial({ map: st2, transparent: true, depthWrite: false, opacity: 0 }))); sp.visible = false; scene.add(sp); sprays.push(sp); }
   })();
   A.gather('basement');
   function stepMani(dt, instant) {
@@ -285,13 +227,13 @@
     }
     srcStub.position.set(MX + 1.5 * TS + TS / 2 + 0.27, MY - m.sr * TS, MZ - 0.04); snkStub.position.set(MX - 1.5 * TS - TS / 2 - 0.27, MY - m.tr * TS, MZ - 0.04);
     pumpV = instant ? (st.pump ? 1 : 0) : damp(pumpV, st.pump ? 1 : 0, 1.6, dt);
-    A.pumpFan.rotation.x += dt * 38 * pumpV; A.pumpGauge.rotation.z = -pumpV * 2.2 + (st.pump ? Math.sin(playTime * 31) * 0.03 : 0);
+    A.pumpFan.rotation.x += dt * 38 * pumpV; A.pumpGauge.rotation.x = -pumpV * 2.2 + (st.pump ? Math.sin(playTime * 31) * 0.03 : 0);
     var prs = st.pump ? (maniFlow.solved ? 1 : 0.12 + maniFlow.live.length * 0.035) : 0; gaugeN.userData.a = instant ? prs : damp(gaugeN.userData.a || 0, prs, 2.5, dt); gaugeN.rotation.z = -(PI * 0.25 - PI) - 0 + (0.75 - gaugeN.userData.a * 1.5) * PI - PI * 0.5 + (st.pump ? Math.sin(playTime * 27) * 0.012 : 0);
     A.startLamp.color.setHex(st.pump ? 0x35ff8a : 0x1a0805);
     // where the oil gets out
     var leak = st.pump && !maniFlow.solved;
     if (leak) { var xy = tileXY(clamp(maniFlow.c, 0, COLS - 1), clamp(maniFlow.r, 0, ROWS - 1)), d = DXY[maniFlow.side]; leakD.set(-d[0], -d[1], -0.5).normalize(); leakP.set(xy[0] - d[0] * TS / 2, xy[1] - d[1] * TS / 2, MZ - 0.05); }
-    for (q = 0; q < sprays.length; q++) { var sp = sprays[q], ph = ((playTime * 1.9 + q / sprays.length) % 1); sp.visible = leak && groups.basement.visible; if (!leak) continue; sp.position.copy(leakP).addScaledVector(leakD, ph * 0.7); sp.position.y += ph * ph * 0.32 + Math.sin(q * 3.14 + playTime * 3.6) * ph * 0.075; sp.position.x += Math.sin(q * 7 + playTime * 5) * ph * 0.08; var sc = 0.042 + ph * 0.46; sp.scale.set(sc * 1.2, sc, 1); sp.material.opacity = 0.57 * Math.pow(1 - ph, 1.85); }
+    for (q = 0; q < sprays.length; q++) { var sp = sprays[q], ph = ((playTime * 1.9 + q / sprays.length) % 1); sp.visible = leak && groups.basement.visible; if (!leak) continue; sp.position.copy(leakP).addScaledVector(leakD, ph * 0.7); sp.position.y -= ph * ph * 0.5; sp.position.x += Math.sin(q * 7 + playTime * 9) * 0.03; var sc = 0.08 + ph * 0.34; sp.scale.set(sc, sc, 1); sp.material.opacity = (1 - ph) * 0.5; }
   }
   function aimTile() { aimRay.setFromCamera(aimNDC, camera); aimRay.far = 2.4; var h = aimRay.intersectObjects(hitList, false); return h.length ? h[0].object.userData.tile : -1; }
   /* Turning a coupling: the left hand goes to its T-handle and closes round the bar (Hands.barGrip: the knuckles along it,
@@ -326,16 +268,16 @@
     if (!turning) return;
     var st = S(), m = st.mani, q = turning.q, t = tiles[q], tr = t.turn, H = turning.H, ev = turning.ev;
     if (!tr || !H) return;
-    if (!tr.gripped && (H.k || 0) >= 0.999) { tr.gripped = true; Sfx.play('aq_rung', { vol: 0.19, rate: 1.23 }); }
+    if (!tr.gripped && (H.k || 0) >= 0.999) { tr.gripped = true; Sound.noise(0.06, 2400, 0.08); }
     if (tr.gripped && tr.t < 1) {
       tr.t = Math.min(1, tr.t + dt / 0.5); var u = easeIO(tr.t); tr.a = tr.a0 + (tr.a1 - tr.a0) * u;
-      [0.25, 0.55, 0.85].forEach(function (c, n) { if (tr.t >= c && !ev['c' + n]) { ev['c' + n] = 1; Sfx.play('rocker', { vol: 0.32, rate: 1.1 + n * 0.06 }); } });
+      [0.25, 0.55, 0.85].forEach(function (c, n) { if (tr.t >= c && !ev['c' + n]) { ev['c' + n] = 1; Sfx.play('rocker', { vol: 0.32, rate: 1.1 + n * 0.06, fallback: function () { Sound.click(); } }); } });
       if (tr.t >= 1) {
         m.rot[q]++; t.a = tr.a1; t.turn = null; H.want = 0;
-        Sfx.play('rocker', { vol: 0.55, rate: 0.6 + Math.random() * 0.1 });  makeNoise(player.x, player.z, 8);
+        Sfx.play('rocker', { vol: 0.55, rate: 0.6 + Math.random() * 0.1, fallback: function () { Sound.clunk(); } }); Sound.noise(0.16, 900, 0.14); makeNoise(player.x, player.z, 8);
         var was = maniFlow && maniFlow.solved, now = flowOf(m);
         if (now.solved && !was) after(0.3, function () {
-          if (st.pump) { Sfx.play('solenoid', { vol: 0.68 }); showMsg('The spray stops. The needle climbs into the green, and somewhere up the corridor the lift clunks awake.', 6); }
+          if (st.pump) { Sound.chime(); Sound.grind(); showMsg('The spray stops. The needle climbs into the green, and somewhere up the corridor the lift clunks awake.', 6); }
           else showMsg('That is the run from the pump to the ram. Nothing is in it yet: the pump is not running.', 5);
         });
       }
@@ -344,34 +286,19 @@
   function startPump() {
     var st = S(); stepTo(145.55, 69.5, new V3(A.starter.x, A.starter.y, A.starter.z), 0.4);
     Hands.use('aqPump', { point: at(A.startBtn, 0, 0.018, 0), pose: 'point', tip: 'point', rot: [0.15, -0.95, 0.35], dur: 0.6, reach: 0.34, press: 0.012, onTouch: function () {
-      st.pump = true; Sfx.play('breaker', { vol: 0.6 }); Sfx.play('gen_start', { vol: 0.5, rate: 1.5 }); makeNoise(player.x, player.z, 20);
-      after(0.9, function () { showMsg(flowOf(st.mani).solved ? 'The pump winds up and the gauge on the manifold swings into the green.' : 'The pump winds up — and mist jets from the manifold on the back wall. It is not plumbed through to the ram.', 6); });
+      st.pump = true; Sfx.play('breaker', { vol: 0.6, fallback: function () { Sound.clunk(); } }); Sfx.play('gen_start', { vol: 0.5, rate: 1.5, fallback: function () { Sound.grind(); } }); makeNoise(player.x, player.z, 20);
+      after(0.9, function () { showMsg(flowOf(st.mani).solved ? 'The pump winds up and the gauge on the manifold swings into the green.' : 'The pump winds up — and oil sprays off the manifold on the back wall. It is not plumbed through to the ram.', 6); });
     } });
   }
 
   // ================= the lift =================
-  var liftY = BASE_Y, gateK = 1, liftBusy = false;
+  var liftY = BASE_Y, gateK = 1, liftBusy = false, CARH = 2.3, CARW = 2.5;
   var blockLow = A.solid(136.3, 138.7, 47.35, 47.8, BASE_Y - 0.3, -0.4, true), blockTop = A.solid(136, 139, 47.38, 47.62, CW - 0.3, CW + 2.5, true), gateBlock = A.solid(136.2, 138.8, 47.2, 47.34, null, null, true);
   function stepLift(dt, instant) {
     var st = S(); if (!liftBusy) { liftY = st.lift ? CW : BASE_Y; gateK = instant ? 1 : damp(gateK, 1, 4, dt); }
     A.car.position.y = liftY; A.ram.scale.y = Math.max(0.02, liftY - BASE_Y); A.liftFloor.y = A.liftFloor.y2 = liftY;
-    A.gate.forEach(function (leaf) {
-      var alpha = gateK * 1.44, x = 1.17;
-      leaf.panels.forEach(function (panel, j) {
-        var dir = j % 2 ? -1 : 1, span = 0.39 * Math.cos(alpha);
-        panel.position.set(leaf.side * (x - span / 2), 0, 1.14 - 0.195 * Math.sin(alpha));
-        panel.rotation.y = leaf.side * dir * alpha;
-        x -= span;
-      });
-    });
-    var atFloor = Math.abs(liftY - BASE_Y) < 0.075 ? 0 : Math.abs(liftY - CW) < 0.075 ? 1 : -1;
-    A.landingGates.forEach(function (door, i) {
-      var open = i === atFloor ? gateK : 0;
-      door.position.y = (i ? CW : BASE_Y) + open * 1.99;
-      door.visible = open < 0.98;
-    });
-    blockLow.off = atFloor === 0 && gateK > 0.87; blockTop.off = atFloor === 1 && gateK > 0.87;
-    gateBlock.off = gateK > 0.88; gateBlock.y1 = liftY - 0.3; gateBlock.y2 = liftY + 2.5;
+    A.gate.forEach(function (gl) { gl.position.x = gl.userData.sd * (CARW / 4 + gateK * CARW * 0.47); });
+    blockLow.off = !liftBusy && st.lift === 0; blockTop.off = !liftBusy && st.lift === 1; gateBlock.off = !liftBusy; gateBlock.y1 = liftY - 0.3; gateBlock.y2 = liftY + 2.5;
     var rdy = A.ready(); A.liftLamp.color.setHex(rdy ? 0x35ff8a : 0x3a0a06); A.callLamp.color.setHex(rdy ? 0x35ff8a : (Math.sin(playTime * 4) > 0 ? 0x8a1408 : 0x2a0604)); A.carLamp.color.setHex(rdy ? 0xffe0a0 : 0x2a1c08);
     Lt.lift.position.y = liftY + 2.0;
   }
@@ -386,14 +313,14 @@
     closePanel(); liftBusy = true; A.liftNow = { up: up, k: 0 };
     startCine(CN = { pulse: 0, update: function (dt) {
       T2 += dt;
-      var inK = easeIO(clamp(T2 / IN, 0, 1)), run = clamp((T2 - GO) / RUN, 0, 1), trav = (run < 0.12 ? run * run / 0.24 : run > 0.88 ? 0.88 - (1 - run) * (1 - run) / 0.24 : run - 0.06) / 0.88, drop = hump(T2, GO - 0.3, GO - 0.12, GO - 0.06, GO + 0.3) * 0.045, settle = T2 > STOP ? Math.exp(-(T2 - STOP) * 7) * Math.sin((T2 - STOP) * 22) * 0.02 : 0;
-      trav = clamp(trav, 0, 1); liftY = lerp(y0, y1, trav) - drop + settle; A.liftNow.k = trav;
+      var inK = easeIO(clamp(T2 / IN, 0, 1)), run = clamp((T2 - GO) / RUN, 0, 1), trav = run < 0.12 ? run * run / 0.24 : run > 0.88 ? 1 - (1 - run) * (1 - run) / 0.24 : (run - 0.06) / 0.88, drop = hump(T2, GO - 0.3, GO - 0.12, GO - 0.06, GO + 0.3) * 0.045, settle = T2 > STOP ? Math.exp(-(T2 - STOP) * 7) * Math.sin((T2 - STOP) * 22) * 0.02 : 0;
+      trav = clamp(trav / (1 - 0.12), 0, 1); liftY = lerp(y0, y1, trav) - drop + settle; A.liftNow.k = trav;
       gateK = T2 < GATE ? 1 : T2 < STOP + 0.3 ? 1 - seg(T2, GATE, GATE + 0.6) : seg(T2, OPENT, OPENT + 0.6);
       // the body: in over the sill (two steps, the second one up), then standing by the pendant
       var px = lerp(c0.x, sp.x, inK), pz = inCar ? lerp(c0.z, sp.z, inK) : lerp(c0.z, sp.z, easeIO(clamp((T2 - 0.1) / (IN - 0.1), 0, 1)));
       var d = Math.hypot(px - lx, pz - lz); lx = px; lz = pz; stepPh += d / 0.72 * PI; var dip = (1 + Math.cos(2 * stepPh)) / 2, mv = clamp(d / Math.max(dt, 1e-3) / 1.3, 0, 1);
       var sill = inCar ? 0 : hump(T2, IN * 0.42, IN * 0.56, IN * 0.62, IN * 0.86), boom = inCar ? 0 : Math.max(0, T2 - IN * 0.62) < 0.6 ? Math.exp(-Math.max(0, T2 - IN * 0.62) * 9) * Math.sin(Math.max(0, T2 - IN * 0.62) * 34) * 0.02 : 0;
-      var rattle = run > 0 && run < 1 ? (Math.sin(T2 * 7.0) * 0.0035 + Math.sin(T2 * 47.3) * 0.0025) : 0;
+      var rattle = run > 0 && run < 1 ? (Math.sin(T2 * 31) * 0.0035 + Math.sin(T2 * 47.3) * 0.0025) : 0;
       camera.position.set(px + rattle, liftY + 1.7 - dip * 0.03 * mv + sill * 0.06 + boom + rattle, pz);
       // the eyes: the pendant, then out through the mesh at the tank as it goes by, then the gate
       var yP = facing(138.6, 46.55), yT = up ? PI / 2 + 0.5 : PI / 2 + 0.2, yG = PI, a1 = seg(T2, IN * 0.5, IN + 0.25), a2 = seg(T2, GO - 0.2, GO + 1.6), a3 = seg(T2, STOP - 1.5, STOP + 0.2);
@@ -403,48 +330,45 @@
       if (camera.fov !== prefs.fov) { camera.fov = prefs.fov; camera.updateProjectionMatrix(); }
       player.x = px; player.z = pz; player.y = liftY; player.yaw = player.cy = yaw; player.pitch = player.cp = pit;
       if (once('grab', inCar ? 99 : IN * 0.3)) Hands.use('liftPost', { point: function () { return bp.set(138.72, liftY + 1.25, 47.42); }, pose: 'hook', tip: 'hook', rot: [0.1, -0.2, -0.2], dur: IN * 0.5, reach: 0.3 });
-      if (once('boom', inCar ? 99 : IN * 0.62)) Sfx.play('aq_rung', { vol: 0.56, rate: 0.8 });
-      if (once('step1', inCar ? 99 : IN * 0.3)) Sfx.play('aq_rung', { vol: 0.3 });
-      if (once('press', PRESS - 0.42)) Hands.use('liftBtn', { point: at(A.liftBtn[up ? 0 : 1], 0, 0.016, 0), pose: 'point', tip: 'point', rot: [0.1, -0.85, 0.3], dur: 0.75, reach: 0.4, press: 0.014, onTouch: function () { Sfx.play('rocker', { vol: 0.6 }); Sfx.play('solenoid', { vol: 0.5 }); pressT = 0.3; } });
-      if (once('gate', GATE) || once('gate2', OPENT)) Sfx.play('aq_latch', { vol: 0.66 });
-      if (once('arr', STOP)) Sfx.play('aq_strain', { vol: 0.52, rate: 1.22 });
-      hum = damp(hum, run > 0 && run < 1 ? 1 : 0, 3, dt);
-      Sfx.zone('aqlift', 'aq_lift', hum * 0.46);
+      if (once('boom', inCar ? 99 : IN * 0.62)) { Sound.thud(0.6); Sound.tone(96, 60, 0.5, 0.2, 'triangle'); Sound.noise(0.2, 2400, 0.14); }
+      if (once('step1', inCar ? 99 : IN * 0.3)) Sound.step(0.14, 600);
+      if (once('press', PRESS - 0.42)) Hands.use('liftBtn', { point: at(A.liftBtn[up ? 0 : 1], 0, 0.016, 0), pose: 'point', tip: 'point', rot: [0.1, -0.85, 0.3], dur: 0.75, reach: 0.4, press: 0.014, onTouch: function () { Sfx.play('rocker', { vol: 0.6, fallback: function () { Sound.click(); } }); Sfx.play('solenoid', { vol: 0.5, fallback: function () { Sound.clunk(); } }); pressT = 0.3; } });
+      if (once('gate', GATE)) { Sfx.play('gate_rattle', { vol: 0.5, rate: 1.3, fallback: function () { Sound.rattle(); } }); Sound.noise(0.6, 2600, 0.12); }
+      if (once('gateShut', GATE + 0.6)) Sound.clunk();
+      if (once('go', GO - 0.25)) { Sound.clunk(); Sound.thud(0.5); Sound.tone(60, 44, 0.6, 0.25, 'sawtooth'); }
+      if (once('arr', STOP)) { Sound.clunk(); Sound.thud(0.7); Sound.noise(0.3, 1800, 0.2); }
+      if (once('gate2', OPENT)) { Sfx.play('gate_rattle', { vol: 0.5, rate: 1.2, fallback: function () { Sound.rattle(); } }); }
+      hum = damp(hum, run > 0 && run < 1 ? 1 : 0, 3, dt); Sound.drone('aqlift', hum * 0.12, liftDrone);
+      if (run > 0 && run < 1 && Math.random() < dt * 2.2) Sound.tone(900 + Math.random() * 900, 500, 0.08, 0.03, 'triangle');                // the guides tick and squeal
       pressT = Math.max(0, pressT - dt); A.liftBtn[up ? 0 : 1].position.x = -0.056 + Math.sin(clamp(pressT / 0.3, 0, 1) * PI) * 0.01;
       flashlight.intensity = player.light ? 2.0 : 0; Hands.fill.intensity = player.light ? 0.42 : 0.14; Hands.setLight(player.light);
       Hands.update(dt, { speed: d / Math.max(dt, 1e-3), yaw: yaw, pitch: pit, phase: stepPh, grounded: true });
       stepLift(dt); A.step(dt, false, true); A.beastRide(dt, up, trav, T2 - GO); stepDust(dt); CN.pulse = 0;
       return T2 >= END;
     }, end: function () {
-      liftBusy = false; A.liftNow = null; st.lift = up ? 1 : 0; liftY = y1; Sfx.zone('aqlift', 'aq_lift', 0); player.y = y1; setState('playing'); lockPointer(); stepLift(0, true);
+      liftBusy = false; A.liftNow = null; st.lift = up ? 1 : 0; liftY = y1; Sound.drone('aqlift', 0, liftDrone); player.y = y1; setState('playing'); lockPointer(); stepLift(0, true);
       if (up && !st.top) { st.top = true; saveGame('the service lift', true); showMsg('The catwalks. The key piece is on the keepers’ platform, the far side of the water — and she knows the sound of this lift.', 7); }
     } });
   }
   var pressT = 0;
+  function liftDrone(ctx, out, buf) {
+    var o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), m = ctx.createGain(); o1.type = 'sawtooth'; o1.frequency.value = 74; o2.type = 'triangle'; o2.frequency.value = 148.6; n.buffer = buf; n.loop = true; f.type = 'lowpass'; f.frequency.value = 520; m.gain.value = 0.6;
+    o1.connect(m); o2.connect(m); n.connect(m); m.connect(f); f.connect(out); o1.start(); o2.start(); n.start();
+  }
+
   // ================= the animal =================
   /* An Elasmosaurus, sixteen metres of her.  Until you fall in she is an exhibit: she swims her round, comes to the glass to
      look at you, slides past the basement ports.  Up on the catwalk you are over her water: she follows underneath, and every
      so often rears and strikes at where you are.  In the water she simply comes for you. */
-  var SC = 1.45, B = ples, U = plesMesh.userData, NECK = 7, headW = new V3(), strikeP = new V3(), lashT = 5, phT = 0, way = 0, portCD = 0, deadT = 0, whereDied = '', sinkT = 0, chaseDelay = 0, siegeT = 0;
+  var SC = 1.45, B = ples, U = plesMesh.userData, NECK = 7, headW = new V3(), strikeP = new V3(), lashT = 5, phT = 0, way = 0, portCD = 0, deadT = 0, whereDied = '', exposedT = 0, sinkT = 0, chaseDelay = 0, siegeT = 0, hitFx = 0;
   var WAY = [[116, 55.5, 0.4], [120.5, 63, 1.6], [127, 65.5, 2.3], [130.4, 60, 1.2], [127, 54.6, 0.2], [120.5, 57, 1.5], [116, 64.6, 2.2], [113.8, 60, 0.9]];
   plesMesh.scale.setScalar(SC); plesMesh.rotation.order = 'YXZ';
   function swimTo(tx, ty, tz, speed, dt, turn) {
-    tx = clamp(tx, T.x1 + 4, T.x2 - 4); tz = clamp(tz, T.z1 + 4, T.z2 - 4);
-    var dx = tx - B.x, dz = tz - B.z, d = Math.hypot(dx, dz);
-    var yaw = Math.atan2(dx, dz);
-    // Bank away before the nose reaches the side. The forward thrust eases out during tight turns.
-    var fx = B.x + Math.sin(B.rot) * 4.8, fz = B.z + Math.cos(B.rot) * 4.8;
-    if (fx < T.x1 + 0.6 || fx > T.x2 - 0.6 || fz < T.z1 + 0.6 || fz > T.z2 - 0.6) {
-      var inward = Math.atan2((T.x1 + T.x2) * 0.5 - B.x, (T.z1 + T.z2) * 0.5 - B.z);
-      yaw += angDiff(inward, yaw) * 0.65;
-    }
-    var df = angDiff(yaw, B.rot), tr = (turn || 0.8) * dt, step = clamp(df, -tr, tr);
+    var dx = tx - B.x, dz = tz - B.z, d = Math.hypot(dx, dz), df = angDiff(Math.atan2(dx, dz), B.rot), tr = (turn || 0.8) * dt, step = clamp(df, -tr, tr);
     B.rot += step; B.turn = damp(B.turn || 0, dt > 0 ? step / dt : 0, 3, dt);
-    var fwd = Math.max(0.07, Math.cos(Math.min(Math.abs(df), PI / 2)));
+    var fwd = Math.max(0.3, Math.cos(Math.min(Math.abs(df), PI / 2)));
     B.sp = damp(B.sp || 0, d > 0.6 ? speed * fwd : 0, 2.0, dt);
-    B.x = clamp(B.x + Math.sin(B.rot) * B.sp * dt, T.x1 + 3.3, T.x2 - 3.3); B.z = clamp(B.z + Math.cos(B.rot) * B.sp * dt, T.z1 + 3.3, T.z2 - 3.3); // Passing under a service deck calls for a shallower angle and a deeper stroke.
-    if (A.waterDecks.some(function (w) { return inRect(B.x, B.z, w, 1.95); })) ty = Math.min(ty, 2.04);
-    B.y = damp(B.y, ty, 1.55, dt);
+    B.x = clamp(B.x + Math.sin(B.rot) * B.sp * dt, T.x1 + 3.3, T.x2 - 3.3); B.z = clamp(B.z + Math.cos(B.rot) * B.sp * dt, T.z1 + 3.3, T.z2 - 3.3); B.y = damp(B.y, ty, 1.1, dt);
     return d;
   }
   function neckPose(yawT, pitT, curl, k) {            // total yaw and pitch spread along the neck (k eases it in), plus a swan curve
@@ -455,9 +379,7 @@
     plesMesh.updateMatrixWorld(true); tmpV.set(tx, ty, tz); plesMesh.worldToLocal(tmpV); tmpV.y -= 0.18; tmpV.z -= 2.42;
     var yawT = Math.atan2(tmpV.x, tmpV.z), pitT = Math.atan2(tmpV.y, Math.hypot(tmpV.x, tmpV.z));
     neckPose(clamp(yawT * (gain || 1.7), -2.7, 2.7), clamp(pitT * (gain || 1.7), -1.6, 2.4), curl, k);
-    U.head.rotation.x = lerp(U.head.rotation.x, clamp(-pitT * 0.25, -0.5, 0.5), k);
-    U.head.rotation.y += angDiff(clamp(yawT * 0.2, -0.5, 0.5), U.head.rotation.y) * k;
-    U.head.rotation.z *= 1 - k;
+    U.head.rotation.set(clamp(-pitT * 0.25, -0.5, 0.5), clamp(yawT * 0.2, -0.5, 0.5), 0);
   }
   function headPos(out) { U.head.updateWorldMatrix(true, false); return (out || headW).set(0, 0, 0.75).applyMatrix4(U.head.matrixWorld); }
   /* Put her snout at a point and turn her face to another, as nearly as the neck allows: a search over the three numbers
@@ -477,6 +399,21 @@
     for (pass = 0; pass < (fresh ? 9 : nsAvoid ? 7 : 5); pass++) for (i = 0; i < 3; i++) { for (sgn = -1; sgn <= 1; sgn += 2) { v = NS[i]; NS[i] = clamp(v + sgn * step[i], lo[i], hi[i]); e2 = err(); if (e2 < e) e = e2; else NS[i] = v; } step[i] *= 0.6; }
     err(); return Math.sqrt(e);
   }
+  function keepTailIn() {                              // nor her tail: it bends along the wall instead
+    for (var it = 0; it < 6; it++) {
+      U.tail2.updateWorldMatrix(true, false); tmpV2.set(0, 0, -1.25).applyMatrix4(U.tail2.matrixWorld); if (tmpV2.y > T.rim) return;
+      var ox = tmpV2.x < T.x1 + 0.7 ? 1 : tmpV2.x > T.x2 - 0.7 ? -1 : 0, oz = tmpV2.z < T.z1 + 0.7 ? 1 : tmpV2.z > T.z2 - 0.7 ? -1 : 0; if (!ox && !oz) return;
+      var side = (ox * Math.cos(B.rot) - oz * Math.sin(B.rot)) >= 0 ? -1 : 1; U.tail1.rotation.y = clamp(U.tail1.rotation.y + side * 0.16, -1.2, 1.2); U.tail2.rotation.y = clamp(U.tail2.rotation.y + side * 0.2, -1.3, 1.3);
+    }
+  }
+  function keepNeckIn() {                              // never let her head go through the glass: curl the neck until it is inside
+    for (var it = 0; it < 8; it++) {
+      headPos(tmpV2); if (tmpV2.y > T.rim + 0.2) return;
+      var ox = tmpV2.x < T.x1 + 0.9 ? 1 : tmpV2.x > T.x2 - 0.9 ? -1 : 0, oz = tmpV2.z < T.z1 + 0.9 ? 1 : tmpV2.z > T.z2 - 0.9 ? -1 : 0; if (!ox && !oz) return;
+      var side = (ox * Math.cos(B.rot) - oz * Math.sin(B.rot)) >= 0 ? 1 : -1;              // which way (in her own frame) is back into the tank
+      for (var q = 0; q < NECK; q++) U.segs[q].rotation.y = clamp(U.segs[q].rotation.y + side * 0.07, -0.6, 0.6);
+    }
+  }
   function poseBeast(dt, speedK) {
     B.t += dt; var hunting = speedK > 1.3, w = (hunting ? 4.6 : 1.9) * (0.5 + 0.5 * clamp(B.sp / 2, 0.2, 1.6));
     phT += dt * w;
@@ -484,48 +421,29 @@
     U.flips.forEach(function (f, n) { var ph = phT + (n > 1 ? 1.5 : 0); f.rotation.z = f.userData.sd * Math.sin(ph) * 0.42; f.rotation.y = Math.cos(ph) * 0.22 * f.userData.sd; f.rotation.x = Math.cos(ph) * 0.3; });
     U.tail1.rotation.y = Math.sin(phT * 0.9 - 0.7) * 0.16 - clamp(B.turn || 0, -0.8, 0.8) * 0.35; U.tail2.rotation.y = Math.sin(phT * 0.9 - 1.6) * 0.24 - clamp(B.turn || 0, -0.8, 0.8) * 0.3;
   }
-  function onWalk(x, z, y) { return y > A.DIVE.y - 0.3 && y < CW + 1.5 && x > T.x1 && x < T.x2 && !player.water && !!walkAt(x, z, y); }
-  function insideBay(R, x, z, y) {
-    return x > R.x1 + 0.04 && x < R.x2 - 0.04 && z > R.z1 + 0.04 && z < R.z2 - 0.04 && (y === undefined || Math.abs(y - R.y) < 0.74);
-  }
-  function inRefuge(x, z, y) {
-    return [A.DIVE].concat(A.REFUGE).some(function (R) { return R.door.open < 0.1 && insideBay(R, x, z, y); });
-  }
+  function onWalk(x, z, y) { return y > A.YL - 0.6 && y < CW + 1.5 && x > T.x1 + 0.2 && x < T.x2 - 0.1 && z > T.z1 && z < T.z2 && !player.water; }          // out over her water, on either level
+  function inRefuge(x, z, y) { for (var q = 0; q < A.REFUGE.length; q++) { var R = A.REFUGE[q]; if (x > R.x1 && x < R.x2 && z > R.z1 - 0.1 && z < R.z2 + 0.1 && (y === undefined || Math.abs(y - R.y) < 0.9)) return true; } return false; }
   /* ---- what her neck must never go through: every walk's grating and rails, every refuge, the keepers' platform ---- */
-  var bodyPhysics = aquariumCreaturePhysics(plesMesh, U, T, beastObstacles);
-  var WK = null, beastBoxes = null, nbV = new V3(), nbV2 = new V3();
+  var WK = null, nbV = new V3(), nbV2 = new V3();
   function walkList() {
-    if (!WK) WK = A.WALKS.concat(A.REFUGE, A.waterDecks).map(function (w) {
-      return { x1: w.x1, x2: w.x2, z1: w.z1, z2: w.z2, y: w.y, roof: w === A.DIVE || A.REFUGE.indexOf(w) >= 0 };
-    }).concat([
-      { x1: A.PLAT.x1, x2: A.PLAT.x2, z1: A.PLAT.z1, z2: A.PLAT.z2, y: CW },
-      { x1: T.x2, x2: H.x2 + 0.5, z1: H.z1, z2: H.z2, y: CW }
-    ]);
+    if (!WK) WK = A.WALKS.map(function (w) { return { x1: w.x1, x2: w.x2, z1: w.z1, z2: w.z2, y: w.y }; }).concat(A.REFUGE.map(function (R) { return { x1: R.x1, x2: R.x2, z1: R.z1, z2: R.z2, y: R.y, roof: true }; }))
+      .concat([{ x1: A.PLAT.x1, x2: A.PLAT.x2, z1: A.PLAT.z1, z2: A.PLAT.z2, y: CW }, { x1: T.x2, x2: H.x2 + 0.5, z1: H.z1, z2: H.z2, y: CW },
+        { x1: A.DIVE.x1, x2: A.DIVE.x2, z1: A.DIVE.z1, z2: A.DIVE.z2, y: A.DIVE.y, noRail: true }, { x1: A.DIVE.x2 - 1.5, x2: A.DIVE.x2 - 0.5, z1: T.z2 - 0.65, z2: T.z2 - 0.2, y: A.DIVE.y, roof: true }]);      // (the dive station's deck, and its cabinet)
     return WK;
   }
   function underWalk(x, z, m) { var L = walkList(); for (var q = 0; q < L.length; q++) { var w = L[q]; if (x > w.x1 - m && x < w.x2 + m && z > w.z1 - m && z < w.z2 + m) return true; } return false; }
-  function beastObstacles() {
-    if (!beastBoxes) {
-      beastBoxes = (A.beastSolids || []).slice();
-      walkList().forEach(function (w) {
-        var deck = { x1: w.x1, x2: w.x2, z1: w.z1, z2: w.z2, y1: w.y - 0.29, y2: w.y + 0.045 };
-        beastBoxes.push(deck);
-        if (w.roof) beastBoxes.push({ x1: w.x1, x2: w.x2, z1: w.z1, z2: w.z2, y1: w.y + 2.16, y2: w.y + 2.46 });
-      });
-    }
-    return beastBoxes;
-  }
-  function syncBeast(dt) {
-    var accepted = bodyPhysics.accept(dt);
-    B.x = plesMesh.position.x; B.z = plesMesh.position.z; B.y = plesMesh.position.y - Math.sin(B.t * 1.1) * 0.06;
-    B.rot = plesMesh.rotation.y; B.pitch = -plesMesh.rotation.x;
-    return accepted;
+  function segHits(ax, az, bx, bz, w, m) {                           // does the line a-b (seen from above) pass over the rectangle w, grown by m?
+    var x1 = w.x1 - m, x2 = w.x2 + m, z1 = w.z1 - m, z2 = w.z2 + m, dx = bx - ax, dz = bz - az, t0 = 0, t1 = 1, P = [-dx, dx, -dz, dz], Q = [ax - x1, x2 - ax, az - z1, z2 - az];
+    for (var q = 0; q < 4; q++) { if (Math.abs(P[q]) < 1e-9) { if (Q[q] < 0) return false; } else { var r = Q[q] / P[q]; if (P[q] < 0) t0 = Math.max(t0, r); else t1 = Math.min(t1, r); if (t0 > t1) return false; } }
+    return true;
   }
   function inSolid(p) {
-    var L = beastObstacles();
+    var L = walkList();
     for (var q = 0; q < L.length; q++) {
-      var b = L[q];
-      if (p.x > b.x1 && p.x < b.x2 && p.y > b.y1 && p.y < b.y2 && p.z > b.z1 && p.z < b.z2) return true;
+      var w = L[q]; if (p.x < w.x1 - 0.14 || p.x > w.x2 + 0.14 || p.z < w.z1 - 0.14 || p.z > w.z2 + 0.14) continue;
+      if (p.y > w.y - 0.36 && p.y < w.y + 0.1) return true;                                                                       // the grating and the steel under it
+      if (w.roof) { if (p.y > w.y - 0.36 && p.y < w.y + 2.35) return true; continue; }                                             // a refuge: bars all round, and a roof
+      if (!w.noRail && (p.x < w.x1 + 0.16 || p.x > w.x2 - 0.16 || p.z < w.z1 + 0.16 || p.z > w.z2 - 0.16) && p.y > w.y - 0.05 && p.y < w.y + 1.18) return true;   // a rail
     }
     return false;
   }
@@ -541,13 +459,13 @@
   var frV = new V3();
   function pathClear(ax, ay, az, bx, by, bz) { var n = Math.max(2, Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) / 0.2)); for (var q = 0; q <= n; q++) { var u = q / n; frV.set(ax + (bx - ax) * u, ay + (by - ay) * u, az + (bz - az) * u); if (inSolid(frV)) return false; } return true; }
   function findRise(px, pz, py) {
-    var cands = [], low = py < CW - 0.5, surface = py < A.YL - 0.5, ty = py + 1.45, hiY = Math.min(ty + (low ? 0.4 : 0.9), T.water + 6.6);
+    var cands = [], low = py < CW - 0.5, ty = py + 1.45, hiY = Math.min(ty + (low ? 0.4 : 0.9), T.water + 6.6);
     for (var k = 0; k < 48; k++) {
       var a = k / 48 * PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      for (var rr = surface ? 6.8 : low ? 8.0 : 6.0; rr <= (surface ? 10.4 : low ? 12.4 : 7.8); rr += 0.4) {                     // (low down she reaches out flat along the water, from further off)
+      for (var rr = low ? 8.0 : 6.0; rr <= (low ? 12.4 : 7.4); rr += 0.4) {                     // (low down she reaches out flat along the water, from further off)
         var rt = low ? 3.6 : 2.7, bx = px + ca * rr, bz = pz + sa * rr, nx = px + ca * (rr - rt), nz = pz + sa * (rr - rt), hx = px + ca * 2.6, hz = pz + sa * 2.6;    // body; where the neck comes out of the water; the head, reared
         if (bx < T.x1 + 3.3 || bx > T.x2 - 3.3 || bz < T.z1 + 3.3 || bz > T.z2 - 3.3) continue;
-        if (underWalk(nx, nz, 0.42)) continue;
+        if (underWalk(nx, nz, 0.7) || underWalk(bx, bz, 0.4)) continue;
         // the neck's path, roughly: up out of the water, the curve over to the reared head, the strike down to you, and back
         var mx = (nx + hx) / 2 - ca * 0.4, mz = (nz + hz) / 2 - sa * 0.4, my = (T.water + hiY) / 2 + 0.6;
         if (!pathClear(nx, T.water - 0.3, nz, mx, my, mz) || !pathClear(mx, my, mz, hx, hiY + 0.3, hz) || !pathClear(hx, hiY + 0.3, hz, px + ca * 0.5, ty - 0.2, pz + sa * 0.5)) continue;
@@ -589,6 +507,15 @@
     plesMesh.position.set(B.x, B.y, B.z); plesMesh.rotation.set(-(B.pitch || 0), B.rot, B.roll !== undefined ? B.roll : 0);
     return ok;
   }
+  var lastClear = null;
+  function guardPose() {                                             // after posing her: if the neck is in a walk, put back the last pose that was clear (she is stopped by it)
+    if (!neckBlocked()) { var c = lastClear || (lastClear = { segs: [], head: new THREE.Euler(), p: new V3(), r: new THREE.Euler() }); c.ok = true; c.b = [B.x, B.y, B.z, B.rot, B.pitch]; c.p.copy(plesMesh.position); c.r.copy(plesMesh.rotation); for (var q = 0; q < NECK; q++) (c.segs[q] = c.segs[q] || new THREE.Euler()).copy(U.segs[q].rotation); c.head.copy(U.head.rotation); return true; }
+    if (!lastClear || !lastClear.ok) return false;
+    var L = lastClear, moved = Math.hypot(L.b[0] - B.x, L.b[2] - B.z) > 0.6;
+    if (moved) { lastClear = null; return false; }                                                    // (she has swum on since: nothing to go back to)
+    B.x = L.b[0]; B.y = L.b[1]; B.z = L.b[2]; B.rot = L.b[3]; B.pitch = L.b[4]; plesMesh.position.copy(L.p); plesMesh.rotation.copy(L.r);       // (the whole of her, as she was: the body's roll too)
+    for (var q2 = 0; q2 < NECK; q2++) U.segs[q2].rotation.copy(L.segs[q2]); U.head.rotation.copy(L.head); return false;
+  }
   function walkAt(x, z, y) { var L = walkList(); for (var q = 0; q < L.length; q++) { var w = L[q]; if (x >= w.x1 - 0.1 && x <= w.x2 + 0.1 && z >= w.z1 - 0.1 && z <= w.z2 + 0.1 && Math.abs(y - w.y) < 0.9) return w; } return null; }
   A.walkAt = walkAt; A.inSolid = inSolid; A.neckBlocked = function () { return neckBlocked(); };
   function onDive(x, z, y) { var D = A.DIVE; return x > D.x1 - 0.2 && x < D.x2 + 0.2 && z > D.z1 - 0.2 && y > D.y - 0.4 && y < D.y + 1.5; }
@@ -596,72 +523,55 @@
      breaks (the first tell); her neck comes up out of it coiled, the head high and drawn back, following you (the second); then
      it stops following and draws back further, the jaws wide (the third: the strike is coming, at where you are now); then the
      strike, a fifth of a second; then she pulls her head back to where it came up, and goes down there — never across a walk. */
-  function startRam(deck, x, z) {
-    B.state = 'ram'; B.ramT = 0; B.ramP = [x + player.vx * 0.35, z + player.vz * 0.35, deck.y];
-    B.hit = false;
-    ripple(B.ramP[0], B.ramP[1]);
-    Sfx.at('aq_attack', B.ramP[0], B.ramP[1], { vol: 0.5, reach: 29 });
-  }
   function startRise(kind) {
     var px = player.x, pz = player.z, own = walkAt(px, pz, player.y), sp = seekRise(px, pz, player.y);
     if (sp === 0) return false;                                       // (still looking: one place tried a frame, out of sight under the water)
     if (!sp) {                                                       // nowhere to rear from: on a low walk she rams it from underneath instead (it shakes; it holds)
       lashT = 1.2; siegeT = 1.2;
-      if (kind === 'walk' && own && !inRefuge(px, pz, player.y)) startRam(own, px, pz);
+      if (kind === 'walk' && own && own.y < CW - 0.5) { B.state = 'ram'; B.ramT = 0; B.ramP = [px + player.vx * 0.5, pz + player.vz * 0.5, own.y]; B.hit = false; ripple(B.ramP[0], B.ramP[1]); Sound.tone(70, 40, 1.2, 0.2, 'sine'); Sound.noise(1.0, 600, 0.22); }
       return false;
     }
-    B.state = 'rise'; B.kind = kind; B.riseT = 0; B.locked = false; B.hit = false; B.ok = true; B.rise = sp; B.lunge = null; B.blockT = 0; B.broke = B.bulge = B.splashed = false; B.low = player.y < CW - 0.5; B.aborted = false; B.hist = []; B.histTime = 0; B.solved = false; B.there = false; B.appT = 0; B.approachBlocked = 0;
-    Sfx.at('aq_attack', sp[2], sp[3], { vol: 0.65, reach: 31 });
+    B.state = 'rise'; B.kind = kind; B.riseT = 0; B.locked = false; B.hit = false; B.ok = true; B.rise = sp; B.low = player.y < CW - 0.5; B.aborted = false; B.hist = []; B.solved = false; B.there = false; B.appT = 0;
+    Sound.noise(0.9, 900, 0.3); Sound.noise(1.2, 4200, 0.12, 0.2); Sound.tone(180, 90, 0.9, 0.12, 'sawtooth');
     return true;
   }
   function headStart() { return diffName === 'easy' ? 5.6 : diffName === 'hard' ? 3.0 : 4.4; }          // how long she thrashes at the far end before she comes for you
   A.resetBeast = function () {
-    var st = S(); B.x = 122; B.y = 1.22; B.z = 60; B.rot = PI / 2; B.pitch = 0; B.roll = undefined; B.sp = 0; B.turn = 0; B.state = st.dead ? 'dead' : 'patrol'; B.stunT = 0; B.lure = 0; B.hit = false; way = 0; lashT = 5; portCD = 0; deadT = st.dead ? 99 : 0; chaseDelay = 0; plesMesh.visible = true;
+    var st = S(); B.x = 122; B.y = 0.9; B.z = 60; B.rot = 0.6; B.pitch = 0; B.roll = undefined; B.sp = 0; B.turn = 0; B.state = st.dead ? 'dead' : 'patrol'; B.stunT = 0; B.hit = false; way = 0; lashT = 5; portCD = 0; deadT = st.dead ? 99 : 0; hitFx = 0; chaseDelay = 0; plesMesh.visible = true;
     for (var q = 0; q < NECK; q++) U.segs[q].rotation.set(0, 0, 0); U.head.rotation.set(0, 0, 0); U.jaw.rotation.x = 0.06;
-    if (!st.dead && st.fell) { chaseDelay = headStart(); B.x = 126.8; B.z = 54.9; B.y = 1.35; B.rot = -PI / 2; B.state = 'startle'; }      // (started in the water, by the admin teleport: the same head start as after the fall)
-    U.flips.concat([U.tail1, U.tail2]).forEach(function (joint) { joint.rotation.set(0, 0, 0); });
-    seek = null; bodyPhysics.reset(); B.hist = null; B.lunge = null;
-    if (st.dead) {
-      B.x = 117.4; B.y = 1.65; B.z = 63.9; B.rot = 1.13;
-      poseDead(0);
-    } else { poseBeast(0, 1); syncBeast(0); }
-    if (bodyPhysics.blocked()) {
-      B.x = 122; B.y = 1.4; B.z = 59.6; B.rot = PI / 2;
-      B.roll = st.dead ? 2.96 : undefined; B.pitch = 0;
-      neckPose(0, 0, 0, 1); U.head.rotation.set(0, 0, 0);
-      poseBeast(0, 1); syncBeast(0);
-    }
+    if (st.dead) { B.x = 124; B.z = 57; B.rot = 2.2; } else if (st.fell) { chaseDelay = headStart(); B.x = 129.5; B.z = 53.5; B.y = 2; B.state = 'startle'; }      // (started in the water, by the admin teleport: the same head start as after the fall)
+    poseBeast(0, 1); if (st.dead) poseDead(0);
   };
+  // Include the extended neck, jaw, tail and flippers in the clearance check.
+  var deathBounds = new THREE.Box3();
+  function containDeathPose() {
+    deathBounds.setFromObject(plesMesh);
+    var pad = T.glass + 0.08;
+    var dx = Math.max(0,T.x1 + pad - deathBounds.min.x) + Math.min(0,T.x2 - pad - deathBounds.max.x);
+    var dz = Math.max(0,T.z1 + pad - deathBounds.min.z) + Math.min(0,T.z2 - pad - deathBounds.max.z);
+    B.x += dx; B.z += dz;
+    plesMesh.position.x = B.x; plesMesh.position.z = B.z;
+  }
   function poseDead(dt) {
     deadT += dt;
-    var settled = seg(deadT, 0, 8);
-    B.y = damp(B.y, 2.12, 0.55, dt); B.roll = 2.96 + Math.sin(deadT * 1.1) * 0.025; B.pitch = 0; B.sp = 0; B.turn = 0;
-    plesMesh.position.set(B.x, B.y + Math.sin(B.t * 1.1) * 0.06, B.z); plesMesh.rotation.set(0, B.rot, B.roll); B.t += dt;
-    neckPose(0.85, -0.95, 0.55, dt ? 1 - Math.exp(-dt * (0.9 + settled)) : 1);
-    U.head.rotation.x = damp(U.head.rotation.x, 0.14, 2, dt); U.head.rotation.z = damp(U.head.rotation.z, 0.18, 1, dt);
-    U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.36, 1, dt);
-    U.flips.forEach(function (f) { f.rotation.z = damp(f.rotation.z, f.userData.sd * -0.44, 1, dt); f.rotation.y = damp(f.rotation.y, 0, 1, dt); f.rotation.x = damp(f.rotation.x, 0, 1, dt); });
-    U.tail1.rotation.y = damp(U.tail1.rotation.y, 0.25, 1, dt); U.tail2.rotation.y = damp(U.tail2.rotation.y, 0.32, 1, dt);
-    syncBeast(dt);
+    B.y = damp(B.y, T.water - 0.55, 0.6, dt); B.roll = 2.9 + 0.055 * Math.exp(-deadT) * Math.sin(deadT * 2.8); B.pitch = 0; B.sp = 0; B.turn = 0;
+    plesMesh.position.set(B.x, B.y + Math.sin(B.t * 0.7) * 0.04, B.z); plesMesh.rotation.set(0, B.rot, B.roll); B.t += dt;
+    neckPose(0.9, -1.5, 0, 1 - Math.exp(-1.8 * dt)); U.head.rotation.set(0.3, 0.2, 0.4); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.5, 1, dt);
+    U.flips.forEach(function (f, n) { f.rotation.z = damp(f.rotation.z, f.userData.sd * -0.5, 1, dt); f.rotation.y = 0; f.rotation.x = 0; }); U.tail1.rotation.y = damp(U.tail1.rotation.y, 0.3, 1, dt); U.tail2.rotation.y = damp(U.tail2.rotation.y, 0.4, 1, dt);
+    containDeathPose();
   }
-  var pendingCatch = null;
-  function stepBeast(dt) {
-    var st = S(), px = player.x, pz = player.z, py = player.y, d, q, speedK = 1;
+  A.updateBeast = function (dt) {
+    var st = S(), px = player.x, pz = player.z, py = player.y, inAQ = inRect(px, pz, AQ, 2), d, q, speedK = 1;
     A.wu.uTime.value = playTime;
+    if (!inAQ) { B.state = st.dead ? 'dead' : 'patrol'; return false; }
     if (st.dead) { B.state = 'dead'; poseDead(dt); return false; }
-    var exposed = onWalk(px, pz, py) && !inRefuge(px, pz, py), inWater = player.water, dive = onDive(px, pz, py), dp = dist(B.x, B.z, px, pz), ld = diffName === 'easy' ? 0 : diffName === 'hard' ? 0.75 : 0.3;
+    var exposed = onWalk(px, pz, py) && !inRefuge(px, pz), inWater = player.water, dive = onDive(px, pz, py), dp = dist(B.x, B.z, px, pz), ld = diffName === 'easy' ? 0 : diffName === 'hard' ? 0.75 : 0.3;
     var TEL = diffName === 'easy' ? 1.9 : diffName === 'hard' ? 1.2 : 1.5, LOCK = 0.46, HITR = diffName === 'hard' ? 1.7 : 1.5;
-    if (B.lure > 0 && ['strike', 'recoil'].indexOf(B.state) < 0) {
-      B.lure -= dt; B.state = 'feeding';
-      swimTo(116.7, 1.65, 64.5, 3.85, dt, 1.82);
-      neckPose(0, -0.64, 0.55, 1 - Math.exp(-dt * 3));
-      U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.31 + 0.13 * Math.sin(B.t * 3), 4, dt);
-      poseBeast(dt, 1.8); return false;
-    }
+    hitFx = Math.max(0, hitFx - dt);
     if (B.state === 'stun') {
-      B.stunT -= dt; B.sp = damp(B.sp, 0, 2, dt); B.y = damp(B.y, 1.4, 0.8, dt); headPos(tmpV2); neckAim(tmpV2.x + Math.sin(B.t * 3.2) * 0.38, T.water - 1.2, tmpV2.z + Math.cos(B.t * 2.7) * 0.38, 0.2, 0.4, 1.2); U.head.rotation.z = damp(U.head.rotation.z, Math.sin(B.t * 3.1) * 0.15, 6, dt); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.28 + Math.sin(B.t * 3) * 0.08, 4, dt);
+      B.stunT -= dt; B.sp = damp(B.sp, 0, 2, dt); B.y = damp(B.y, 1.4, 0.8, dt); headPos(tmpV2); neckAim(tmpV2.x + Math.sin(B.t * 13) * 0.6, T.water - 1.2, tmpV2.z + Math.cos(B.t * 11) * 0.6, 0.2, 0.4, 1.2); U.head.rotation.z = Math.sin(B.t * 21) * 0.4; U.jaw.rotation.x = 0.5 + Math.sin(B.t * 17) * 0.2;
       if (B.stunT <= 0) { B.state = inWater ? 'chase' : 'patrol'; lashT = 4 + Math.random() * 2; siegeT = 2.2; U.head.rotation.z = 0; B.broke = B.bulge = B.splashed = false; }
-      poseBeast(dt, 2);  return false;
+      poseBeast(dt, 2); if (!inWater) guardPose(); return false;
     }
     if (B.state === 'rise' || B.state === 'strike' || B.state === 'recoil') {
       /* Her head is placed, every frame, by the same solver the kill uses (neckSolve: the neck's three numbers searched until the
@@ -672,77 +582,64 @@
       if (B.state === 'rise') {
         /* first she gets to the place, fast and under the surface (the rise does not start until she is there) */
         if (!B.there) {
-          if (dist(px, pz, seekP.x, seekP.z) > 3.2 || Math.abs(py - seekP.y) > 1 || inRefuge(px, pz, py)) {
-            B.state = 'sink'; sinkT = 0.48; lashT = 1; return false;
-          }
           B.appT = (B.appT || 0) + dt; var ax = R[0] - B.x, az = R[1] - B.z, dTo = Math.hypot(ax, az), stp = Math.min(dTo, 5.0 * dt);
           if (dTo > 0.02) { B.x += ax / dTo * stp; B.z += az / dTo * stp; }
-          var face = Math.atan2(seekP.x - R[0], seekP.z - R[1]);
-          var tr2 = clamp(angDiff(face, B.rot), -1.95 * dt, 1.95 * dt); B.rot += tr2; B.turn = damp(B.turn || 0, tr2 / Math.max(dt, 1e-3), 3, dt);
-          B.sp = damp(B.sp || 0, dTo > 0.1 ? 4.5 : 0.5, 3, dt); B.y = damp(B.y, T.water - (B.approachBlocked > 0.12 ? 2.48 : 2.14), 4, dt); B.pitch = damp(B.pitch || 0, 0, 3, dt);
-          var preySide = Math.sign(Math.sin(face - Math.atan2(ax, az))) || 1;
-          neckPose(preySide * Math.min(1.1, B.approachBlocked * 2), -0.62, 0.96, Math.min(1, dt * 4)); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.15, 3, dt);          // (head down: low under the surface, under anything at the waterline)
-          if (dTo < 0.69 && Math.abs(angDiff(face, B.rot)) < 0.26) {
-            B.there = true;
-            B.entryHead = headPos(new V3());
-            NS[0] = U.segs.reduce(function (sum, joint) { return sum + joint.rotation.y; }, 0);
-            NS[1] = -U.segs.reduce(function (sum, joint) { return sum + joint.rotation.x; }, 0);
-            NS[2] = 0.96;
-          }
-          else if (B.appT > 4.9 || B.approachBlocked > 1.55) {
-            var deck = walkAt(px, pz, py);
-            if (deck && exposed && dp < 8.5) startRam(deck, px, pz);
-            else { B.state = 'sink'; sinkT = 0.5; lashT = 1.5; }
-            return false;
-          }
-          if (!B.there) { poseBeast(dt, 2);  return false; }
+          var face = dTo > 0.8 ? Math.atan2(ax, az) : Math.atan2(px - B.x, pz - B.z), tr2 = clamp(angDiff(face, B.rot), -3.2 * dt, 3.2 * dt); B.rot += tr2; B.turn = damp(B.turn || 0, tr2 / Math.max(dt, 1e-3), 3, dt);
+          B.sp = damp(B.sp || 0, dTo > 0.1 ? 4.5 : 0.5, 3, dt); B.y = damp(B.y, T.water - 1.4, 2, dt); B.pitch = damp(B.pitch || 0, 0, 3, dt);
+          neckPose(0, -0.35, 0.2, Math.min(1, dt * 4)); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.15, 3, dt);          // (head down: low under the surface, under anything at the waterline)
+          if (dTo < 0.05 && Math.abs(angDiff(Math.atan2(px - B.x, pz - B.z), B.rot)) < 0.25) B.there = true;
+          else if (B.appT > 4) { B.state = 'sink'; sinkT = 0.5; lashT = 1.5; B.appT = 0; return false; }
+          if (!B.there) { poseBeast(dt, 2); keepNeckIn(); keepTailIn(); return false; }
         }
         B.riseT += dt;
         var app = seg(B.riseT, 0, 0.55), rk = seg(B.riseT, 0.45, 1.1), wind = seg(B.riseT, TELk - LOCK, TELk - LOCK + 0.3);
-        B.x = damp(B.x, R[0], 3, dt); B.z = damp(B.z, R[1], 3, dt); B.y = damp(B.y, T.water - 0.94, 3, dt); B.sp = 0; B.pitch = damp(B.pitch || 0, B.low ? 0.05 + 0.15 * rk : 0.15 + 0.4 * rk, 3, dt);
+        B.x = R[0]; B.z = R[1]; B.y = damp(B.y, T.water - 0.6, 3, dt); B.sp = 0; B.pitch = damp(B.pitch || 0, B.low ? 0.05 + 0.15 * rk : 0.15 + 0.4 * rk, 3, dt);
         B.rot += angDiff(Math.atan2(px - B.x, pz - B.z), B.rot) * Math.min(1, dt * 3);
         if (!B.locked && dist(px, pz, seekP.x, seekP.z) > 2.2) { B.state = 'recoil'; B.rcT = 0; lashT = 1.0; }                      // you have gone too far from where she meant to come up: she starts again
         if (!B.locked) strikeP.set(px + player.vx * ld * LOCK, ty, pz + player.vz * ld * LOCK);
-        if (B.riseT >= TELk - LOCK && !B.locked) { B.locked = true; B.hi = [hX, hiY, hZ]; if (inRefuge(px, pz, py)) strikeP.set(px, ty, pz); Sfx.at('aq_call', R[2], R[3], { vol: 0.53, reach: 32, rate: 1.31 }); }
+        if (B.riseT >= TELk - LOCK && !B.locked) { B.locked = true; B.hi = [hX, hiY, hZ]; if (inRefuge(px, pz, py)) strikeP.set(px, ty, pz); Sound.tone(520, 180, 0.35, 0.16, 'sawtooth'); Sound.noise(0.25, 3400, 0.18); }
         if (B.locked) { hX = B.hi[0]; hiY = B.hi[1]; hZ = B.hi[2]; }
-        var entry = B.entryHead;
-        ht.set(lerp(entry.x, hX - tdx * 0.5 * wind, rk), lerp(entry.y, hiY + 0.3 * wind, rk), lerp(entry.z, hZ - tdz * 0.5 * wind, rk));
-        poseBeast(dt, 2);
-        nsAvoid = true; nsYaw = 0.7; neckSolve(ht.x, ht.y, ht.z, px, ty, pz, false); nsAvoid = false; nsYaw = 0; B.solved = true;      // (stuck against a walk: search again from the start)
+        ht.set(lerp(nX, hX - tdx * 0.5 * wind, rk), lerp(T.water - 0.6, hiY + 0.3 * wind, rk), lerp(nZ, hZ - tdz * 0.5 * wind, rk));
+        nsAvoid = true; nsYaw = 0.7; neckSolve(ht.x, ht.y, ht.z, px, ty, pz, !B.solved); if (neckBlocked()) neckSolve(ht.x, ht.y, ht.z, px, ty, pz, true); nsAvoid = false; nsYaw = 0; B.solved = true;      // (stuck against a walk: search again from the start)
         U.jaw.rotation.x = damp(U.jaw.rotation.x, lerp(0.15, 0.5, rk) + wind * 0.38, 5, dt);
-        if (rk > 0 && !B.broke) { B.broke = true; spray(nX, T.water, nZ, 12, 1.4); ripple(nX, nZ); Sfx.at('aq_swim', nX, nZ, { vol: 0.76, reach: 27, rate: 0.82 }); }
+        if (rk > 0 && !B.broke) { B.broke = true; spray(nX, T.water, nZ, 12, 1.4); ripple(nX, nZ); if (AquaSound.on) AquaSound.slap(nX, nZ, 1.2); Sound.noise(0.8, 1600, 0.3); }
         if (app > 0 && !B.bulge) { B.bulge = true; ripple(nX, nZ); }
-        if (B.riseT >= TELk && B.state === 'rise') { B.state = 'strike'; B.sT = 0; B.from = [ht.x, ht.y, ht.z]; }
+        if (B.riseT >= TELk) { B.state = 'strike'; B.sT = 0; B.from = [ht.x, ht.y, ht.z]; Sound.noise(0.3, 2600, 0.4); Sound.tone(300, 900, 0.12, 0.12, 'sawtooth'); }
         if (B.kind === 'walk' && !onWalk(px, pz, py) && !B.locked) { B.state = 'recoil'; B.rcT = 0; B.from = [ht.x, ht.y, ht.z]; lashT = 2.5; }                    // you got off the walk in time
         if (B.kind === 'dive' && !dive && !B.locked) { B.state = 'recoil'; B.rcT = 0; B.from = [ht.x, ht.y, ht.z]; }
       } else if (B.state === 'strike') {
-        B.sT += dt; var sk = clamp(B.sT / 0.29, 0, 1), se = sk * sk * (3 - 2 * sk), F = B.from;
+        B.sT += dt; var sk = clamp(B.sT / 0.2, 0, 1), se = sk * sk * (3 - 2 * sk), F = B.from;
         if (!B.lunge) B.lunge = [B.x, B.y, B.z, B.pitch]; var L0 = B.lunge;                       // the body drives forward and up behind the head
         B.x = L0[0] + Math.sin(B.rot) * LUNGE * se; B.z = L0[2] + Math.cos(B.rot) * LUNGE * se; B.y = L0[1] + 0.3 * se; B.pitch = lerp(L0[3], B.low ? 0.12 : LUNGE_P, se);
         ht.set(lerp(F[0], strikeP.x - tdx * STRIKE_END[0], se), lerp(F[1], strikeP.y + STRIKE_END[1], se), lerp(F[2], strikeP.z - tdz * STRIKE_END[0], se));
-        poseBeast(dt, 2); nsAvoid = true; nsYaw = 0.7; neckSolve(ht.x, ht.y, ht.z, strikeP.x + tdx, strikeP.y - 0.4, strikeP.z + tdz, false); nsAvoid = false; nsYaw = 0;
-        U.jaw.rotation.x = B.sT < 0.29 ? 0.88 : damp(U.jaw.rotation.x, 0.1, 22, dt);
-        if (B.sT >= 0.29 && !B.hit) {
+        nsAvoid = true; nsYaw = 0.7; neckSolve(ht.x, ht.y, ht.z, strikeP.x + tdx, strikeP.y - 0.4, strikeP.z + tdz, false); nsAvoid = false; nsYaw = 0;
+        U.jaw.rotation.x = B.sT < 0.18 ? 0.88 : damp(U.jaw.rotation.x, 0.1, 22, dt);
+        if (B.sT >= 0.2 && !B.hit) {
           B.hit = true; var miss = dist(px, pz, strikeP.x, strikeP.z), safe = B.kind === 'walk' ? (!onWalk(px, pz, py) || inRefuge(px, pz, py)) : (!dive || inRefuge(px, pz, py));
-          if (miss < HITR && !safe && Math.abs(py + 1.45 - strikeP.y) < 2) pendingCatch = B.kind;
-          Sfx.play('aq_door_hit', { vol: 0.59, rate: 0.83 }); shake = Math.max(shake, 1.1); makeNoise(px, pz, 20);
+          if (miss < HITR && !safe && Math.abs(py + 1.45 - strikeP.y) < 2) { whereDied = B.kind; die('ples'); return true; }
+          Sound.clang(); Sound.thud(0.9); Sound.noise(0.4, 3000, 0.5); shake = Math.max(shake, 1.1); hitFx = 0.5; makeNoise(px, pz, 20);
           spray(strikeP.x, strikeP.y - 1.2, strikeP.z, 6, 0.8);
           if (miss < HITR + 2.2) showMsg(inRefuge(px, pz, py) ? (B.kind === 'walk' ? 'She hits the bars a hand from your face and the whole walk rings.' : 'She hits the divers’ cage and the bars ring like a bell.') : 'Her head goes through the place you were standing.', 3);
         }
         if (B.sT > 0.5) { B.state = 'recoil'; B.rcT = 0; B.from = [ht.x, ht.y, ht.z]; B.lunge = null; }
       } else {
-        B.rcT += dt;
-        var history = B.hist, time = B.histTime - B.rcT * 1.25;
-        if (history && history.length && time >= history[0].t) {
-          var i = history.length - 1;
-          while (i > 0 && history[i].t > time) i--;
-          var next = history[Math.min(i + 1, history.length - 1)], prev = history[i];
-          bodyPhysics.blend(prev.pose, next.pose, clamp((time - prev.t) / (next.t - prev.t || 1), 0, 1));
-          if (time < 0.35 && !B.splashed) { B.splashed = true; spray(nX, T.water, nZ, 8, 1.1); ripple(nX, nZ); }
-          return false;
+        /* back down the way she came: every clear pose of the rise and the strike, played backwards (her head goes back over the
+           same air it came through, and into the water where it came out) */
+        B.rcT += dt; var Hh = B.hist || [], idx = Hh.length - 1 - Math.floor(B.rcT * 60 * 1.3);
+        if (idx >= 0) {
+          var hp2 = Hh[idx]; B.x = hp2[0]; B.y = hp2[1]; B.z = hp2[2]; B.rot = hp2[3]; B.pitch = hp2[4]; NS[0] = hp2[5]; NS[1] = hp2[6]; NS[2] = hp2[7];
+          poseBeast(dt, 2); plesMesh.position.y = hp2[10]; plesMesh.rotation.z = hp2[11]; neckPose(NS[0], NS[1], NS[2], 1); U.head.rotation.set(hp2[8], hp2[9], 0); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.12, 4, dt);
+          if (idx < 30 && !B.splashed) { B.splashed = true; spray(nX, T.water, nZ, 8, 1.1); ripple(nX, nZ); Sound.noise(0.7, 1200, 0.28); }
+          keepTailIn(); guardPose(); return false;
         }
-        B.state = 'sink'; sinkT = 0.85; B.hit = false; B.hi = null; B.hist = null; B.lunge = null;
-        lashT = diffName === 'easy' ? 5.8 : diffName === 'hard' ? 2.8 : 4.0; siegeT = lashT;
+        B.state = 'sink'; sinkT = 1.0; B.hit = false; B.hi = null; B.hist = null; B.solved = B.broke = B.bulge = B.splashed = false; lashT = (diffName === 'easy' ? 8 : diffName === 'hard' ? 4.2 : 5.6) * (B.low ? 0.75 : 1) + Math.random() * 2.4; siegeT = 3.2 + Math.random() * 1.4;
+      }
+      poseBeast(dt, 2); keepTailIn();
+      if (B.state !== 'rise') guardPose();
+      if (B.state === 'rise' || B.state === 'strike') {
+        if (!neckBlocked()) { B.blockT = 0; (B.hist = B.hist || []).push([B.x, B.y, B.z, B.rot, B.pitch, NS[0], NS[1], NS[2], U.head.rotation.x, U.head.rotation.y, plesMesh.position.y, plesMesh.rotation.z]); guardPose(); }
+        else if (B.state === 'rise' && (B.blockT = (B.blockT || 0) + dt) < 0.4) guardPose();                               // (held where she was clear for a moment)
+        else if (B.state === 'rise') { B.blockT = 0; B.state = 'recoil'; B.rcT = 0; var Hb = B.hist; if (!Hb || !Hb.length) guardPose(); else { var lp = Hb[Hb.length - 1]; B.x = lp[0]; B.y = lp[1]; B.z = lp[2]; B.rot = lp[3]; B.pitch = lp[4]; NS[0] = lp[5]; NS[1] = lp[6]; NS[2] = lp[7]; poseBeast(0, 2); plesMesh.position.y = lp[10]; plesMesh.rotation.z = lp[11]; neckPose(NS[0], NS[1], NS[2], 1); U.head.rotation.set(lp[8], lp[9], 0); } }      // (no clear pose from here: she gives the strike up, from the last clear one)
       }
       return false;
     }
@@ -754,79 +651,57 @@
       var hy = lerp(T.water - 0.9, Rp[2] - 0.72, up * (1 - dn)); nsAvoid = true; nsYaw = 0.6; neckSolve(Rp[0], hy, Rp[1], Rp[0], Rp[2] + 1, Rp[1], B.ramT < 0.05); nsAvoid = false; nsYaw = 0;
       U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.15, 4, dt);
       if (B.ramT >= 1.1 && !B.hit) {
-        B.hit = true; Sfx.play('aq_door_hit', { vol: 0.8, rate: 0.79 }); shake = Math.max(shake, 1.6); spray(Rp[0], T.water, Rp[1], 12, 1.4); makeNoise(px, pz, 20);
-        if (!inRefuge(px, pz, py) && dist(px, pz, Rp[0], Rp[1]) < 1.3 && Math.abs(py - Rp[2]) < 0.5) { var walk = walkAt(px, pz, py), along = walk && walk.x2 - walk.x1 > walk.z2 - walk.z1;
-          if (along) player.vz += (pz > (walk.z1 + walk.z2) / 2 ? 1 : -1) * 4.25;
-          else player.vx += (walk && px > (walk.x1 + walk.x2) / 2 ? 1 : -1) * 4.25; player.vy = Rp[2] > CW - 0.5 ? 2.65 : 2.35; player.grounded = false; player.stamina = Math.max(0, player.stamina - 30); showMsg('She hits the walk right under your feet and throws you off them.', 3.5); }
+        B.hit = true; Sound.thud(1); Sound.clang(); Sound.noise(0.5, 1400, 0.45); shake = Math.max(shake, 1.6); spray(Rp[0], T.water, Rp[1], 12, 1.4); makeNoise(px, pz, 20);
+        if (dist(px, pz, Rp[0], Rp[1]) < 1.3 && Math.abs(py - Rp[2]) < 0.5) { player.vx += (Math.random() - 0.5) * 6; player.vz += (Math.random() - 0.5) * 6; player.vy = 2.2; player.grounded = false; player.stamina = Math.max(0, player.stamina - 30); showMsg('She hits the walk right under your feet and throws you off them.', 3.5); }
         else if (!A.ramMsg) { A.ramMsg = 1; showMsg('She hits the walk from underneath. The whole length of it jumps.', 3.5); }
       }
-      poseBeast(dt, 2);   if (B.ramT > 2.2) { B.state = 'sink'; sinkT = 0.8; lashT = 3.5 + Math.random() * 2; B.hit = false; }
+      poseBeast(dt, 2); keepTailIn(); guardPose(); if (B.ramT > 2.2) { B.state = 'sink'; sinkT = 0.8; lashT = 3.5 + Math.random() * 2; B.hit = false; }
       return false;
     }
     if (B.state === 'sink') {                                        // down and away from you, the neck folding back as she goes
       sinkT -= dt; B.pitch = damp(B.pitch || 0, -0.2, 2, dt); var aw = Math.atan2(B.x - px, B.z - pz); swimTo(B.x + Math.sin(aw) * 4, 1.6, B.z + Math.cos(aw) * 4, 2.6, dt, 1.2);
-      neckPose(0, -0.2, 0.45, 1 - Math.exp(-dt * 4)); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.08, 3, dt); if (sinkT <= 0) B.state = 'patrol'; poseBeast(dt, 1.4);   return false;
+      neckPose(0, 0.2, 0.2, 0.06); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.08, 3, dt); if (sinkT <= 0) B.state = 'patrol'; poseBeast(dt, 1.4); keepNeckIn(); keepTailIn(); guardPose(); return false;
     }
     B.pitch = damp(B.pitch || 0, 0, 1.5, dt);
     if (inWater && st.fell) {
       // --- in the water with her ---
-      if (chaseDelay > 0) { chaseDelay -= dt; B.state = 'startle'; swimTo(128.5, 2.1, 54 + Math.sin(B.t * 0.8) * 1.4, 3.2, dt, 1.55); neckPose(Math.sin(B.t * 1.6) * 0.7, 0.4, 0.85, 1 - Math.exp(-dt * 3)); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.28, 3, dt); if (chaseDelay <= 0) Sfx.at('aq_call', B.x, B.z, { vol: 0.6, reach: 30 }); }
+      if (chaseDelay > 0) { chaseDelay -= dt; B.state = 'startle'; swimTo(129.5, 2.4, 53 + Math.sin(B.t * 3) * 2, 3.2, dt, 2.4); neckPose(Math.sin(B.t * 6) * 1.4, 0.8, 1, 0.1); U.jaw.rotation.x = 0.4; if (chaseDelay <= 0) { Sound.roar(true, 0.8); Sound.noise(0.8, 700, 0.4); } }
       else {
         B.state = 'chase'; speedK = 2; d = swimTo(px, T.water - 1.15, pz, (diffName === 'easy' ? 3.1 : diffName === 'hard' ? 4.2 : 3.6), dt, 1.5);
         neckAim(px, T.water + 0.15, pz, 0.14, 0.5, 1.5); U.jaw.rotation.x = damp(U.jaw.rotation.x, dp < 8 ? 0.7 : 0.25, 4, dt);
-        pendingCatch = 'water';      // (her neck at full stretch reaches ten metres: she has to be close to take you)
+        headPos(); if ((dp < 6.5 && dist(headW.x, headW.z, px, pz) < 1.55) || dp < 2.6) { whereDied = 'water'; die('ples'); return true; }      // (her neck at full stretch reaches ten metres: she has to be close to take you)
       }
     } else if (dive && st.fell) {
       // --- you are out on the dive station: she works the edge of it ---
       B.state = 'siege'; siegeT -= dt; speedK = 1.6;
       swimTo(121 + Math.sin(B.t * 0.45) * 5.5, T.water - 1.0, 62.6 + Math.cos(B.t * 0.6) * 1.6, 2.8, dt, 1.0); neckAim(px, py + 1.2, pz, 0.05, 0.9, 1.1); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.3, 3, dt);
-      if (siegeT <= 0 && !inRefuge(px, pz, py)) startRise('dive');
+      if (siegeT <= 0) startRise('dive');
     } else if (onWalk(px, pz, py)) {
       // --- you are on the catwalk: she keeps under you ---
-      B.state = 'stalk'; speedK = 1.4;
+      B.state = 'stalk'; exposedT += dt; speedK = 1.4;
       swimTo(px + Math.sin(B.t * 0.5) * 3, T.water - 1.5, pz + (B.z > pz ? 1 : -1) * (3.6 + Math.cos(B.t * 0.4) * 1.2), 2.9, dt, 1.1); neckAim(px, T.water - 0.6, pz, 0.04, 0.3, 1.0); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.12, 3, dt);
       if (exposed) lashT -= dt * (py < CW - 0.8 ? 1.4 : 1); else lashT = Math.max(lashT, 1.6);
-      if (lashT <= 0 && dp < 14 && exposed) startRise('walk');
+      if (lashT <= 0 && dp < 12 && !st.fell) startRise('walk');
     } else {
       // --- an exhibit: her round of the tank, a look at whoever is at the glass, a pass by the basement ports ---
       B.state = 'patrol'; portCD -= dt;
       var W = WAY[way], tx = W[0], tz = W[1], ty2 = W[2], spd = 1.9;
       if (A.showT > 0) { A.showT -= dt; var sp = A.showP; tx = sp[0]; tz = sp[1] + (A.showT > 5 ? 6 : A.showT > 2.5 ? 0 : -7) * sp[3]; ty2 = sp[2]; spd = 2.6; }
-      else if (py < -1 && px < 139.4 && portCD <= 0) { for (q = 0; q < 2; q++) { var pc = (A.ports[q][0] + A.ports[q][1]) / 2; if (Math.abs(pz - pc) < 3.5) { A.showT = 9; A.showP = [129.1, pc, -0.8, pz > pc ? 1 : -1]; portCD = 26; after(1.6, function () { Sfx.at('aq_call', B.x, B.z, { vol: 0.45, reach: 30 }); showMsg('The light in the port goes out. Something is passing it, and goes on passing.', 4.5); }); } } }
+      else if (py < -1 && px < 139.4 && portCD <= 0) { for (q = 0; q < 2; q++) { var pc = (A.ports[q][0] + A.ports[q][1]) / 2; if (Math.abs(pz - pc) < 3.5) { A.showT = 9; A.showP = [130.6, pc, -1.75, pz > pc ? 1 : -1]; portCD = 26; B.x = 129; B.z = pc + 8 * A.showP[3]; B.y = -1.4; B.rot = A.showP[3] > 0 ? PI : 0; after(1.6, function () { Sound.thud(0.5); Sound.tone(70, 40, 1.6, 0.14, 'sine'); showMsg('The light in the port goes out. Something is passing it, and goes on passing.', 4.5); }); } } }
       d = swimTo(tx, ty2, tz, spd, dt, 0.75); if (d < 2.4 && !(A.showT > 0)) way = (way + 1) % WAY.length;
       var look = px > H.x1 && px < T.x1 && py < 2 && dp < 16;                               // somebody at the front glass
       if (look) neckAim(px, 1.6, pz, 0.03, 0.4, 1.0); else { neckPose(-clamp(B.turn || 0, -0.8, 0.8) * 2.2 + Math.sin(B.t * 0.5) * 0.3, 0.25 + Math.sin(B.t * 0.37) * 0.2, 0.5, 0.03); U.head.rotation.set(0.06, 0, 0); }
       U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.06 + Math.max(0, Math.sin(B.t * 0.3) - 0.9) * 2, 2, dt);
     }
-    poseBeast(dt, speedK);
+    poseBeast(dt, speedK); keepNeckIn(); keepTailIn(); if (!inWater) guardPose();
     if (B.state === 'chase' || B.state === 'siege') chaseHold = 4;
     return false;
-  }
-  A.updateBeast = function (dt) {
-    if (!inRect(player.x, player.z, AQ, 2)) return false;
-    pendingCatch = null;
-    stepBeast(dt);
-    if (S().dead) return false;
-    var clear = syncBeast(dt);
-    if (B.state === 'rise' && !B.there) B.approachBlocked = clear ? Math.max(0, B.approachBlocked - dt * 0.4) : B.approachBlocked + dt;
-    if ((B.state === 'rise' && B.there) || B.state === 'strike') {
-      B.histTime += dt;
-      B.hist.push({ t: B.histTime, pose: bodyPhysics.pose() });
-      B.blockT = clear ? 0 : B.blockT + dt;
-      if (B.blockT > 0.82 && B.state === 'rise') { B.state = 'recoil'; B.rcT = 0; }
-    }
-    if (!pendingCatch || inRefuge(player.x, player.z, player.y)) return false;
-    headPos();
-    var h = Math.hypot(headW.x - player.x, headW.y - player.y - (pendingCatch === 'water' ? 1.12 : 1.35), headW.z - player.z);
-    if (h > (pendingCatch === 'water' ? 1.65 : 1.9) || !pathClear(headW.x, headW.y, headW.z, player.x, player.y + (pendingCatch === 'water' ? 1.12 : 1.5), player.z)) return false;
-    whereDied = pendingCatch; die('ples'); return true;
   };
-  A.beastBlocked = bodyPhysics.blocked;
   A.flash = function (inBeam) {
     var st = S(); if (st.dead || !inRect(player.x, player.z, AQ)) return 0;
     if (['rise', 'strike', 'chase', 'siege', 'stalk', 'ram'].indexOf(B.state) < 0) return 0;
     headPos(); if (!inBeam(headW.x, headW.z, 20, 4) && !inBeam(B.x, B.z, 14, 4)) return 0;
-    B.state = 'stun'; B.stunT = DIFF.stun * 0.8; B.hit = false; Sfx.at('aq_attack', B.x, B.z, { vol: 0.5, reach: 26, rate: 1.22 }); return 1;
+    B.state = 'stun'; B.stunT = DIFF.stun * 0.8; B.hit = false; Sound.roar(true, 0.6); Sound.screech(); Sound.noise(1.0, 800, 0.4); return 1;
   };
   /* While the lift goes up she comes to the corner to see what is making the noise. */
   A.beastRide = function (dt, up, trav, t) {
@@ -834,7 +709,7 @@
     A.wu.uTime.value = playTime; B.pitch = damp(B.pitch || 0, up ? 0.2 * seg(trav, 0.6, 1) : 0, 2, dt);
     swimTo(128.6, up ? lerp(0.6, T.water - 0.9, seg(trav, 0.25, 0.9)) : 1.2, 54.2 + Math.sin(B.t * 0.6) * 1.2, 2.6, dt, 1.3);
     if (up && trav > 0.55) { neckAim(camera.position.x, camera.position.y - 0.4, camera.position.z, 0.05, 1.3, 1.25); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.3, 2, dt); } else neckPose(0.2, 0.3, 0.5, 0.03);
-    poseBeast(dt, 1.3); syncBeast(dt);
+    poseBeast(dt, 1.3); keepNeckIn(); keepTailIn();
   };
   /* What you see when she gets you: the head, the open mouth, and then you are going over the rail and down with her. */
   A.kill = function (done) {
@@ -842,7 +717,7 @@
     function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
     var dx = B.x - c0.x, dz = B.z - c0.z, dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl; var yaw1 = yaw0 + angDiff(Math.atan2(-dx, -dz), yaw0), wet = whereDied === 'water', PULL = wet ? 0.6 : whereDied === 'dive' ? 1.7 : 1.1, first = true, away = new V3();
     if (!wet) { for (PULL = Math.max(PULL, 1.3); PULL < 4; PULL += 0.15) if (!underWalk(c0.x + dx * PULL, c0.z + dz * PULL, 0.5)) break; }        // out past the rail and clear of anything under you before you go down
-    Hands.over = newOver();
+    Scares.sting(); Hands.over = null;
     startCine(CN = { pulse: 0, update: function (dt) {
       T2 += dt; A.wu.uTime.value += dt;
       var whip = easeOut(clamp(T2 / 0.2, 0, 1)), loom = seg(T2, 0.05, 0.5), bite = seg(T2, 0.55, 0.7), drag = seg(T2, 0.72, 2.3), fin = seg(T2, DUR - 0.75, DUR - 0.25), sh = 0.3 + loom * 0.4 + bite * 0.5;
@@ -858,37 +733,25 @@
       if (!ev.b0) ev.b0 = [B.x, B.z, B.y]; var bk = easeIO(clamp(T2 / 0.45, 0, 1));                   // (from where she is: she surges there, never jumps)
       if (bk < 1) { B.x = lerp(ev.b0[0], kx, bk); B.z = lerp(ev.b0[1], kz, bk); B.y = lerp(ev.b0[2], B.y, bk); }
       else { var vm = 3.5 * dt; B.x += clamp(kx - B.x, -vm, vm); B.z += clamp(kz - B.z, -vm, vm); }                 // (and after that follows the drag no faster than she can swim)
-      B.rot += clamp(angDiff(Math.atan2(cx - B.x, cz - B.z), B.rot), -2.0 * dt, 2.0 * dt);
+      B.rot = Math.atan2(cx - B.x, cz - B.z);
       poseBeast(dt, 2);
       nsAvoid = !wet; var over = nsAvoid ? 0.42 * (1 - drag) : 0;                // off a walk she comes over the rail at you from above, and bites down
-      neckSolve(cx + dx * want, cy - 0.1 - (1 - loom) * 0.5 * (nsAvoid ? 0 : 1) + over, cz + dz * want, cx, cy - 0.05, cz, first); first = false; nsAvoid = false;      // (searched afresh while her body is still surging into place)
+      neckSolve(cx + dx * want, cy - 0.1 - (1 - loom) * 0.5 * (nsAvoid ? 0 : 1) + over, cz + dz * want, cx, cy - 0.05, cz, first || bk < 1); first = false; nsAvoid = false;      // (searched afresh while her body is still surging into place)
       U.jaw.rotation.x = Math.max(lerp(0.3, 0.85, loom) - bite * 0.6 + Math.sin(T2 * 11) * 0.08 * drag, fin * 0.85); U.head.rotation.z = Math.sin(T2 * 9) * 0.2 * drag * (1 - fin);
-      syncBeast(dt); headPos(hp); away.set(cx - hp.x, cy - hp.y, cz - hp.z); var gap = away.length(); if (gap < 0.62) { away.multiplyScalar(0.62 / (gap || 1)); cx = hp.x + away.x; cy = hp.y + away.y; cz = hp.z + away.z; }      // (the lens never goes into her head, whatever the neck did)
-      camera.position.set(cx + Math.sin(T2 * 6.5) * sh * 0.04, cy + Math.sin(T2 * 53) * sh * 0.04, cz + Math.sin(T2 * 37) * sh * 0.03);
+      headPos(hp); away.set(cx - hp.x, cy - hp.y, cz - hp.z); var gap = away.length(); if (gap < 0.62) { away.multiplyScalar(0.62 / (gap || 1)); cx = hp.x + away.x; cy = hp.y + away.y; cz = hp.z + away.z; }      // (the lens never goes into her head, whatever the neck did)
+      camera.position.set(cx + Math.sin(T2 * 41) * sh * 0.04, cy + Math.sin(T2 * 53) * sh * 0.04, cz + Math.sin(T2 * 37) * sh * 0.03);
       var hd = Math.hypot(hp.x - cx, hp.z - cz), pit = Math.atan2(hp.y - cy, Math.max(0.6, hd)), yawH = hd > 0.3 ? Math.atan2(-(hp.x - cx), -(hp.z - cz)) : yaw1, yawC = lerp(yaw0, yaw1, whip); yawC += angDiff(yawH, yawC) * seg(T2, 0.08, 0.4);
       camera.rotation.set(lerp(pitch0, clamp(pit, -0.9, 1.0), seg(T2, 0.04, 0.4)) + Math.sin(T2 * 47) * sh * 0.02, yawC + Math.sin(T2 * 7) * 0.05 * drag, Math.sin(T2 * 3.1) * 0.22 * drag);
       var punch = bite * (1 - seg(T2, 0.75, 1.2)) * 14 + lg * 9; if (Math.abs(camera.fov - (fov0 + punch)) > 0.05) { camera.fov = fov0 + punch; camera.updateProjectionMatrix(); }
-      flashlight.intensity = 1.2; Hands.fill.intensity = 0.6; var brace = Math.sin(seg(T2, 0.18, 0.76) * PI * 0.5) * (1 - seg(T2, 1.15, 2.2));
-      var O = Hands.over;
-      O.noTorch = T2 > 0.55; O.L.k = brace; O.R.k = brace * 0.92;
-      O.L.pos.set(-0.235, -0.27 + 0.25 * brace, -0.34 - 0.12 * brace);
-      O.R.pos.set(0.255, -0.24 + 0.17 * brace, -0.32 - 0.11 * brace);
-      O.L.q.setFromEuler(new THREE.Euler(0.72, -0.2, 0.61)); O.R.q.setFromEuler(new THREE.Euler(0.79, 0.24, -0.62));
-      O.R.pose = O.L.pose = Hands.POSE.push;
-      Hands.update(dt, { yaw: camera.rotation.y, pitch: camera.rotation.x });
+      flashlight.intensity = 1.2; Hands.fill.intensity = 0.6; Hands.aim = [0.03, 0.04, 0.06, 0.12, 0.1, 0.25]; Hands.update(dt, {});
       var uw = seg(cy, T.water + 0.1, T.water - 0.5) > 0 ? clamp((T.water + 0.1 - cy) / 0.6, 0, 1) : 0;
       sc.style.background = T2 < 0.085 ? '#1a0003' : uw > 0 ? 'radial-gradient(ellipse at center, rgba(8,60,70,' + 0.55 * uw + ') 0%, rgba(2,22,30,' + 0.95 * uw + ') 100%)' : 'radial-gradient(ellipse at center, rgba(120,0,8,' + bite * 0.3 + ') 0%, rgba(160,0,10,' + bite * 0.7 + ') 100%)'; sc.style.opacity = 1;
-      if (once('r', 0.02)) Sfx.play('aq_attack', { vol: 0.94 });
-      if (once('hit', 0.66)) Sfx.play('aq_bite', { vol: 0.98 });
-      if (once('sp', wet ? 0.7 : 1.5)) Sfx.play('aq_plunge', { vol: wet ? 0.46 : 0.72 });
-      if (once('last', DUR - Scares.CUT)) Sfx.play('aq_bite', { vol: 0.87, rate: 0.88 });
-      if (uw > 0.2 && Math.random() < dt * 14) bubble(2, 0.35);
-      stepBubbles(dt); A.step(dt, false, true);
+      if (once('r', 0.02)) { Sound.roar(true, 0.9); Sound.splash(); } if (once('hit', 0.66)) { Scares.crunch(1); Sound.thud(1); } if (once('sp', wet ? 0.7 : 1.5)) Sound.splash(); if (once('b2', 1.9)) Sound.noise(1.0, 320, 0.5); if (once('o', DUR - 0.72)) Sound.roar(true, 0.8); if (once('drive', DUR - Scares.CUT - 0.22)) Sound.noise(0.25, 6000, 0.3); if (once('last', DUR - Scares.CUT)) { Scares.crunch(1); Sound.thud(1); }
       $('fade').style.opacity = T2 >= DUR - Scares.CUT ? 1 : 0; CN.pulse = clamp(sh, 0, 1);
       return T2 >= DUR;
-    }, end: function () { sc.style.background = 'none'; sc.style.opacity = 0; Hands.aim = null; Hands.over = null; camera.fov = prefs.fov; camera.updateProjectionMatrix(); camera.rotation.z = 0; U.head.rotation.z = 0; $('fade').style.opacity = 1; done(); setTimeout(function () { $('fade').style.opacity = 0; }, 900); } });
+    }, end: function () { sc.style.background = 'none'; sc.style.opacity = 0; Hands.aim = null; camera.fov = prefs.fov; camera.updateProjectionMatrix(); camera.rotation.z = 0; U.head.rotation.z = 0; $('fade').style.opacity = 1; done(); setTimeout(function () { $('fade').style.opacity = 0; }, 900); } });
   };
-  A.deathLine = function () { return whereDied === 'water' ? 'She is faster in the water than you are.' : whereDied === 'dive' ? 'She reached you at Containment Control.' : 'She took you off the walkway.'; };
+  A.deathLine = function () { return whereDied === 'water' ? 'She is faster in the water than you are.' : whereDied === 'dive' ? 'She took you off the dive station.' : 'She took you off the walkway.'; };
 
   // ================= hands and eyes for the set pieces =================
   var hQa = new THREE.Matrix4(), hX = new V3(), hY = new V3(0, 1, 0), hZ = new V3(), camQ = new Q4();
@@ -898,7 +761,7 @@
   function toCam(pw, qw, o) { o.pos.copy(pw); camera.worldToLocal(o.pos); o.q.copy(camQ.copy(camera.quaternion).invert()).multiply(qw); }
   function newOver() { return { R: { pos: new V3(), q: new Q4(), pose: Hands.POSE.hook, k: 0 }, L: { pos: new V3(), q: new Q4(), pose: Hands.POSE.hook, k: 0 }, noTorch: false }; }
   function setCam(x, y, z, pit, yaw, roll) { camera.position.set(x, y, z); camera.rotation.set(pit, yaw, roll || 0); if (camera.fov !== prefs.fov) { camera.fov = prefs.fov; camera.updateProjectionMatrix(); } camera.updateMatrixWorld(true); }
-  var HANGP = [0.9, -0.06], HANGT = 1.25, HANG = Hands.barPose(0.02), OPENH = Hands.POSE.barOpen, blackout = 0, spanSag = 0, spanGone = false, brkK = 0, zapK = 0, sc = null;
+  var HANGP = [0.9, -0.06], HANGT = 1.25, HANG = Hands.barPose(0.02), OPENH = Hands.POSE.barOpen, FLAT = Hands.POSE.push, blackout = 0, spanSag = 0, spanGone = false, brkK = 0, brkT = 0, zapK = 0, sc = null;
   function tint(css, op) { sc = sc || $('scare'); sc.style.background = css; sc.style.opacity = op; }
 
   // ================= the fall =================
@@ -938,12 +801,12 @@
   function stepBubbles(dt) { bubbles.forEach(function (b) { if (b.life <= 0) return; b.life -= dt; b.s.position.y += b.v * dt; b.s.position.x += Math.sin(b.life * 9 + b.v * 7) * dt * 0.08; b.s.material.opacity = Math.min(1, b.life) * 0.8; if (b.life <= 0 || b.s.position.y > T.water - 0.05) { b.life = 0; b.s.visible = false; } }); }
   function fall(scripted) {
     var st = S(), T2 = scripted ? 0 : 4.6, ev = {}, c0 = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp, CN, YAW = PI / 2, Z0 = clamp(player.z, 59.8, 60.2);
-    var land = scripted ? new V3(114.2, 0, 62.09) : new V3(clamp(player.x, T.x1 + 1.2, T.x2 - 1.2), 0, clamp(player.z, T.z1 + 1.2, T.z2 - 1.2));
+    var land = scripted ? new V3(112.2, 0, Z0 + 0.4) : new V3(clamp(player.x, T.x1 + 1.2, T.x2 - 1.2), 0, clamp(player.z, T.z1 + 1.2, T.z2 - 1.2));
     var O = Hands.over = newOver(), gq = new Q4(), fq = new Q4(), hR = new V3(), hL = new V3(), pR = new V3(), pL = new V3(), mid = new V3(), slipR = 0, slipL = 0, cx = c0.x, cy = c0.y, cz = c0.z, pit = pitch0, yaw = yaw0, roll = 0, END = 8.4, yawEnd = 0, swing = 0, swingV = 0, sx = 0;
-    var CATCH = 0.86, SLIP = 2.35, BOLTS = 3.62, PEEL = 3.78, LETGO = 4.12, SPLASH = 4.76, SURF = 7.0;
+    var CATCH = 0.86, SLIP = 2.35, BOLTS = 3.62, PEEL = 3.78, LETGO = 4.12, SPLASH = 4.66, SURF = 7.0;
     function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
     function grips() { A.span.rotation.z = -spanSag; A.span.updateMatrixWorld(true); var G = HANGP; hR.set(G[0], G[1], Z0 - 60 - 0.27).applyMatrix4(A.span.matrixWorld); hL.set(G[0], G[1], Z0 - 60 + 0.27).applyMatrix4(A.span.matrixWorld); }      // (shoulder width apart, the wrists in front of the lip and under it: the fingers hooked over)
-    closePanel(); yawEnd = Math.atan2(-(122 - land.x), -(62.4 - land.z));
+    closePanel(); yawEnd = Math.atan2(-(121 - land.x), -(69.6 - land.z));
     startCine(CN = { pulse: 0, update: function (dt) {
       T2 += dt; A.wu.uTime.value += dt; var sh = 0, uw = 0, body = false, legsK = 0, lean = 0, kickL = 0, kickR = 0;
       grips(); mid.copy(hR).add(hL).multiplyScalar(0.5);
@@ -962,11 +825,10 @@
         pit = lerp(lerp(0.92, 0.5, pull1), 1.0, seg(T2, SLIP, SLIP + 0.2) * (1 - seg(T2, SLIP + 0.5, SLIP + 0.8))) * (1 - look) + look * -1.25; pit = lerp(pit, 0.6, pull2 * (1 - look));      // eyes up on your hands and the edge; down once, past your own body to the water
         yaw = YAW + Math.sin(h * 2.3) * 0.05 + look * 0.18 + oneArm * 0.25; roll = swing * 0.12 + slipR * 0.1 + oneArm * 0.2;
         sh = hump(T2, CATCH, CATCH + 0.02, CATCH + 0.06, CATCH + 0.35) + hump(T2, SLIP, SLIP + 0.02, SLIP + 0.04, SLIP + 0.3) * 0.7 + hump(T2, BOLTS, BOLTS + 0.02, BOLTS + 0.04, BOLTS + 0.3) * 0.9;
-        body = true; legsK = 1; lean = swing * 0.25 - 0.14; ev.lookK = look;
-        kickL = Math.sin(T2 * 4.1) * (pull1 + pull2 + 0.35); kickR = Math.sin(T2 * 4.1 + 2) * (pull1 + pull2 + 0.35);
+        body = true; legsK = 1; lean = swing * 0.25 - 0.14; ev.lookK = look;          // (craning to look down: the head goes out over the body) kickL = Math.sin(T2 * 4.1) * (pull1 + pull2 + 0.35); kickR = Math.sin(T2 * 4.1 + 2) * (pull1 + pull2 + 0.35);
         O.R.k = O.L.k = 1; O.noTorch = true;
       } else if (T2 < SPLASH) {                          // the drop: hands still up, the stub going away above you, then the water
-        var f = T2 - LETGO - 0.12, fy0 = mid.y - 0.72; var toward = sstep(f / (SPLASH - LETGO - 0.12)); cy = lerp(fy0, T.water + 0.24, Math.pow(clamp(f / 0.52, 0, 1), 1.75)); cx = mid.x + 0.24 + f * 1.8; cz = lerp(mid.z + 0.1, 62.12, toward);
+        var f = T2 - LETGO - 0.12, fy0 = mid.y - 0.72; cy = Math.max(T.water + 0.3, fy0 - 4.9 * f * f * 1.15); cx = mid.x + 0.24 + f * 0.6; cz = mid.z + f * 0.2;
         pit = lerp(0.62, 0.95, seg(f, 0, 0.25)) - seg(f, 0.2, 0.45) * 1.7; yaw = YAW + f * 0.35; roll = 0.2 + f * 0.4; body = true; legsK = 1; lean = -0.2 * f; kickL = 0.6; kickR = -0.4;
         O.R.k = O.L.k = 1; O.noTorch = true;
       } else {                                           // the water: under, the light far above; up toward it; out
@@ -1002,9 +864,8 @@
       if (!st.dead) {
         if (T2 < 1.6) { swimTo(116.5, 1.6, 54, 4.2, dt, 1.6); neckPose(0.1, 0.3, 0.5, 0.05); poseBeast(dt, 1.6); }
         else if (T2 < SPLASH) { var pz2 = T2 < 3.2 ? 66.5 : 54; swimTo(114.4, T.water - 1.5, pz2, 3.4, dt, 1.4); neckAim(cx, T.water - 0.4, cz, 0.05, 0.5, 1.0); U.jaw.rotation.x = 0.2; poseBeast(dt, 1.6); }
-        else { swimTo(128.5, 2.1, 54, 4, dt, 1.7); neckPose(Math.sin(B.t * 1.6) * 0.72, 0.5, 0.8, 0.07); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.3, 4, dt); poseBeast(dt, 2.0); }
-        syncBeast(dt);
-
+        else { swimTo(129.5, 2.4, 53.5, 4.6, dt, 2.2); neckPose(Math.sin(B.t * 6) * 1.1, 0.6, 0.8, 0.08); U.jaw.rotation.x = 0.35; poseBeast(dt, 2.2); }
+        keepNeckIn(); keepTailIn();
       }
       // the lights go, from the west end, as the span rips the feeder out of its tray
       if (T2 > LETGO + 0.1) blackout = clamp((T2 - LETGO - 0.1) / 0.75, blackout, 1);
@@ -1016,17 +877,17 @@
       tint(uw > 0 ? 'radial-gradient(ellipse at 50% ' + (30 - pit * 30).toFixed(0) + '%, rgba(30,110,120,' + 0.25 * uw + ') 0%, rgba(4,30,38,' + 0.8 * uw + ') 100%)' : 'none', uw > 0 ? 1 : 0);
       if (uw > 0.5 && Math.random() < dt * (T2 < SPLASH + 0.8 ? 40 : 9)) bubble(T2 < SPLASH + 0.8 ? 4 : 1, 0.35);
       stepBubbles(dt); wetStep(dt);
-      if (once('go', 0.02) && scripted) { Sfx.play('aq_rung', { vol: 0.44 }); Sfx.play('grunt', { vol: 0.25, rate: 1.1 }); }
-      if (once('catch', CATCH) && scripted) { Sfx.play('aq_door_hit', { vol: 0.67, rate: 0.91 }); Sfx.play('grunt', { vol: 0.5, rate: 0.9 }); Sfx.play('gate_rattle', { vol: 0.5, rate: 0.8 }); }
-      if (once('creak', 1.5) && scripted) Sfx.play('aq_strain', { vol: 0.68 }); if (once('pull', 1.5) && scripted) Sfx.play('grunt', { vol: 0.4, rate: 0.95 });
-      if (once('slip', SLIP) && scripted) { Sfx.play('aq_strain', { vol: 0.58, rate: 1.32 }); Sfx.play('gasp', { vol: 0.4 }); }
-      if (once('below', 2.75) && scripted) { Sfx.at('aq_call', B.x, B.z, { vol: 0.68, reach: 33 }); }
+      if (once('go', 0.02) && scripted) { Sound.step(0.2, 700); Sfx.play('grunt', { vol: 0.25, rate: 1.1 }); }
+      if (once('catch', CATCH) && scripted) { Sound.clang(); Sound.thud(0.9); Sfx.play('grunt', { vol: 0.5, rate: 0.9 }); Sfx.play('gate_rattle', { vol: 0.5, rate: 0.8 }); }
+      if (once('creak', 1.5) && scripted) Sound.creak(0.8); if (once('pull', 1.5) && scripted) Sfx.play('grunt', { vol: 0.4, rate: 0.95 });
+      if (once('slip', SLIP) && scripted) { Sound.noise(0.12, 3000, 0.2); Sfx.play('gasp', { vol: 0.4 }); Sound.creak(1); }
+      if (once('below', 2.75) && scripted) { Sound.tone(60, 40, 1.4, 0.16, 'sine'); if (AquaSound.on) AquaSound.pass(B.x, B.z, 1, 'air'); }
       if (once('pull2', 3.1) && scripted) Sfx.play('grunt', { vol: 0.45, rate: 0.85 });
-      if (once('shear', BOLTS) && scripted) Sfx.play('aq_door_break', { vol: 0.67, rate: 1.16 });
+      if (once('shear', BOLTS)) { Sound.clang(); Sound.spark(); Sound.noise(0.2, 5000, 0.4); [0, 1, 2].forEach(function (n) { Sound.tone(2200 - n * 300, 900, 0.05, 0.08, 'square', n * 0.06); }); }
       if (once('peel', PEEL)) Sfx.play('gasp', { vol: 0.5, rate: 1.05 });
-      for (var q = 0; q < 6; q++) if (once('pop' + q, LETGO + 0.05 + q * 0.11)) { flashA = 0.3; $('flash').style.opacity = 0.3; }
-      if (once('splash', SPLASH)) { Sfx.play('aq_plunge', { vol: 0.94 }); A.cable.visible = true; spray(cx, T.water, cz, 18, 1.2); ripple(cx, cz); }
-      if (once('surf', SURF - 0.05)) { Sfx.play('aq_surface', { vol: 0.78 }); wetStart(); ripple(cx, cz); spray(cx, T.water, cz, 8, 0.6); }
+      for (var q = 0; q < 6; q++) if (once('pop' + q, LETGO + 0.05 + q * 0.11)) { Sound.spark(); flashA = 0.3; $('flash').style.opacity = 0.3; }
+      if (once('splash', SPLASH)) { Sound.splash(); Sound.thud(1); if (AquaSound.on) AquaSound.plunge(); A.cable.visible = true; spray(cx, T.water, cz, 18, 1.2); ripple(cx, cz); }
+      if (once('surf', SURF - 0.05)) { Sfx.play('gasp', { vol: 0.65 }); Sound.noise(0.6, 2400, 0.3); if (AquaSound.on) AquaSound.surface(); wetStart(); ripple(cx, cz); spray(cx, T.water, cz, 8, 0.6); }
       if (flashA > 0) { flashA = Math.max(0, flashA - dt * 2.5); $('flash').style.opacity = flashA.toFixed(3); }
       A.step(dt, false, true); stepDust(dt); CN.pulse = clamp(sh, 0, 1);
       return T2 >= END;
@@ -1034,45 +895,29 @@
       tint('none', 0); Hands.over = null; Body.show(false); st.fell = true; blackout = 1; spanGone = true; A.span.visible = false; A.cable.visible = true;
       player.x = camera.position.x; player.z = camera.position.z; player.y = T.swim; player.vy = 0; player.vx = player.vz = 0; player.water = true; player.grounded = true; player.yaw = player.cy = camera.rotation.y; player.pitch = player.cp = -0.02; player.light = player.battery > 0; player.stamina = Math.max(player.stamina, 60);
       chaseDelay = headStart(); B.state = 'startle'; setState('playing'); lockPointer();
-      showMsg('Dark. She is at the far end, thrashing at the sparks.  Get to a marked swim ladder. Follow the amber light to Containment Control.', 6.5);
+      showMsg('Dark. She is at the far end, thrashing at the sparks.  The amber light on the south side is the dive station — SWIM.', 6.5);
     } });
   }
-  A.splashIn = function () { var st = S(); if (!st.fell && state === 'playing' && !st.dead) fall(false); else Sfx.play('aq_swim', { vol: 0.63, rate: 0.88 }); };
+  A.splashIn = function () { var st = S(); if (!st.fell && state === 'playing' && !st.dead) fall(false); else Sound.splash(); };
 
   // ================= out of the water, and the breaker =================
-  function haul(edge) {
-    var elapsed = 0, start = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp;
-    var O = Hands.over = newOver(), q = new Q4(), hand = new V3(), sounded = false;
-    var fx = edge.edgeX - edge.fromX, fz = edge.edgeZ - edge.fromZ, len = Math.hypot(fx, fz); fx /= len; fz /= len;
-    var yaw = Math.atan2(-fx, -fz), endX = edge.edgeX + fx * 0.58, endZ = edge.edgeZ + fz * 0.58;
-    startCine({ update: function (dt) {
-      elapsed += dt;
-      var reach = seg(elapsed, 0, 0.42), weight = seg(elapsed, 0.42, 1.17), step = seg(elapsed, 0.98, 1.59);
-      var cx = lerp(lerp(start.x, edge.fromX, reach), endX, step), cz = lerp(lerp(start.z, edge.fromZ, reach), endZ, step);
-      var cy = lerp(start.y, edge.y + 1.67, weight) - Math.sin(step * PI) * 0.098;
-      setCam(cx, cy, cz, lerp(pitch0, -0.63, reach) * (1 - step) - 0.06 * step, yaw0 + angDiff(yaw, yaw0) * reach, Math.sin(weight * PI) * 0.052);
-      gripQ(fx, fz, 0.15, q);
-      [[O.R, 1], [O.L, -1]].forEach(function (item) {
-        hand.set(edge.edgeX - fz * item[1] * 0.235, edge.y + 0.025, edge.edgeZ + fx * item[1] * 0.235);
-        hand.addScaledVector(tmpV.set(fx, 0, fz), 0.04);
-        toCam(hand, q, item[0]); item[0].pose = HANG;
-        item[0].k = reach * (1 - seg(elapsed, 0.87, 1.45));
-      });
-      O.noTorch = elapsed < 1.56;
-      if (!sounded && elapsed > 0.42) { sounded = true; Sfx.play('aq_rung', { vol: 0.54 }); Sfx.play('grunt', { vol: 0.37, delay: 0.15 }); }
-      flashlight.intensity = O.noTorch ? 0 : (player.light ? 2 : 0); Hands.fill.intensity = 0.45;
-      Hands.update(dt, { yaw: camera.rotation.y, pitch: camera.rotation.x, grounded: false });
-      A.beastHold(dt); A.step(dt, false, true);
-      return elapsed >= 1.65;
-    }, end: function () {
-      Hands.over = null; player.x = endX; player.z = endZ; player.y = edge.y;
-      player.vx = player.vy = player.vz = 0; player.water = false; player.grounded = true;
-      player.yaw = player.cy = yaw; player.pitch = player.cp = -0.06;
-      lashT = diffName === 'hard' ? 1.8 : 3.05;
-      setState('playing'); lockPointer();
-    } });
+  function haul() {
+    var st = S(), D = A.DIVE, T2 = 0, c0 = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp, hx = clamp(player.x, D.x1 + 0.5, D.x2 - 0.5), O = Hands.over = newOver(), q = new Q4(), pR = new V3(), pL = new V3(), ev = {}, CN, DUR = 1.9;
+    closePanel();
+    startCine(CN = { pulse: 0, update: function (dt) {
+      T2 += dt; A.wu.uTime.value += dt;
+      var a = easeIO(clamp(T2 / 0.4, 0, 1)), up = easeIO(clamp((T2 - 0.45) / 0.75, 0, 1)), on = easeIO(clamp((T2 - 1.15) / 0.7, 0, 1));
+      var cx = lerp(c0.x, hx, a), cz = lerp(lerp(c0.z, D.z1 - 0.42, a), D.z1 + 0.85, on * 0.9 + up * 0.1), cy = lerp(lerp(c0.y, D.y + 0.2 + up * 1.0, Math.max(a * 0.2, up)), D.y + 1.7, on);
+      setCam(cx, cy + Math.sin(T2 * 30) * 0.004 * up * (1 - on), cz, lerp(lerp(pitch0, -0.25, a), -0.75, up) * (1 - on) - 0.03 * on, yaw0 + angDiff(PI, yaw0) * a, 0);
+      gripQ(0, 1, 0.1, q); pR.set(hx - 0.27, D.y + 0.03, D.z1 + 0.16); pL.set(hx + 0.27, D.y + 0.03, D.z1 + 0.16); toCam(pR, q, O.R); toCam(pL, q, O.L); O.R.pose = O.L.pose = FLAT; O.R.k = O.L.k = a * (1 - seg(T2, 1.3, 1.7)); O.noTorch = T2 < 1.55;
+      flashlight.intensity = O.noTorch ? 0 : 2.0; Hands.fill.intensity = 0.4; Hands.update(dt, { speed: 0, yaw: camera.rotation.y, pitch: camera.rotation.x, phase: 0, grounded: true });
+      if (!ev.a && T2 > 0.38) { ev.a = 1; Sound.thud(0.5); Sound.noise(0.2, 2600, 0.2); } if (!ev.b && T2 > 0.5) { ev.b = 1; Sfx.play('grunt', { vol: 0.4 }); Sound.noise(0.9, 1500, 0.35); } if (!ev.c && T2 > 1.5) { ev.c = 1; Sound.step(0.2, 500); Sound.tone(1700, 900, 0.07, 0.05, 'triangle'); }
+      A.beastHold(dt); A.step(dt, false, true); return T2 >= DUR;
+    }, end: function () { Hands.over = null; player.x = hx; player.z = D.z1 + 0.85; player.y = D.y; player.water = false; player.yaw = player.cy = PI; player.pitch = player.cp = -0.03; siegeT = diffName === 'easy' ? 3.4 : 2.0; setState('playing'); lockPointer(); showMsg('Steel under you, and a rubber mat. The cabinet on the wall is the tank’s main breaker — and its feeder is lying in her water.', 6.5); } });
   }
-  A.beastHold = function (dt) { var st = S(); if (st.dead) { poseDead(dt); return; } swimTo(121 + Math.sin(B.t * 0.5) * 5, T.water - 1.1, 61.5, 3, dt, 1.2); neckAim(camera.position.x, camera.position.y, camera.position.z, 0.05, 0.8, 1.1); poseBeast(dt, 1.6); syncBeast(dt); };
+  A.beastHold = function (dt) { var st = S(); if (st.dead) { poseDead(dt); return; } swimTo(121 + Math.sin(B.t * 0.5) * 5, T.water - 1.1, 61.5, 3, dt, 1.2); neckAim(camera.position.x, camera.position.y, camera.position.z, 0.05, 0.8, 1.1); poseBeast(dt, 1.6); keepNeckIn(); keepTailIn(); };
+  /* The kill.  The breaker goes in against its spring; four hundred and eighty volts go down the torn feeder into the water
+     she is lying in; and you are standing on a rubber mat. */
   /* Water thrown up (spray), and rings spreading on the surface where something breaks it (ripple): her tells. */
   var drops = [], rings = [];
   (function () {
@@ -1088,118 +933,93 @@
   }
   var arcs = [];
   (function () { var at2 = softTex('rgba(215,235,255,1)', 'rgba(120,170,255,.4)'); for (var q = 0; q < 10; q++) { var sp = dyn(new THREE.Sprite(new THREE.SpriteMaterial({ map: at2, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, fog: false }))); sp.visible = false; scene.add(sp); arcs.push(sp); } A.gather('upper'); })();
+  /* Step 3: the closing lever.  You set your feet on the mat, take the cross bar in both hands, and haul.  It does not want
+     to go: the latch holds and holds — and gives, and the lever comes down through its quarter turn in one slam.  Four hundred
+     and eighty volts go down the torn feeder into the water she is in. */
   function leverPull() {
-    var T2 = 0, start = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp, CN, O = Hands.over = newOver(), END = 2.28;
-    var axis = new V3(), bar = new V3(), q = new Q4(), fp = new V3();
-    var cab = A.cab, stand = A.controlUse, held = false, tripped = false;
-    var gaze = new V3(0, 1.09, -0.46); cab.localToWorld(gaze);
+    var st = S(), T2 = 0, ev = {}, c0 = camera.position.clone(), yaw0 = player.cy, pitch0 = player.cp, CN, O = Hands.over = newOver(), END = 2.55, q1 = new Q4(), gp = new V3(), pR = new V3(), pL = new V3();
+    var cab = A.cab; cab.updateMatrixWorld(true); var front = new V3(0, 0, -1).transformDirection(cab.matrixWorld), stand = new V3(0, 0, -0.78).applyMatrix4(cab.matrixWorld), YAW = Math.atan2(front.x, front.z);
+    function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
     closePanel(); Hands.release();
     startCine(CN = { pulse: 0, update: function (dt) {
-      T2 += dt;
-      var step = seg(T2, 0, 0.55), reach = seg(T2, 0.53, 0.93), strain = seg(T2, 0.95, 1.4), down = seg(T2, 1.47, 1.74), release = seg(T2, 1.91, 2.26);
-      brkK = 0.09 * strain * (1 - down) + down;
-      A.breaker.rotation.x = lerp(0.27, -0.5, brkK);
-      var leaning = Math.sin(down * PI) * 0.07 + strain * 0.04 * (1 - release);
-      var cx = lerp(start.x, stand.x, step) + leaning, cy = lerp(start.y, A.DIVE.y + 1.58, step) - down * 0.11, cz = lerp(start.z, stand.z, step);
-      var yaw = Math.atan2(cx - gaze.x, cz - gaze.z), pitch = Math.atan2(gaze.y - cy, Math.hypot(gaze.x - cx, gaze.z - cz));
-      setCam(cx, cy, cz, lerp(pitch0, pitch + 0.07, step), yaw0 + angDiff(yaw, yaw0) * step, -0.025 * strain * (1 - release));
-      A.breaker.updateWorldMatrix(true, false);
-      axis.set(1, 0, 0).transformDirection(A.breaker.matrixWorld);
-      fp.set(-Math.sin(yaw), 0, -Math.cos(yaw));
-      gripQ(fp.x, fp.z, 0.42 - 0.32 * down, q);
-      // The side of the bar follows the player's right vector. Mirroring the rig cannot swap the two grips.
-      var orientation = (Math.cos(yaw) * axis.x - Math.sin(yaw) * axis.z) >= 0 ? 1 : -1;
-      [[O.R, 1], [O.L, -1]].forEach(function (entry) {
-        var hand = entry[0], side = entry[1];
-        bar.set(side * orientation * A.BRK_GRIP.half, 0, A.BRK_GRIP.z).applyMatrix4(A.breaker.matrixWorld);
-        bar.sub(tmpV2.copy(BARP).applyQuaternion(q));
-        toCam(bar, q, hand);
-        hand.pose = Hands.mixPose(OPENH, TRIP_GRIP, seg(T2, 0.76, 0.96) * (1 - release), []);
-        hand.k = reach * (1 - release);
+      T2 += dt; A.wu.uTime.value += dt;
+      var a = easeIO(clamp(T2 / 0.45, 0, 1)), reach = seg(T2, 0.3, 0.75), strain = seg(T2, 0.8, 1.2), give = seg(T2, 1.86, 2.0), tremble = strain * (1 - give);
+      brkK = 0.12 * strain * (1 - give) + give + Math.sin(T2 * 31) * 0.01 * tremble;                                // the lever: a few degrees against the latch, then all the way
+      A.breaker.rotation.x = lerp(0.8, -0.7, brkK);
+      var dip = 0.06 * strain + 0.1 * give * (1 - seg(T2, 2.05, 2.45)), lean = 0.05 * strain + 0.08 * give;
+      var cx = lerp(c0.x, stand.x, a) + front.x * lean, cz = lerp(c0.z, stand.z, a) + front.z * lean, cy = lerp(c0.y, A.DIVE.y + 1.62, a) - dip + (Math.random() - 0.5) * tremble * 0.006;
+      A.breaker.updateMatrixWorld(true); gp.set(0, 0, A.BRK_GRIP.z).applyMatrix4(A.breaker.matrixWorld);
+      var yw = yaw0 + angDiff(Math.atan2(-(gp.x - cx), -(gp.z - cz)), yaw0) * a, pt = lerp(pitch0, Math.atan2(gp.y - cy, Math.hypot(gp.x - cx, gp.z - cz)) * 0.8, a);
+      setCam(cx, cy, cz, pt + (Math.random() - 0.5) * tremble * 0.006 + give * (1 - seg(T2, 2.1, 2.5)) * -0.06, yw, (Math.random() - 0.5) * tremble * 0.006);
+      // both hands on the cross bar: knuckles along it, palms on top, fingers round toward you
+      var ax = new V3(1, 0, 0).transformDirection(A.breaker.matrixWorld);
+      [[O.R, 1, pR], [O.L, -1, pL]].forEach(function (H2) {
+        var p = H2[2].set(H2[1] * A.BRK_GRIP.half, 0, A.BRK_GRIP.z).applyMatrix4(A.breaker.matrixWorld), fwd = tmpV2.copy(p).sub(camera.position); fwd.y = 0; fwd.normalize();
+        gripQ(fwd.x, fwd.z, 1.0 - brkK * 0.9, q1); var from = tmpV.set(H2[1] * 0.24, -0.32, -0.3); camera.localToWorld(from); p.lerp(from, 1 - reach); toCam(p, q1, H2[0]);
+        H2[0].pose = Hands.mixPose(OPENH, HANG2, seg(T2, 0.6, 0.8), []); H2[0].k = a * (1 - seg(T2, 2.35, 2.55));
       });
-      O.noTorch = T2 > 0.56 && T2 < 2.11;
-      Hands.fill.intensity = 0.47; Hands.update(dt, { yaw: camera.rotation.y, pitch: camera.rotation.x, grounded: true });
-      if (!held && T2 >= 0.94) { held = true; Sfx.play('grunt', { vol: 0.35, rate: 0.93 }); }
-      if (!tripped && T2 >= 1.7) { tripped = true; Sfx.play('aq_alert', { vol: 0.84 }); }
-      A.beastHold(dt); A.step(dt, false, true); CN.pulse = 0.14 * strain;
+      O.noTorch = T2 > 0.25 && T2 < 2.4; flashlight.intensity = O.noTorch ? 0 : (player.light ? 2.0 : 0); Hands.fill.intensity = 0.45;
+      Hands.update(dt, { speed: 0, yaw: camera.rotation.y, pitch: camera.rotation.x, phase: 0, grounded: true });
+      if (once('g1', 0.85)) Sfx.play('grunt', { vol: 0.42, rate: 0.92 }); if (once('g2', 1.45)) Sfx.play('grunt', { vol: 0.5, rate: 0.84 });
+      if (tremble > 0.3 && Math.random() < dt * 9) Sound.tone(70 + Math.random() * 30, 50, 0.12, 0.08, 'sawtooth');                // the latch grinding
+      if (once('slam', 1.95)) { Sound.clunk(); Sound.clang(); Sound.thud(1); shake = Math.max(shake, 1.2); }
+      if (A.beastHold) A.beastHold(dt); A.step(dt, false, true); CN.pulse = tremble * 0.3;
       return T2 >= END;
     }, end: function () { Hands.over = null; zap(); } });
   }
-  var TRIP_GRIP = Hands.barPose(A.BRK_GRIP.r);
-  /* Her death.  The emergency trip goes in; the feeder lying in her water arcs, and the whole tank goes white.  She comes up out of it
+  var HANG2 = Hands.barPose(0.022);
+  /* Her death.  The breaker goes in; the feeder lying in her water arcs, and the whole tank goes white.  She comes up out of it
      rigid, her neck thrown back and her jaws wide, and shakes; the water round her boils to steam.  The feeder blows; she hangs
      there a moment, and goes over sideways, slowly, into a wave of her own making; rolls belly up; one flipper twitches; and she
      settles under the surface and does not move again.  Through all of it her neck is kept out of every walk over her. */
-  var steam = [];
+  var steam = [], zapLook = new V3();
   (function () { var st2 = softTex('rgba(230,236,236,.6)', 'rgba(200,210,210,.2)'); for (var q = 0; q < 24; q++) { var sp = dyn(new THREE.Sprite(new THREE.SpriteMaterial({ map: st2, transparent: true, depthWrite: false, opacity: 0, fog: false }))); sp.visible = false; scene.add(sp); steam.push({ s: sp, life: 0, max: 1 }); } })();
   function puffSteam(x, z, n) { for (var q = 0, k3 = 0; q < steam.length && k3 < n; q++) { var p = steam[q]; if (p.life > 0) continue; k3++; p.s.position.set(x + (Math.random() - 0.5) * 3, T.water + 0.1, z + (Math.random() - 0.5) * 3); p.life = p.max = 1.6 + Math.random() * 1.2; p.s.visible = true; } }
   function stepSteam(dt) { steam.forEach(function (p) { if (p.life <= 0) return; p.life -= dt; var k3 = p.life / p.max; p.s.position.y += dt * 0.7; var sc = 0.6 + (1 - k3) * 2.2; p.s.scale.set(sc, sc, 1); p.s.material.opacity = Math.sin(k3 * PI) * 0.35; if (p.life <= 0) p.s.visible = false; }); }
   function zap() {
     var st = S(), T2 = 0, ev = {}, c0 = camera.position.clone(), yaw0 = camera.rotation.y, pitch0 = camera.rotation.x, CN, DUR = 7.4, hp = new V3(), ht = new V3(), first = true;
     var startY = B.y, startPitch = B.pitch || 0;
-    var west = B.x < 122, bx = west ? 117.15 : 126.65, bz = 64.07;
-    var viewerX = west ? 120.52 : 123.44, viewerZ = A.DIVE.z1 + 0.57;
-    var windowX = west ? 120.45 : 123.57, focus = new V3();
+    var bx = clamp(B.x, 118.5, 123.5), bz = clamp(B.z, 61.5, 64.5);
     function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
     closePanel(); Hands.release(); B.state = 'dying'; B.hit = false;
     startCine(CN = { pulse: 0, update: function (dt) {
       T2 += dt; A.wu.uTime.value += dt;
-      var live = T2 < 2.9 ? 1 : 0, rear = seg(T2, 0.08, 0.6), topple = seg(T2, 3.15, 4.3), roll = seg(T2, 4.3, 5.6), jit = live * Math.pow(Math.sin(seg(T2, 0, 3.2) * PI), 0.7);
+      var live = T2 < 2.9 ? 1 : 0, rear = seg(T2, 0.08, 0.6), hang = seg(T2, 2.9, 3.15), topple = seg(T2, 3.15, 4.3), roll = seg(T2, 4.3, 5.6), jit = live * (0.6 + 0.4 * Math.sin(T2 * 43));
       // her body: up out of the water, rigid; over sideways; belly up and down to float
       if (T2 <= 5.6) {
         B.x = damp(B.x, bx, 2.5, dt); B.z = damp(B.z, bz, 2.5, dt); B.rot += angDiff(Math.atan2(c0.x - B.x, c0.z - B.z) + 0.4, B.rot) * Math.min(1, dt * 2) * (1 - topple);
-        B.y = lerp(startY, T.water - 0.65, rear) - topple * 0.12 - roll * 0.97; B.pitch = lerp(startPitch, 0.55, rear) * (1 - topple) + Math.sin(T2 * 7.05) * 0.033 * jit; B.roll = topple * 1.5 + roll * 1.4 + Math.sin(T2 * 5.85 + 0.76) * 0.075 * jit; B.sp = 0;
+        B.y = lerp(startY, T.water - 0.35, rear) - topple * 0.5 - roll * 0.25; B.pitch = lerp(startPitch, 0.55, rear) * (1 - topple) + (Math.random() - 0.5) * 0.04 * jit; B.roll = topple * 1.5 + roll * 1.4 + (Math.random() - 0.5) * 0.05 * jit; B.sp = 0;
         poseBeast(dt, 2);
         // her neck: thrown back and up while the current is in her (a point high over her back), then flung down across the water as she goes over
         if (T2 < 3.15) { plesMesh.updateMatrixWorld(true); var fx = Math.sin(B.rot), fz = Math.cos(B.rot); ht.set(B.x + fx * lerp(1.5, 0.6, rear), lerp(T.water + 0.4, T.water + 4.6, rear), B.z + fz * lerp(1.5, 0.6, rear));
-          nsAvoid = true; neckSolve(ht.x + Math.sin(T2 * 6.15) * 0.13 * jit, ht.y, ht.z + Math.cos(T2 * 5.27) * 0.12 * jit, B.x - fx * 3, ht.y + 2, B.z - fz * 3, first); nsAvoid = false; first = false;
-          U.head.rotation.z = Math.sin(T2 * 6.5) * 0.35 * jit; U.jaw.rotation.x = lerp(0.3, 0.95, rear) - Math.max(0, Math.sin(T2 * 17)) * 0.15 * jit; }
+          nsAvoid = true; neckSolve(ht.x + (Math.random() - 0.5) * 0.25 * jit, ht.y, ht.z + (Math.random() - 0.5) * 0.25 * jit, B.x - fx * 3, ht.y + 2, B.z - fz * 3, first); nsAvoid = false; first = false;
+          U.head.rotation.z = Math.sin(T2 * 41) * 0.35 * jit; U.jaw.rotation.x = lerp(0.3, 0.95, rear) - Math.max(0, Math.sin(T2 * 17)) * 0.15 * jit; }
         else { neckPose(1.1 * topple, -1.2 * topple + 0.5 * (1 - topple), 0.2, Math.min(1, dt * 3)); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.55, 2, dt); U.head.rotation.z = damp(U.head.rotation.z, 0.4, 2, dt); }
-        U.flips.forEach(function (f, n) { f.rotation.z = f.userData.sd * (live ? 0.9 + Math.sin(T2 * 7.0 + n) * 0.35 * jit : lerp(0.9, -0.4, topple)); f.rotation.x = live ? Math.sin(T2 * 6.2 + n * 2) * 0.3 * jit : 0; });
+        U.flips.forEach(function (f, n) { f.rotation.z = f.userData.sd * (live ? 0.9 + Math.sin(T2 * 31 + n) * 0.35 * jit : lerp(0.9, -0.4, topple)); f.rotation.x = live ? Math.sin(T2 * 27 + n * 2) * 0.3 * jit : 0; });
         if (T2 > 5.0 && T2 < 5.45) U.flips[1].rotation.z = U.flips[1].userData.sd * (-0.4 + Math.sin((T2 - 5.0) * 22) * 0.5);      // one last twitch
-        U.tail1.rotation.y = live ? Math.sin(T2 * 4.9) * 0.4 * jit : damp(U.tail1.rotation.y, 0.3, 1, dt); U.tail2.rotation.y = live ? Math.sin(T2 * 4.6 + 1) * 0.5 * jit : damp(U.tail2.rotation.y, 0.4, 1, dt);
-        syncBeast(dt); headPos(hp);
+        U.tail1.rotation.y = live ? Math.sin(T2 * 23) * 0.4 * jit : damp(U.tail1.rotation.y, 0.3, 1, dt); U.tail2.rotation.y = live ? Math.sin(T2 * 19 + 1) * 0.5 * jit : damp(U.tail2.rotation.y, 0.4, 1, dt);
+        keepTailIn(); guardPose(); containDeathPose(); headPos(hp);
       } else { poseDead(dt); headPos(hp); }
-      // Cross to the observation window while the relay fires. Look through its clear aperture at the body.
-      var look = seg(T2, 0.04, 1.05), step = seg(T2, 0.13, 1.03), impact = hump(T2, 0, 0.08, 0.18, 0.63);
-      focus.set(B.x, B.y + 0.58, B.z).lerp(hp, (1 - topple) * 0.24);
-      var cx = lerp(c0.x, viewerX, step), cz = lerp(c0.z, viewerZ, step) + impact * 0.045;
-      var camY = lerp(c0.y, A.DIVE.y + 1.55, step), wn = A.DIVE.z1 - cz;
-      // Keep the ray inside the pane. Off to the side, the creature remains visible through the glass.
-      var throughX = cx + (focus.x - cx) * wn / Math.min(-0.12, focus.z - cz);
-      var aimX = clamp(throughX, windowX - 0.54, windowX + 0.54);
-      var ty = Math.atan2(cx - aimX, -wn), tp = Math.atan2(focus.y - camY, Math.max(0.6, dist(cx, cz, focus.x, focus.z)));
-      var sh = impact * 0.43 + hump(T2, 3.15, 3.27, 3.41, 4.12) * 0.57;
-      setCam(cx + Math.sin(T2 * 27) * sh * 0.03, camY + Math.sin(T2 * 31) * sh * 0.024, cz,
-        lerp(pitch0, clamp(tp, -0.72, 0.45), look), yaw0 + angDiff(ty, yaw0) * look, Math.sin(T2 * 16) * sh * 0.017);
+      // you: thrown back a step from the cabinet by the bang, then watching her
+      var look = seg(T2, 0.05, 0.4), back = hump(T2, 0, 0.08, 0.2, 0.7) * 0.25, lookP = zapLook.copy(hp).lerp(tmpV.set(B.x, T.water, B.z), T2 > 3.2 ? 0.6 : 0.3), sh = live * 0.45 + hump(T2, 3.2, 3.25, 3.4, 4.0) * 0.8;
+      var cx = c0.x - Math.sin(yaw0) * -back, cz = c0.z - Math.cos(yaw0) * -back, ty = Math.atan2(-(lookP.x - cx), -(lookP.z - cz)), tp = Math.atan2(lookP.y - c0.y, Math.hypot(lookP.x - cx, lookP.z - cz));
+      setCam(cx + (Math.random() - 0.5) * sh * 0.03, c0.y + (Math.random() - 0.5) * sh * 0.03 - back * 0.2, cz, lerp(pitch0, clamp(tp, -0.4, 0.5), look), yaw0 + angDiff(ty, yaw0) * look, 0);
       // the current: off the end of the feeder, across the water, crawling over her
       arcs.forEach(function (sp, n) { sp.visible = live > 0; if (!live) return; var r = Math.random(); if (n < 3) sp.position.set(A.cableEnd.x + (r - 0.5) * 1.5, T.water + Math.random() * 0.7, A.cableEnd.z + (Math.random() - 0.5) * 1.5); else if (n < 6) sp.position.set(lerp(A.cableEnd.x, B.x, Math.random()), T.water + 0.05, lerp(A.cableEnd.z, B.z, Math.random())); else sp.position.copy(hp).lerp(tmpV.set(B.x, T.water, B.z), Math.random()); var s2 = 0.4 + Math.random() * (n < 3 ? 2.6 : 1.6); sp.scale.set(s2, s2, 1); sp.material.opacity = Math.random() < 0.7 ? 0.9 : 0.1; });
-      zapK = live * (0.38 + 0.22 * Math.sin(T2 * 9) ** 2); if (once('lights', 0.3)) blackout = 0;
+      zapK = live * (0.5 + Math.random() * 0.7); if (once('lights', 0.3)) blackout = 0;
       if (live && Math.random() < dt * 10) puffSteam(B.x, B.z, 2); stepSteam(dt);
-      if (once('slam', 0.0)) {
-        Sfx.play('aq_alert', { vol: 0.87 }); Sfx.play('aq_call', { vol: 0.63, delay: 0.24, rate: 1.22 });
-        flashA = 0.48; st.power = true; spray(B.x, T.water, B.z, 20, 2.4); ripple(B.x, B.z);
-      }
-      if (once('blow', 2.9)) { flashA = 0.45; A.cable.visible = false; A.arc.material.opacity = 0; }
-      if (once('fallS', 3.75)) {
-        Sfx.play('aq_plunge', { vol: 0.81, rate: 0.88 }); spray(B.x, T.water, B.z, 24, 3);
-        ripple(B.x, B.z); ripple(B.x + 2, B.z - 1); shake = Math.max(shake, 0.62);
-      }
-      if (once('roll', 4.18)) {
-        ripple(B.x, B.z); spray(B.x, T.water, B.z, 12, 1.7);
-        Sfx.at('aq_swim', B.x, B.z, { vol: 0.72, reach: 18, rate: 0.72 });
-      }
+      if (once('slam', 0.0)) { Sound.spark(); Sound.clang(); flashA = 0.8; st.power = true; Sound.roar(true, 1); spray(B.x, T.water, B.z, 20, 2.4); ripple(B.x, B.z); }
+      if (live && Math.random() < dt * 14) { Sound.spark(); if (Math.random() < 0.4) Sound.zap(); } if (once('scr', 0.5)) { Sound.screech(); Sound.roar(true, 0.9); } if (once('scr2', 1.7)) { Sound.screech(); Sound.roar(true, 0.7); }
+      if (once('blow', 2.9)) { Sound.spark(); Sound.thud(1); Sound.noise(0.5, 5000, 0.6); flashA = 0.6; A.cable.visible = false; A.arc.material.opacity = 0; }
+      if (once('fallS', 3.75)) { Sound.splash(); Sound.thud(1); Sound.noise(1.8, 600, 0.6); spray(B.x, T.water, B.z, 24, 3); ripple(B.x, B.z); ripple(B.x + 2, B.z - 1); shake = Math.max(shake, 0.8); }
+      if (once('roll', 4.6)) { Sound.noise(1.2, 400, 0.3); ripple(B.x, B.z); } if (once('twitch', 5.05)) { Sound.noise(0.3, 1200, 0.15); ripple(B.x - 1, B.z + 1); }
       if (once('dead', 5.6)) { st.dead = true; deadT = 0; }
-      if (once('winch', 6.0)) { st.ladder = true; Sfx.play('aq_latch', { vol: 0.46, rate: 0.68 }); }
+      if (once('winch', 6.0)) { st.ladder = true; Sound.grind(); Sfx.play('gate_rattle', { vol: 0.4, rate: 0.6 }); }
       if (flashA > 0) { flashA = Math.max(0, flashA - dt * 2.2); $('flash').style.opacity = flashA.toFixed(3); }
-      flashlight.intensity = player.light ? 2.0 * (1 - look * 0.94) : 0; Hands.fill.intensity = 0.39 + zapK * 0.45; Hands.update(dt, { speed: 0, yaw: camera.rotation.y, pitch: camera.rotation.x, phase: 0, grounded: true });
-      var reveal = seg(T2, 0.5, 1.42) * (1 - seg(T2, 6.3, DUR));
-      Lt.trip.position.set(B.x, 3.55, B.z + 1.0); Lt.trip.intensity = reveal * 2.6;
-      A.surfClear.value = reveal * 0.83;
-      A.step(dt, false, true); CN.pulse = clamp(sh, 0, 1);
+      flashlight.intensity = player.light ? 2.0 : 0; Hands.fill.intensity = 0.4 + zapK * 0.5; Hands.update(dt, { speed: 0, yaw: camera.rotation.y, pitch: camera.rotation.x, phase: 0, grounded: true });
+      A.step(dt, false, true); stepSpray(dt); CN.pulse = clamp(sh, 0, 1);
       return T2 >= DUR;
-    }, end: function () {
-      Lt.trip.intensity = 0; A.surfClear.value = 0; zapK = 0; arcs.forEach(function (sp) { sp.visible = false; }); steam.forEach(function (p) { p.life = 0; p.s.visible = false; }); st.dead = true; st.power = true; st.ladder = true; B.state = 'dead'; player.x = camera.position.x; player.z = camera.position.z; player.yaw = player.cy = camera.rotation.y; player.pitch = player.cp = camera.rotation.x; setState('playing'); lockPointer(); showMsg('She does not come up again.  Across the tank the keepers’ ladder is running down into the water.', 7); } });
+    }, end: function () { zapK = 0; arcs.forEach(function (sp) { sp.visible = false; }); steam.forEach(function (p) { p.life = 0; p.s.visible = false; }); st.dead = true; st.power = true; st.ladder = true; B.state = 'dead'; player.x = camera.position.x; player.z = camera.position.z; player.yaw = player.cy = camera.rotation.y; player.pitch = player.cp = camera.rotation.x; setState('playing'); lockPointer(); showMsg('She does not come up again.  Across the tank the keepers’ ladder is running down into the water.', 7); } });
   }
 
   // ================= ladders =================
@@ -1234,7 +1054,8 @@
       // the rung each limb is on (in rungs counted from the start, along the way you are going), and which is moving
       var rh = 2 * Math.floor((k + 1) / 2) + (k % 2 === 0 ? 2 * ee : 0), lh = 1 + 2 * Math.floor(k / 2) + (k % 2 === 1 ? 2 * ee : 0);      // right hand, left hand
       var lf = 2 * Math.floor((k + 1) / 2) + (k % 2 === 0 ? 2 * ee : 0), rf = 1 + 2 * Math.floor(k / 2) + (k % 2 === 1 ? 2 * ee : 0);      // left foot, right foot
-      var feetY = rungY(f0 + dir * Math.min(steps, k + ee)) + 0.125;
+      if (c >= 1) { rh = lh = lf = rf = null; }
+      var base = f0 + dir * (k + ee) * (c < 1 ? 1 : 0) + (c >= 1 ? dir * steps : 0), feetY = rungY(f0 + dir * Math.min(steps, k + ee)) + 0.125;
       var cx = lerp(c0.x, sx, a), cz = lerp(c0.z, sz, a), cy = lerp(c0.y, feetY + 1.62, a) + Math.sin(e * PI) * 0.02;
       if (out > 0 && o.end) { cx = lerp(sx, o.end[0], out); cz = lerp(sz, o.end[1], out); cy = lerp(feetY + 1.62, o.y1 + 1.7, out) + Math.sin(out * PI) * (up ? 0.12 : 0); }
       var ywT = o.end && out > 0 ? lerp(YAW, o.endYaw === undefined ? YAW : YAW + angDiff(o.endYaw, YAW), out) : YAW;
@@ -1244,14 +1065,15 @@
       gripQ(o.fx, o.fz, up ? 0.3 : 0.55, q);
       function hand(side, rn, mv, Ov, pv) {
         var ri = f0 + (HO + dir * rn), y = rungY(ri), off = mv ? Math.sin(mv * PI) : 0;          // (hands always over the feet: HO rungs up from them, whichever way you are going)
-        pv.set(rcx + rx * side * 0.13, y, rcz + rz * side * 0.13).addScaledVector(tmpV.set(o.fx, 0, o.fz), -0.07 * off); pv.y += 0.04 * off;
+        pv.set(rcx + rx * side * 0.13, Math.min(y, o.top + 1.0), rcz + rz * side * 0.13).addScaledVector(tmpV.set(o.fx, 0, o.fz), -0.07 * off); pv.y += 0.04 * off;
         pv.sub(tmpV2.copy(BARP).applyQuaternion(q)); toCam(pv, q, Ov); Ov.pose = Hands.mixPose(RUNG_GRIP, OPENH, off * 0.9, []);
       }
-      var mvR = k % 2 === 0 && ee > 0 && ee < 1 ? ee : 0, mvL = k % 2 === 1 && ee > 0 && ee < 1 ? ee : 0;
-      hand(1, rh, mvR, O.R, pR); hand(-1, lh, mvL, O.L, pL);
-      if (T2 < IN) { O.R.pose = Hands.mixPose(OPENH, RUNG_GRIP, seg(T2, IN * 0.6, IN), []); O.L.pose = O.R.pose; }
-      if (out > 0) { O.R.pose = O.L.pose = Hands.mixPose(RUNG_GRIP, OPENH, sstep(out * 1.9), []); }
-      O.R.k = a * (1 - sstep(out * 1.45)); O.L.k = a * (1 - sstep(out * 1.23)); O.noTorch = T2 > 0.25 && out < 0.6;
+      if (rh !== null) {
+        var mvR = k % 2 === 0 ? ee : 0, mvL = k % 2 === 1 ? ee : 0;
+        hand(1, rh, mvR > 0 && mvR < 1 ? mvR : 0, O.R, pR); hand(-1, lh, mvL > 0 && mvL < 1 ? mvL : 0, O.L, pL);
+        if (T2 < IN) { O.R.pose = Hands.mixPose(OPENH, RUNG_GRIP, seg(T2, IN * 0.6, IN), []); O.L.pose = O.R.pose; }
+      }
+      O.R.k = O.L.k = a * (1 - out); O.noTorch = T2 > 0.25 && out < 0.6;
       // the body under you, boots on the rungs below
       var vis = c < 1 && T2 > IN * 0.5; Body.show(vis); Body.torso(true);
       if (vis) {
@@ -1261,7 +1083,7 @@
           tmpV.set(rcx + rx * (F[0] === 'R' ? 0.11 : -0.11) - o.fx * (0.04 + 0.1 * mv), fy, rcz + rz * (F[0] === 'R' ? 0.11 : -0.11) - o.fz * (0.04 + 0.1 * mv)); legTo(F[0], tmpV, YAW);
         });
       }
-      if (k !== last && c > 0 && c < 1) { last = k; Sfx.play('aq_rung', { vol: 0.46, rate: 0.89 + (k % 3) * 0.075 }); if (o.wet && k < 4) Sfx.play('aq_swim', { vol: 0.24, rate: 1.12 }); }
+      if (k !== last && c > 0 && c < 1) { last = k; Sound.tone(1500 + Math.random() * 500, 800, 0.06, 0.05, 'triangle'); Sound.noise(0.06, 2600, 0.12); Sound.step(0.08, 700); if (o.wet && k < 4) Sound.noise(0.3, 1800, 0.12); }
       flashlight.intensity = O.noTorch ? 0 : (player.light ? 2.0 : 0); Hands.fill.intensity = 0.45; Hands.update(dt, { speed: 0, yaw: camera.rotation.y, pitch: camera.rotation.x, phase: 0, grounded: true });
       if (S().dead) poseDead(dt); A.step(dt, false, true); if (o.tick) o.tick(T2, IN + CL + OUT);
       return T2 >= IN + CL + (o.end ? OUT : 0.1);
@@ -1269,118 +1091,29 @@
   }
   /* where each ladder's rungs are (world y, bottom up): as built in aquarium.js */
   function rungList(y1, y2, add) { var n = Math.round((y2 - y1) / 0.3), r = []; for (var i = 0; i <= n; i++) r.push(y1 + 0.12 + i * (y2 - y1 - 0.2) / n + (add || 0)); return r; }
-  var RUNGS_L2 = rungList(0, CW + 1.1), RUNGS_MAZE = rungList(A.YL, CW).concat([CW + 0.19, CW + 0.47, CW + 0.75]);       // (over the top: the stiles' handholds)
-  function rungsL1() {
-    var lower = rungList(0, 3.4, A.ladderDrop.position.y);
-    return lower.filter(function (y) { return y < 6.89; }).concat(rungList(6.9, CW + 1.1));
-  }
+  var RUNGS_L2 = rungList(0, CW + 1.1), RUNGS_MAZE = rungList(A.YL, CW).concat([CW + 0.25, CW + 0.55, CW + 0.85]);       // (over the top: the stiles' handholds)
+  function rungsL1() { return rungList(0, 3.4, A.ladderDrop.position.y).concat(rungList(6.9, CW + 1.1)); }
   function climbMaze(L, up) { climb({ x: L.x, z: L.z, fx: L.fx, fz: L.fz, rungs: function () { return RUNGS_MAZE; }, y0: up ? A.YL : CW, y1: up ? CW : A.YL, top: CW, end: up ? L.top : L.foot, endYaw: Math.atan2(-L.fx, -L.fz) + (up ? 0 : PI) }); }
-  function climbL1(up) { var L = A.L1; climb({ x: L.x, z: L.z, fx: -1, fz: 0, rungs: rungsL1, y0: up ? T.swim + 0.35 : CW, y1: up ? CW : T.swim + 0.35, top: CW, wet: up, end: up ? [T.x1 - 0.75, L.z] : null, toWater: !up, then: up ? function () { showMsg('The keeper’s bench is under the green lamp. The hall ladder is on the opposite rail.', 4); } : function () { player.y = T.swim; } }); }
+  function climbL1(up) { var L = A.L1; climb({ x: L.x, z: L.z, fx: -1, fz: 0, rungs: rungsL1, y0: up ? T.swim + 0.35 : CW, y1: up ? CW : T.swim + 0.35, top: CW, wet: up, end: up ? [T.x1 - 0.75, L.z] : null, toWater: !up, then: up ? function () { showMsg('The platform. The bench lamp is still on.', 4); } : function () { player.y = T.swim; } }); }
   function climbL2(up) { var L = A.L2, st = S(); climb({ x: L.x, z: L.z, fx: 1, fz: 0, rungs: function () { return RUNGS_L2; }, y0: up ? 0 : CW, y1: up ? CW : 0, top: CW, end: up ? [A.PLAT.x1 + 0.7, L.z] : [L.x - 1.25, L.z], endYaw: up ? -PI / 2 : 0.5,
-    tick: function (t, tot) { if (!up && t > tot - 0.75 && !st.gate) { st.gate = true; Sfx.play('aq_latch', { vol: 0.62 }); } } }); }
-
-  var gateSet = [A.DIVE].concat(A.REFUGE), ledgerKey = '';
-  function gateAction(R, inside) {
-    var D = R.door, next = D.target ? 0 : 1, hit = at(D.leaf, D.latch, 1.06, inside ? -0.085 : 0.085);
-    var depth = inside ? -0.73 : 0.69;
-    stepTo(D.x + D.nx * depth, D.z + D.nz * depth, hit(), 0.77);
-    Hands.use('aqBulkhead', { point: hit, pose: 'fist', tip: 'fist', rot: [0.23, 0.55, 0.41],
-      reach: 0.39, dur: 0.76, outT: 0.28, anatomical: true,
-      onTouch: function () { D.target = next; Sfx.play('aq_latch', { vol: 0.72, rate: next ? 1.08 : 0.93 }); }
-    });
-  }
-  function poseGate(D) {
-    var swing = 1.51 * sstep(D.open), a = D.root.rotation.y, heading = a + swing;
-    D.leaf.rotation.y = swing;
-    var ax = D.x + Math.cos(a) * D.leaf.position.x, az = D.z - Math.sin(a) * D.leaf.position.x;
-    var bx = ax + Math.cos(heading) * D.width, bz = az - Math.sin(heading) * D.width;
-    D.swept.x1 = Math.min(ax, bx) - 0.045; D.swept.x2 = Math.max(ax, bx) + 0.045;
-    D.swept.z1 = Math.min(az, bz) - 0.045; D.swept.z2 = Math.max(az, bz) + 0.045;
-    D.box.off = D.open >= 0.76;
-  }
-  function stepGates(dt, instant) {
-    gateSet.forEach(function (R) {
-      var D = R.door, before = D.open;
-      D.open = instant ? D.target : D.open + clamp(D.target - D.open, -dt * 2.45, dt * 2.45);
-      poseGate(D);
-      if (!instant && D.open !== before && dist(D.x, D.z, B.x, B.z) < 11 && bodyPhysics.hits(D.swept)) {
-        D.open = before;
-        poseGate(D);
-      }
-    });
-  }
-  function stepPlant(dt, instant) {
-    var st = S(), p = st.plant, sheet = A.controlLedger, g = sheet.getContext('2d');
-    var sig = p.clues.join('') + p.relayTags.join('') + p.selected.join('') + p.online.join('') + st.power;
-    A.WATERPLANT.forEach(function (R) {
-      var i = R.id, angle = -1.04 + p.selected[i] * 1.04;
-      R.selector.rotation.z = instant ? angle : damp(R.selector.rotation.z, angle, 10, dt);
-      R.signal.color.setHex(p.online[i] ? 0x48dca7 : 0xb1662b);
-      var setting = R.labels[p.selected[i]];
-      if (i === 0) setting += ' / ' + R.lots[p.selected[i]];
-      if (i === 1) setting += ' / ' + A.WATERPLANT[2].labels[p.relayTags[p.selected[i]]];
-      if (R.displaySig !== setting + p.online[i]) {
-        R.displaySig = setting + p.online[i];
-        var cg = R.display.getContext('2d');
-        cg.fillStyle = '#181c1b'; cg.fillRect(0, 0, 256, 64);
-        cg.fillStyle = p.online[i] ? '#91e3ad' : '#e5ad5e'; cg.font = 'bold 26px monospace'; cg.textAlign = 'center';
-        cg.fillText(setting, 128, 42, 239);
-        R.displayTex.needsUpdate = true;
-      }
-    });
-    if (sig === ledgerKey) return;
-    ledgerKey = sig;
-    g.fillStyle = '#d1c4a2'; g.fillRect(0, 0, sheet.width, sheet.height);
-    g.fillStyle = '#233438'; g.fillRect(17, 17, 734, 92);
-    g.fillStyle = '#eee3bd'; g.font = 'bold 48px Arial'; g.fillText('CONTAINMENT TRIP CARD', 41, 77);
-    g.fillStyle = '#3c4339'; g.font = 'bold 31px Arial';
-    g.fillText('LOCAL SELECTORS · EMERGENCY SETTINGS', 45, 155);
-    A.WATERPLANT.forEach(function (R, i) {
-      var y = 219 + 63 * i;
-      g.fillStyle = '#505744'; g.font = '31px monospace'; g.fillText(R.dial, 45, y);
-      g.fillStyle = '#273639'; g.font = 'bold 34px monospace'; var directions = A.WATERPLANT[1].labels.filter(function (_, direction) { return direction !== p.clues[1]; });
-      var clue = i === 0 ? 'Match lot ' + R.lots[p.clues[i]] : i === 1 ? 'Close ' + directions.join(' & ') : 'Use live return tag';
-      g.fillText(clue, 374, y, 310);
-      g.fillStyle = p.online[i] ? '#24744a' : '#92633d'; g.fillRect(696, y - 25, 20, 20);
-      g.strokeStyle = '#9a8d6e'; g.beginPath(); g.moveTo(41, y + 13); g.lineTo(727, y + 13); g.stroke();
-    });
-    g.fillStyle = '#762921'; g.font = 'bold 32px Arial'; g.fillText('ALL THREE LIT → SEAL DOOR → PULL TRIP', 46, 448);
-    A.controlLedgerTex.needsUpdate = true;
-  }
-  function switchPlant(R) {
-    if (Hands.busy()) return;
-    var p = S().plant, i = R.id;
-    stepTo(R.useX, R.useZ, at(R.selector, 0, 0.016, -0.066)(), 0.38);
-    Hands.use('aqSelector' + i, { point: at(R.selector, 0, 0.027, -0.072), pose: 'fist', tip: 'fist',
-      rot: [0.4, 0.25, -0.1], reach: 0.4, dur: 0.76, anatomical: true,
-      onTouch: function () {
-        p.selected[i] = (p.selected[i] + 1) % 3;
-        p.online[i] = p.selected[i] === p.clues[i];
-        p.online[2] = p.online[1] && p.selected[2] === p.clues[2];
-        Sfx.play('rocker', { vol: 0.74, rate: 0.83 });
-        if (!p.online[i]) return;
-        Sfx.play('solenoid', { vol: 0.57, delay: 0.19 });
-        if (i === 0) { B.lure = 4.8; ripple(116.7, 64.5); }
-        var line = ['The bait winch drops its basket into the far side of the tank.', 'Return water is flowing through the emergency bypass.', 'The relay arms. The red fault lamp comes on in Containment Control.'];
-        showMsg(line[i], 4.2);
-      }
-    });
-  }
+    tick: function (t, tot) { if (!up && t > tot - 0.75 && !st.gate) { st.gate = true; Sfx.play('door_unlock', { vol: 0.6, fallback: function () { Sound.clunk(); } }); Sound.creak(0.5); } } }); }
 
   // ================= every frame: what is drawn, what is lit, what moves =================
-  var fogD = 0.03, LAMP_ORDER = null, tankL = 1;
+  var fogD = 0.03, LAMP_ORDER = null, tankL = 1, dripT = 3, groanT = 10;
   A.step = function (dt, instant, inCine) {
     var st = S(), px = player.x, pz = player.z, py = inCine ? camera.position.y - 1.7 : player.y, cx = inCine ? camera.position.x : px, inAQ = inRect(px, pz, AQ, 3) || !!inCine, t = playTime + (inCine ? clock : 0), q;
     var nearDoor = doorA > 0.02 && px < G.x1 + 0.5 && px > 44 && Math.abs(pz - 60) < 15;
     groups.gallery.visible = (inAQ && cx < 114) || nearDoor; groups.hall.visible = groups.upper.visible = groups.rails.visible = inAQ && cx > 79; groups.basement.visible = inAQ && cx > 131 && (py < 4.5 || liftBusy);
     if (groups.gallery.visible) A.anim.forEach(function (update) { update(dt); });
     plesMesh.visible = inAQ && cx > 79;
-    stepDoors(dt); if (inAQ || instant) { stepGates(dt, instant); stepPlant(dt, instant); } stepMani(dt, instant); stepLift(dt, instant); stepSpray(dt); if (!inCine) { wetStep(dt); stepBubbles(dt); if (player.water && camera.position.y < T.water && Math.random() < dt * 3) bubble(1, 0.5); } if (A.calling) A.calling(dt);
+    stepDoors(dt); stepMani(dt, instant); stepLift(dt, instant); stepSpray(dt); if (!inCine) { wetStep(dt); stepBubbles(dt); if (player.water && camera.position.y < T.water && Math.random() < dt * 3) bubble(1, 0.5); } if (A.calling) A.calling(dt);
     // the ladder's lower half on its winch, the cage gate, the stub, the feeder
     var ld = A.ladderDrop, want = st.ladder ? ld.userData.down : ld.userData.up; ld.position.y = instant ? want : ld.position.y + clamp(want - ld.position.y, -dt * 1.3, dt * 1.3);
     A.cageGate.rotation.y = instant ? (st.gate ? -1.45 : 0) : damp(A.cageGate.rotation.y, st.gate ? -1.45 : 0, 3, dt); A.cageBox.off = !!st.gate;
     if (!inCine) { A.span.visible = !st.fell; if (!st.fell) { A.span.position.set(T.x1, CW, 60); A.span.rotation.set(0, 0, 0); spanSag = 0; spanGone = false; } A.cable.visible = st.fell && !st.power; blackout = st.fell && !st.power ? 1 : 0; }
-    A.breaker.rotation.x = lerp(0.27, -0.5, st.power ? 1 : brkK);
+    A.breaker.rotation.x = lerp(0.8, -0.7, st.power ? 1 : brkK); A.brkLamp.color.setHex(st.power ? 0xff3a1a : 0x3a0a06); A.ladLamp.color.setHex(st.ladder ? 0x35ff8a : 0x0a1a0c);
+    if (A.pumpAnim) A.pumpAnim(dt); else if (!instant) A.pumpH.rotation.x = A.pumpH.userData.rest; A.springN.rotation.z = -(st.spring / 5) * 2.6 + 1.3; A.flag.color.setHex(st.spring >= 5 ? 0x2f9a5a : 0x5a1a10); A.isoLamp.color.setHex(st.iso ? 0x35ff8a : 0x3a0a06);
+    isoT -= dt; if (isoT <= 0 && !st.iso) isoK = Math.max(0, isoK - dt * 1.5); A.isoH.rotation.z = -(st.iso ? 1 : isoK) * PI / 2;
     // light
     var zone = !inAQ ? 'out' : py < -0.6 || (cx > 139.4 && py < 2.6) ? 'base' : cx < 99.5 ? 'gal' : py > 6 ? 'upper' : 'hall', on = function (z2) { return zone === z2 ? 1 : 0; };
     var f1 = Math.sin(t * 17) + Math.sin(t * 6.1 + 1) + Math.sin(t * 41) * 0.5 > -1.2 ? 1 : 0.12, f2 = (Math.sin(t * 3.3) > 0.2 && Math.sin(t * 29) > -0.6) || Math.sin(t * 0.7) > 0.85 ? 1 : 0.05, out = blackout;
@@ -1393,7 +1126,7 @@
     Lt.cwE.intensity = (on('upper') + on('hall') * 0.5) * 0.95 * lampK * (0.85 + 0.15 * f1); Lt.cwM.intensity = (on('upper') + on('hall') * 0.4) * 0.9 * lampK * (st.power ? f1 : 1); Lt.cwW.intensity = (on('upper') + on('hall') * 0.5) * 0.9 * lampK;
     Lt.emerg.intensity = (on('upper') + on('hall')) * (out > 0.5 && !st.power ? 0.5 + 0.35 * Math.sin(t * 5) : 0); Lt.bench.intensity = (on('upper') + on('hall') * 0.5) * 0.75;
     Lt.cwN.intensity = (on('upper') + on('hall') * 0.3) * 0.85 * lampK * (0.9 + 0.1 * f2); Lt.cwS.intensity = (on('upper') + on('hall') * 0.3) * 0.75 * lampK;
-    var bl = 0.66 + Math.sin(t * 3.6) * 0.33; Lt.dive.intensity = (on('upper') + on('hall')) * (st.fell ? 1.65 : 0.4); A.beacon.color.setRGB(bl, bl * 0.49, bl * 0.14);
+    var bl = Math.sin(t * 3.6) > 0 ? 1 : 0.1; Lt.dive.intensity = (on('upper') + on('hall')) * (st.fell && !st.dead ? 1.3 : 0.5) * bl; A.beacon.color.setHex(bl > 0.5 ? 0xffa030 : 0x402008);
     Lt.stair.intensity = on('base') * 0.6 * (0.7 + 0.3 * f1); Lt.stairLow.intensity = on('base') * 0.45; A.stairLamp.color.setHex(f1 > 0.5 ? 0xffb060 : 0x6a4018);
     Lt.baseN.intensity = on('base') * 0.5 * f1; Lt.baseS.intensity = on('base') * 0.44; Lt.basePump.intensity = on('base') * (st.pump ? 0.62 : 0.24); Lt.baseFeed.intensity = on('base') * 0.34 * f2; Lt.port.intensity = on('base') * 0.85 * tankL; Lt.lift.intensity = (on('base') + on('upper')) * (A.ready() ? 0.6 : 0.14);
     A.bTubes[0].color.setHex(f1 > 0.5 ? 0xf4f7ff : 0x6a6e74); A.bTubes[1].color.setHex(0x1c1c1a); A.bTubes[2].color.setHex(0xc8ccd4); A.bTubes[3].color.setHex(f2 > 0.5 ? 0xe4e7ee : 0x1c1c1a); A.bTubes[4].color.setHex(st.pump ? 0xe8d8b0 : 0x3a342a);
@@ -1414,19 +1147,16 @@
     if (window.AquaSound && !instant) AquaSound.step(dt, inCine);                // the soundscape (aquasound.js)
   };
   A.reset = function () {
-    var st = S(); if (!st.plant) st.plant = newPlant(st.dead || st.power);
-    A.checkpoint = st.dead ? '' : st.plant.briefed ? 'Containment Control' : st.top ? 'the Lift' : '';
-    gateSet.forEach(function (R) { R.door.target = R === A.DIVE ? 0 : 1; });
-    seq = []; liftBusy = false; A.calling = null; if (turning) { tiles[turning.q].turn = null; turning = null; if (Hands.hold && Hands.hold.kind === 'bar') Hands.hold = null; } A.showT = 0; A.liftNow = null; Hands.over = null; Body.show(false); doorA = st.door ? 1 : 0; sdDown = st.staff >= 3 ? 1 : 0; sdJ = sdJv = 0; brkK = 0; zapK = 0; Lt.trip.intensity = 0; A.surfClear.value = 0; chaseDelay = 0; whereDied = ''; tint('none', 0);
-    arcs.forEach(function (sp) { sp.visible = false; }); dust.forEach(function (d) { d.life = 0; d.s.visible = false; }); wetK = 0; if (wetEl) wetEl.style.opacity = 0; bubbles.forEach(function (b) { b.life = 0; b.s.visible = false; }); Sfx.zone('aqlift', 'aq_lift', 0);
+    var st = S(); seq = []; liftBusy = false; A.calling = null; pumping = false; A.pumpAnim = null; if (Hands.hold && Hands.hold.kind === 'bar') Hands.hold = null; isoK = 0; if (st.spring === undefined) { st.spring = st.power ? 5 : 0; st.iso = !!st.power; } if (turning) { tiles[turning.q].turn = null; turning = null; if (Hands.hold && Hands.hold.kind === 'bar') Hands.hold = null; } A.showT = 0; A.liftNow = null; Hands.over = null; Body.show(false); doorA = st.door ? 1 : 0; doorJ = 0; sdDown = st.staff >= 3 ? 1 : 0; sdFall.userData.hit = st.staff >= 3; sdJ = sdJv = 0; brkK = 0; zapK = 0; chaseDelay = 0; whereDied = ''; tint('none', 0);
+    arcs.forEach(function (sp) { sp.visible = false; }); dust.forEach(function (d) { d.life = 0; d.s.visible = false; }); wetK = 0; if (wetEl) wetEl.style.opacity = 0; bubbles.forEach(function (b) { b.life = 0; b.s.visible = false; }); Sound.drone('aqlift', 0, liftDrone); Sound.drone('aqpump', 0, liftDrone);
     A.step(0, true);
   };
-  A.checkpoint = '';
-  A.dbg = { rc: function () { var px = player.x, pz = player.z, py = player.y, c = findRise(px, pz, py), o = []; (c || []).forEach(function (cc) { var ok = riseClear(cc, px, pz, py); o.push(cc.slice(0, 4).map(function (v) { return +v.toFixed(1); }).join(',') + ' ' + ok + ' ' + JSON.stringify(A.rcLog)); }); return o; }, delay: function (v) { chaseDelay = v; }, siege: function (v) { siegeT = v; }, lash: function (v) { lashT = v; }, flow: function () { return maniFlow; }, manifoldDistance: manifoldDistance, turn: function (q) { turnTile(q); } };      // (for the frame checks in .dev)
+  A.checkpoint = false;
+  A.dbg = { rc: function () { var px = player.x, pz = player.z, py = player.y, c = findRise(px, pz, py), o = []; (c || []).forEach(function (cc) { var ok = riseClear(cc, px, pz, py); o.push(cc.slice(0, 4).map(function (v) { return +v.toFixed(1); }).join(',') + ' ' + ok + ' ' + JSON.stringify(A.rcLog)); }); return o; }, delay: function (v) { chaseDelay = v; }, siege: function (v) { siegeT = v; }, lash: function (v) { lashT = v; }, flow: function () { return maniFlow; }, turn: function (q) { turnTile(q); } };      // (for the frame checks in .dev)
   A.inside = function (x, z) { return inRect(x, z, AQ, -1.3); };
   A.overWater = function (x, z, y) { if (x < T.x1 || x > T.x2 || z < T.z1 || z > T.z2) return false; var f = A.floorAt(x, z, y); return !!f && f.kind === 'water'; };
   A.surface = function (x, z) { if (!inRect(x, z, AQ)) return null; var f = A.floorAt(x, z, player.y); return f && f.kind !== 'water' ? f.kind : null; };
-  A.keyFree = function () { return S().dead; };
+  A.keyFree = function () { return true; };
   /* The lowest thing over a head at (x, z) for someone whose feet are at `feet`: a refuge's roof, a lamp, the feeder's tray, a
      truss.  (game.js stops a jump there.) */
   A.ceiling = function (x, z, feet) {
@@ -1443,10 +1173,10 @@
     if (st.staff < 3 && py > 2 && py < 5 && px < SD.x && dist(px, pz, SD.x - 0.8, 59.4) < 1.7) return { text: st.staff ? '[E] Kick it again' : '[E] Kick the door in   ·   it stands ajar on a padlocked hasp', fn: kick };
     if (py < -1) {
       if (dist(px, pz, 145.6, 69.5) < 1.5) return st.pump ? { text: 'The hydraulic pump is running.' } : { text: '[E] Start the hydraulic pump', fn: startPump };
-      if (pz > 73.2 && px > 141.4 && px < 144.6) { q = aimTile(); var fl = maniFlow || flowOf(st.mani); if (turning) return { text: '' }; return q >= 0 ? { text: '[E] Turn the coupling a quarter', outline: tiles[q].ol, fn: (function (n) { return function () { turnTile(n); }; })(q) } : { text: fl.solved ? 'The manifold is plumbed through: FROM PUMP to TO LIFT RAM.' : 'Manifold: aim at a coupling and turn it.  Route pressure from FROM PUMP (left) through to TO LIFT RAM (right).' }; }
+      if (pz > 73.2 && px > 141.4 && px < 144.6) { q = aimTile(); var fl = maniFlow || flowOf(st.mani); if (turning) return { text: '' }; return q >= 0 ? { text: '[E] Turn the coupling a quarter', outline: tiles[q].ol, fn: (function (n) { return function () { turnTile(n); }; })(q) } : { text: fl.solved ? 'The manifold is plumbed through: FROM PUMP to TO LIFT RAM.' : 'Manifold: aim at a coupling and turn it.  Run the oil from FROM PUMP (left) through to TO LIFT RAM (right).' }; }
       if (!liftBusy && (dist(px, pz, 137.5, 48.4) < 1.7 || (Math.abs(px - 137.5) < 1.3 && pz < 47.6))) {
         if (st.lift === 1) return A.ready() ? { text: '[E] Call the lift', fn: function () { sendLift(0); } } : { text: 'The lift is up at the catwalks, and there is no pressure to bring it down.' };
-        return A.ready() ? { text: '[E] Take the lift up', fn: function () { ride(true); } } : { text: st.pump ? 'SERVICE LIFT — the lamp on the call station blinks red: LIFT RAM, NO PRESSURE. The manifold in the pump room is not plumbed through.' : 'SERVICE LIFT — dead. It is hydraulic: its pump is in the pump room, south along this corridor.', fn: function () { Sfx.play('rocker', { vol: 0.4 }); } };
+        return A.ready() ? { text: '[E] Take the lift up', fn: function () { ride(true); } } : { text: st.pump ? 'SERVICE LIFT — the lamp on the call station blinks red: LIFT RAM, NO PRESSURE. The manifold in the pump room is not plumbed through.' : 'SERVICE LIFT — dead. It is hydraulic: its pump is in the pump room, south along this corridor.', fn: function () { Sound.deny(); Sfx.play('rocker', { vol: 0.4 }); } };
       }
     }
     if (py > CW - 0.6) {
@@ -1458,81 +1188,65 @@
     }
     if (py > A.YL - 0.6 && py < A.YL + 0.8) for (q = 0; q < A.LADDERS.length; q++) { var LU = A.LADDERS[q]; if (dist(px, pz, LU.foot[0], LU.foot[1]) < 1.0) return { text: '[E] Climb up', fn: (function (L3) { return function () { climbMaze(L3, true); }; })(LU) }; }
     if (player.water && st.fell) {
-      if (dist(px, pz, A.L1.x + 0.6, A.L1.z) < 1.55) {
-        var down = Math.abs(A.ladderDrop.position.y - A.ladderDrop.userData.down) < 0.06;
-        return st.ladder && down ? { text: '[E] Climb the keepers’ ladder', fn: function () { climbL1(true); } } :
-          { text: 'The keepers’ ladder is raised. The emergency trip releases it.' };
-      }
-      var edge = A.swimEdges.find(function (e) { return dist(px, pz, e.fromX, e.fromZ) < 1.25; });
-      if (edge) return { text: '[E] Haul yourself onto the service deck', fn: function () { haul(edge); } };
+      if (pz > D.z1 - 1.5 && px > D.x1 - 0.5 && px < D.x2 + 0.5) return { text: '[E] Haul yourself out onto the dive station', fn: haul };
+      if (dist(px, pz, A.L1.x + 0.6, A.L1.z) < 1.7) return st.ladder ? { text: '[E] Climb the ladder', fn: function () { climbL1(true); } } : { text: st.dead ? 'The ladder is still coming down.' : 'The keepers’ ladder: its bottom rung is a body’s length over your head. It is winched down from the dive station.' };
     }
-    var bay = gateSet.find(function (R) {
-      return !player.water && Math.abs(py - R.y) < 0.55 && dist(px, pz, R.door.x, R.door.z) < 1.23;
-    });
-    if (bay && (bay !== D || st.fell)) {
-      var leaf = bay.door, shut = leaf.target === 0, inside = insideBay(bay, px, pz, py);
-      if (Math.abs(leaf.open - leaf.target) > 0.035 || Hands.busy()) return null;
-      return { text: shut ? '[E] Unlatch the door' : '[E] Shut the door', fn: function () { gateAction(bay, inside); } };
+    if (onDive(px, pz, py) && dist(px, pz, D.x2 - 1.0, POOL.z2 - 1.15) < 1.25) {
+      if (st.power) return { text: 'MAIN FEEDER — LIVE.   LADDER WINCH — DOWN.' };
+      if (!st.iso) return { text: 'MAIN BREAKER — it will not close: the plate says 1 ISOLATOR ON. The feeder isolator is on the tank’s west wall, by the ladder, at the waterline.', fn: function () { Sound.deny(); Sound.clunk(); } };
+      if (st.spring < 5) return pumping ? { text: '' } : { text: '[E] Charge the closing spring — stroke ' + (st.spring + 1) + ' of 5', fn: pumpStroke, outline: null };
+      return { text: '[E] Haul the closing lever down', fn: leverPull };
     }
-    if (st.fell && !player.water && Math.abs(py - D.y) < 0.55) {
-      var plant = st.plant;
-      if (insideBay(D, px, pz, py)) {
-        if (dist(px, pz, A.controlUse.x, A.controlUse.z) < 0.7 && !st.dead) {
-          if (!plant.online.every(Boolean)) return { text: 'TRIP INTERLOCKS OPEN · Check the trip card across the room.' };
-          if (D.door.open > 0.05) return { text: 'DOOR INTERLOCK OPEN · Shut the control-room door.' };
-          return { text: '[E] Pull the emergency trip', fn: leverPull };
-        }
-        if (px < D.x1 + 1.28) return { text: '[E] Read the containment trip card', fn: function () {
-          if (!plant.briefed) {
-            plant.briefed = true;
-            saveGame('Containment Control', true);
-          }
-          var shut = A.WATERPLANT[1].labels.filter(function (_, i) { return i !== plant.clues[1]; });
-          showMsg('Bait from lot ' + A.WATERPLANT[0].lots[plant.clues[0]] + '. Keep ' + shut.join(' and ') + ' shut. Match the relay to the open return’s tag.', 12);
-        } };
-      }
-      var station = A.WATERPLANT.find(function (R) { return insideBay(R, px, pz, py) && dist(px, pz, R.useX, R.useZ) < 1.04; });
-      if (station && !st.dead) {
-        var id = station.id, value = plant.selected[id], setting = station.labels[value];
-        if (id === 0) setting += ' / lot ' + station.lots[value];
-        if (id === 1) setting += ' / ' + A.WATERPLANT[2].labels[plant.relayTags[value]];
-        if (id === 2 && !plant.online[1]) return { text: 'Return interlock offline. Select a live branch at Flow Controls first.' };
-        return plant.online[id] ? { text: station.name + ' · ' + setting + ' · INTERLOCK READY' } :
-          { text: '[E] Turn ' + station.name.toLowerCase() + ' selector · ' + setting, fn: function () { switchPlant(station); } };
-      }
-    }
+    if (player.water && st.fell && !st.iso && dist(px, pz, A.ISO_AT.x, A.ISO_AT.z) < 1.4) return { text: '[Hold E] Turn the feeder isolator ON', prog: isoK, hold: function (dt) {
+      isoK = Math.min(1, isoK + dt / (1.1 * DIFF.hold)); isoT = 0.2; A.iso.updateMatrixWorld(true);
+      Hands.use('aqIso', { point: function () { A.isoH.updateWorldMatrix(true, false); return tmpV2.set(0.08, 0, 0.03).applyMatrix4(A.isoH.matrixWorld); }, pose: 'fist', tip: 'fist', rot: function () { return [0.35, 0.2, 0.5 - isoK * 1.4]; }(), rotAt: function () { return [0.35, 0.2, 0.5 - isoK * 1.4]; } });
+      tickT -= dt; if (tickT <= 0) { tickT = 0.3; Sound.tone(150, 110, 0.08, 0.12, 'square'); }
+      if (isoK >= 1) { st.iso = true; Sound.clunk(); Sound.clang(); Sound.spark(); flashA = 0.35; A.arc.material.opacity = 0.9; spray(A.cableEnd.x, T.water, A.cableEnd.z, 10, 1); chaseDelay = Math.max(chaseDelay, diffName === 'hard' ? 1.2 : 2.2); B.state = 'startle';
+        showMsg('ON.  At the west end the torn feeder spits and jumps in the water — and she shies off from it.  Now the dive station: the amber light.', 6); }
+    } };
     if (py < 1 && px < T.x1 && dist(px, pz, A.L2.x - 1.15, A.L2.z) < 1.5) return st.gate ? { text: '[E] Climb the keepers’ ladder', fn: function () { climbL2(true); } } : { text: 'A caged ladder up to the keepers’ platform. The gate at its foot only opens from inside.' };
     return null;
   };
-  function sendLift(to) {
-    var st = S(), y0 = liftY, y1 = to ? CW : BASE_Y, t0 = playTime;
-    liftBusy = true; Sfx.play('aq_latch', { vol: 0.41 });
-    A.calling = function () {
-      var elapsed = playTime - t0, travel = seg(elapsed, 0.72, 7.15);
-      gateK = 1 - seg(elapsed, 0, 0.64) + seg(elapsed, 7.15, 7.85);
-      liftY = lerp(y0, y1, travel);
-      Sfx.zone('aqlift', 'aq_lift', elapsed > 0.64 && elapsed < 7.2 ? 0.22 : 0);
-      if (elapsed >= 7.85) { st.lift = to; liftBusy = false; A.calling = null; Sfx.play('aq_latch', { vol: 0.38 }); }
+  /* Step 2: the closing spring.  Five strokes of the pump handle: the hand takes the grip, pushes it down through its arc (the
+     ratchet clicking), lets it ride back up.  The dial climbs; on the fifth the flag drops to CHARGED. */
+  var pumping = false, isoK = 0, isoT = 0;
+  var pgP = new V3(), pgA = new V3();
+  function pumpStroke() {
+    var st = S(); if (pumping || Hands.hold) return; pumping = true; var ts = -1, done = false, stand = new V3(player.x, 0, player.z), REST = A.pumpH.userData.rest;
+    var H = Hands.barGrip({ at: function () { A.pumpH.updateWorldMatrix(true, false); return pgP.copy(A.PUMP_GRIP).applyMatrix4(A.pumpH.matrixWorld); }, axis: function () { A.pumpH.updateWorldMatrix(true, false); return pgA.set(1, 0, 0).transformDirection(A.pumpH.matrixWorld); }, from: function () { return camera.position; }, r: 0.02, dur: 0.32, leanMax: 0.16 });
+    Hands.hold = H; H.done = function () { pumping = false; A.pumpAnim = null; A.pumpH.rotation.x = REST; };
+    A.pumpAnim = function (dt) {
+      if (dist(player.x, player.z, stand.x, stand.z) > 1.0 || state !== 'playing' && state !== 'cine') { H.want = 0; }                                // walked off: let go
+      var gp = H.reach ? H.reach() : null;                                                                // the eyes go to the grip (the view eases onto what the hand is working)
+      if (gp && H.want > 0) { var ly = Math.atan2(-(gp.x - player.x), -(gp.z - player.z)), lp = clamp(Math.atan2(gp.y - (player.y + 1.66), Math.hypot(gp.x - player.x, gp.z - player.z)) + 0.12, -1.1, 0.5), kk = 1 - Math.exp(-dt * 5);
+        player.yaw += angDiff(ly, player.yaw) * kk; player.cy = player.yaw; player.pitch += (lp - player.pitch) * kk; player.cp = player.pitch; }
+      if (ts < 0 && (H.k || 0) >= 0.999) ts = 0;
+      if (ts < 0) return;
+      ts += dt; var down = seg(ts, 0.05, 0.36), up = seg(ts, 0.46, 0.85); A.pumpH.rotation.x = REST - 1.05 * down * (1 - up);
+      if (ts > 0.06 && ts < 0.36 && Math.random() < dt * 24) Sound.tone(2200 + Math.random() * 400, 1800, 0.02, 0.05, 'square');          // the ratchet
+      if (ts >= 0.36 && !done) { done = true; st.spring = Math.min(5, st.spring + 1); Sound.clunk(); Sfx.play('grunt', { vol: 0.18, rate: 1.1 }); makeNoise(player.x, player.z, 10); if (st.spring >= 5) { Sound.tone(880, 880, 0.08, 0.1, 'square'); showMsg('CHARGED.  The flag drops.  Now the lever — between her strikes.', 4); } }
+      if (ts >= 0.85) H.want = 0;
     };
   }
+  function sendLift(to) { var st = S(), y0 = liftY, y1 = to ? CW : BASE_Y, t0 = playTime; liftBusy = true; Sound.clunk(); A.calling = function (dt) { var u = clamp((playTime - t0) / 6.5, 0, 1); liftY = lerp(y0, y1, easeIO(u)); gateK = u < 0.9 ? Math.max(0, gateK - dt * 2) : Math.min(1, gateK + dt * 2); Sound.drone('aqlift', u < 1 ? 0.07 : 0, liftDrone); if (u >= 1 && gateK >= 1) { st.lift = to; liftBusy = false; A.calling = null; Sound.clunk(); } }; }
 
   // ================= while you are in there =================
   A.update = function (dt, c, speed) {
     var st = S(), px = player.x, pz = player.z, py = player.y, n;
     for (n = seq.length - 1; n >= 0; n--) if (playTime >= seq[n].at) { var f = seq[n].fn; seq.splice(n, 1); f(); }
     if (!inRect(px, pz, AQ, 3)) return false;
-    stepDust(dt); if (!st.power) brkK = Math.max(0, brkK - dt * 1.4);
-    A.checkpoint = st.dead ? '' : st.plant.briefed ? 'Containment Control' : st.top ? 'the Lift' : '';
+    stepDust(dt); brkT -= dt; if (brkT <= 0 && !st.power) brkK = Math.max(0, brkK - dt * 1.4);
+    A.checkpoint = !!st.top && !st.dead;
     // the first sight of her
-    if (!st.seen.hall && px > H.x1 + 0.6 && py < 2) { st.seen.hall = 1; A.showT = 10; A.showP = [113.9, clamp(pz, 54, 66), 1.25, -1];  Sfx.play('aq_call', { vol: 0.51, rate: 0.88 }); showMsg('The whole end of the hall is water. Something in it turns, and goes on turning.', 6); }
+    if (!st.seen.hall && px > H.x1 + 0.6 && py < 2) { st.seen.hall = 1; A.showT = 10; A.showP = [113.9, clamp(pz, 54, 66), 1.25, -1]; if (!st.dead) { B.x = 126; B.z = clamp(pz, 54, 66) + 7; B.y = 1.6; B.rot = -2.2; } Sound.tone(52, 36, 2.6, 0.2, 'sine'); Sound.tone(78, 50, 2.0, 0.08, 'triangle', 0.3); showMsg('The whole end of the hall is water. Something in it turns, and goes on turning.', 6); }
     if (!st.seen.staff && py > 2.4 && px > T.x2 + 0.6 && Math.abs(pz - 59.4) < 5 && st.staff < 3) { st.seen.staff = 1; showMsg('STAFF ONLY. The door stands a hand’s width open on a padlocked hasp.', 5); }
     if (!st.seen.base && py < -3 && px < 139.5) { st.seen.base = 1; showMsg('The basement. Pipes, the smell of old fish — and windows into the bottom of her tank.', 6); }
-    if (!st.seen.walk && onWalk(px, pz, py) && !st.fell) { st.seen.walk = 1; showMsg('Open grating, and her water under it. Whole lengths of the walk have come down. The cages off it are KEEPER REFUGES.', 6.5); tip('aqwalk', 'When the water bulges and she rears, do not stand still: she strikes where you are. A [LMB] flash in her face stops her; get into a refuge and shut its door.', 10); }
+    if (!st.seen.walk && onWalk(px, pz, py) && !st.fell) { st.seen.walk = 1; showMsg('Open grating, and her water under it. Whole lengths of the walk have come down. The cages off it are KEEPER REFUGES.', 6.5); tip('aqwalk', 'When the water bulges and she rears, do not stand still: she strikes where you are. A [LMB] flash in her face stops her; a refuge cage stops her too.', 10); }
     // the last span: however you leave the end of the walk, you are jumping for the platform
     if (!st.fell && py > CW - 1.6 && px < 113.36 && px > T.x1 + 0.9 && Math.abs(pz - 60) < 1.2 && !st.dead) { fall(true); return true; }
     // sounds of the place
     // (the place's own sounds, drips to her calls, are aquasound.js's)
-
+    if (st.pump && maniFlow && !maniFlow.solved && py < -1 && dist(px, pz, MX, MZ) < 9) { hissT -= dt; if (hissT <= 0) { hissT = 0.35; Sound.noise(0.4, 5200, 0.07 * clamp(1 - dist(px, pz, MX, MZ) / 9, 0, 1)); } }
     return false;
   };
   A.objective = function () {
@@ -1547,26 +1261,18 @@
     }
     if (!st.fell) return py < CW - 0.8 && py > A.YL - 0.8 ? 'The old feeding walk: low over her water. Keep moving — and find a ladder back up.' : 'The catwalks are down in places: find a way across to the keepers’ platform, on the far (west) side. When she rears, move — or get into a refuge cage.';
     if (!st.dead) {
-      var online = st.plant.online.filter(Boolean).length;
-      if (player.water) return 'Find a swim ladder. Get off the water and follow the amber light to Containment Control.';
-      if (!st.plant.briefed) return 'Find the containment trip card in the control room at the end of the south bridge.';
-      if (online < 3) return 'Set the feeding, flow and electrical stations as marked on the trip card. Interlocks ready ' + online + ' of 3.';
-      return 'Return to Containment Control. Shut the door, then pull the emergency trip.';
+      if (!st.iso) return 'The torn feeder is lying in her water. Turn its ISOLATOR on: the grey box on the tank’s west wall, at the waterline by the ladder. She is faster than you in the water: [LMB] flash her if she comes.';
+      if (!onDive(player.x, player.z, py)) return 'SWIM for the dive station: the amber light on the south side of the tank. Haul yourself out.';
+      return st.spring < 5 ? 'Main breaker: charge its closing spring — five strokes of the pump handle (' + st.spring + ' / 5). When she rears, get into the divers’ cage.' : 'Main breaker: haul the closing lever down — you are on a rubber mat, she is in the water.';
     }
-    if (py < CW - 1 && (player.water || onWalk(player.x, player.z, py))) return 'The tank is still. Return to the keepers’ ladder on the west wall and climb out.';
+    if (py < CW - 1 && (player.water || onDive(player.x, player.z, py))) return 'She is dead. Swim to the keepers’ ladder on the west wall and climb out.';
     return 'Take the key piece from the keepers’ bench.';
   };
   A.target = function () {
     var st = S();
     if (!st.door) return [G.x1 - 1, 60]; if (!st.seen.hall) return [H.x1 + 2, 60];
     if (!st.top) { if (st.staff < 3) return [SD.x - 0.8, 59.4]; if (!st.pump) return [145.6, 69.5]; if (!A.ready()) return [MX, MZ - 0.8]; return [137.5, 48.4]; }
-    if (!st.fell) return [T.x1 + 3.8, 60];
-    if (!st.dead) {
-      if (player.water) { var e = A.swimEdges.slice().sort(function (a, b) { return dist(player.x, player.z, a.fromX, a.fromZ) - dist(player.x, player.z, b.fromX, b.fromZ); })[0]; return [e.fromX, e.fromZ]; }
-      if (!st.plant.briefed) return [122, 68.4];
-      var i = st.plant.online.indexOf(false);
-      return i < 0 ? [122, 68.4] : [A.WATERPLANT[i].useX, A.WATERPLANT[i].useZ];
-    }
-    return player.y < CW - 1 ? [A.L1.x + 0.6, A.L1.z] : [ZONES[0].key[0], ZONES[0].key[1]];
+    if (!st.fell) return [T.x1 - 1.5, 60]; if (!st.dead) return st.iso ? [121, 69.6] : [A.ISO_AT.x, A.ISO_AT.z];
+    return player.y < CW - 1 && (player.water || onDive(player.x, player.z, player.y)) ? [A.L1.x + 0.6, A.L1.z] : [ZONES[0].key[0], ZONES[0].key[1]];
   };
 })();

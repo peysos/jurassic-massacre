@@ -218,7 +218,7 @@ function setState(s) {
   show('hud', s === 'playing' || s === 'paused');
   document.body.classList.toggle('cine', s === 'cine');
   if (s !== 'playing') { keysDown = {}; stopBreath(); if (s !== 'paused') Outline.clear(); if (s !== 'cine' && document.pointerLockElement) document.exitPointerLock(); }
-  if (s !== 'playing' && s !== 'cine') { AquaSound.stop(); Sound.genSet(0); Sound.klaxonSet(0); if (ZooNet.open) { uiOpen = false; ZooNet.close(); } }
+  if (s !== 'playing' && s !== 'cine') { Sound.genSet(0); Sound.klaxonSet(0); if (ZooNet.open) { uiOpen = false; ZooNet.close(); } }
   if (s === 'paused') $('pauseDiff').textContent = DIFF.label + ' difficulty';
   if (window.Settings && Settings.open) Settings.close();
 }
@@ -249,15 +249,12 @@ function die(kind, d) {
 function showDeath(kind) {
   var txt = { spino: ['YOU WERE DEVOURED', 'The Spinosaurus took you in the shallows.'], raptor: ['YOU WERE DEVOURED', 'The raptors found you.'], rex: ['YOU WERE DEVOURED', 'The Tyrannosaurus found you.'],
     ptero: ['YOU WERE CARRIED OFF', 'The pterosaur took you from above.'], ples: ['YOU WERE DRAGGED UNDER', Aqua.deathLine()] }[kind];
-  if (kind === 'ples') Sfx.play('aq_water', { vol: 0.12 });
-  else {
-    if (kind === 'ptero') Sound.screech(); else Sound.roar(kind === 'rex');
-    Sound.noise(0.6, 3000, 0.5, 0.1);
-  }
+  if (kind === 'ptero') Sound.screech(); else if (kind === 'ples') Sound.splash(); else Sound.roar(kind === 'rex');
+  Sound.noise(0.6, 3000, 0.5, 0.1);
   $('deadTitle').textContent = txt[0];
   var adm = window.Admin && Admin.live !== null, chk = adm ? !!Admin.snap : hasSave();
   $('deadSub').textContent = txt[1] + ' Key pieces recovered: ' + countKeys() + ' / ' + ZONES.length + '.' + (chk ? (P.esc ? ' You can retry the escape from the start of the lockdown.' : '') : adm ? ' (Admin start: you can go again from where you teleported in.)' : ' You had no save.');
-  $('btnLoad').textContent = adm && !chk ? 'Try Again (admin start)' : P.esc ? 'Retry the Escape' : kind === 'ples' && Aqua.checkpoint ? 'Try Again from ' + Aqua.checkpoint : 'Load Last Save';
+  $('btnLoad').textContent = adm && !chk ? 'Try Again (admin start)' : P.esc ? 'Retry the Escape' : kind === 'ples' && Aqua.checkpoint ? 'Try Again from the Lift' : 'Load Last Save';
   refreshMenu(); if (adm) $('btnLoad').disabled = false; setState('dead');
 }
 function win() { Sound.klaxonSet(0); Cutscene.ending(showWin); }
@@ -872,7 +869,7 @@ function surfaceAt(x, z) {
 }
 function footstep(sprint, crouch) {
   var sf = surfaceAt(player.x, player.z), v = sprint ? 0.42 : crouch ? 0.1 : 0.26, r = 0.92 + Math.random() * 0.16;
-  if (sf === 'grate') { Sfx.play('aq_rung', { vol: v * 0.85, rate: r * 1.16 }); return; }      // steel grating rings
+  if (sf === 'grate') { Sfx.play(sprint ? 'run_concrete' : 'step_concrete', { vol: v * 0.7, rate: r * 1.25 }); Sound.tone(1900 + Math.random() * 500, 900, 0.07, v * 0.1, 'triangle'); Sound.noise(0.05, 5200, v * 0.22); return; }      // steel grating rings
   var name = sf === 'tile' ? 'step_tile' : sf === 'hard' ? (sprint ? 'run_concrete' : 'step_concrete') : null;
   if (name) Sfx.play(name, { vol: v * (sf === 'tile' ? 1.1 : 1), rate: r, fallback: function () { Sound.step(sprint ? 0.22 : crouch ? 0.04 : 0.12, sprint ? 900 : 600); } });
   else Sound.step(sprint ? 0.22 : crouch ? 0.04 : 0.12, sprint ? 900 : 600);
@@ -948,7 +945,7 @@ function update(dt) {
   if (player.vy > 0 || player.y > gh + 0.02) {
     player.vy -= 20 * dt; player.y += player.vy * dt; player.grounded = false;
     if (player.vy > 0 && Aqua.ceiling) { var ceil = Aqua.ceiling(player.x, player.z, player.y); if (player.y + 1.86 > ceil) { player.y = ceil - 1.86; player.vy = 0; } }      // a head meets what is over it
-    if (player.y <= gh) { if (player.vy < -3 && !Aqua.overWater(player.x, player.z, gh)) { if (Aqua.inside(player.x, player.z)) Sfx.play('step_tile', { vol: 0.48 }); else Sound.step(0.2, 500); landed = true; } player.y = gh; player.vy = 0; player.grounded = true; }
+    if (player.y <= gh) { if (player.vy < -3 && !Aqua.overWater(player.x, player.z, gh)) { Sound.step(0.2, 500); landed = true; } player.y = gh; player.vy = 0; player.grounded = true; }
   } else { player.y += (gh - player.y) * (1 - Math.exp(-dt * 16)); player.vy = 0; player.grounded = true; }
   var wasWater = player.water;
   player.water = Aqua.overWater(player.x, player.z, player.y) && player.y < POOL.swim + 0.4;
@@ -958,7 +955,7 @@ function update(dt) {
   if (player.grounded && !player.water && speedNow > 0.05) {
     var ph0 = player.phase; player.phase += dt * speedNow / stride * PI;
     if (Math.floor(player.phase / PI) !== Math.floor(ph0 / PI) && speedNow > 0.8) footstep(sprint, crouch);
-  } else if (player.water && speedNow > 0.8) { player.phase += dt * speedNow / 1.6 * PI; if (Math.floor(player.phase / (PI * 2)) !== Math.floor((player.phase - dt * speedNow / 1.6 * PI) / (PI * 2))) Sfx.play('aq_swim', { vol: 0.32, rate: 0.9 + speedNow * 0.083 }); }
+  } else if (player.water && speedNow > 0.8) { player.phase += dt * speedNow / 1.6 * PI; if (Math.floor(player.phase / (PI * 2)) !== Math.floor((player.phase - dt * speedNow / 1.6 * PI) / (PI * 2))) Sound.noise(0.25, 1200, 0.15); }
   moving = speedNow > 0.6;
   var hk = Hands.hold && (Hands.hold.kind === 'pour' || Hands.hold.kind === 'down') ? 1 : 0;          // down on one knee at the filler
   player.eye += ((crouch ? 0.95 : hk ? 1.36 : 1.7) - player.eye) * (1 - Math.exp(-dt * (hk ? 5 : 9)));
@@ -988,7 +985,7 @@ function update(dt) {
   player.runK = damp(player.runK || 0, rk, 5, dt);
   var dip = (1 + Math.cos(2 * player.phase)) / 2, s1 = Math.sin(player.phase), sh = shake * 0.06;
   var bobY = -dip * (0.032 * wk + 0.034 * player.runK) * ck, bobX = s1 * (0.017 * wk + 0.016 * player.runK) * ck;
-  camera.position.set(player.x + bobX * Math.cos(player.cy) + (Math.random() - 0.5) * sh, player.y + player.eye + bobY - player.runK * 0.05 + (player.water ? -0.09 + Math.sin(player.phase * 0.66 + playTime * 1.4) * 0.055 : 0) + (Math.random() - 0.5) * sh, player.z - bobX * Math.sin(player.cy));
+  camera.position.set(player.x + bobX * Math.cos(player.cy) + (Math.random() - 0.5) * sh, player.y + player.eye + bobY - player.runK * 0.05 + (player.water ? Math.sin(playTime * 2.2) * 0.06 : 0) + (Math.random() - 0.5) * sh, player.z - bobX * Math.sin(player.cy));
   var heave = Math.max(0, fatigue - 0.35) * prefs.bob, bth = Math.sin(playTime * (2.4 + fatigue * 1.6));      // catching your breath: the chest heaves, the head with it
   camera.position.y += bth * 0.009 * heave;
   dipV += (-dipX * 90 - dipV * 13) * dt; dipX += dipV * dt; camera.position.y += dipX;
@@ -1003,7 +1000,7 @@ function update(dt) {
     var sf = lerp(camera.fov, 55, ek); if (Math.abs(sf - camera.fov) > 0.01) { camera.fov = sf; camera.updateProjectionMatrix(); }
   }
   Hands.setVisible(uiK < 0.35);
-  Hands.update(dt, { speed: speedNow, yaw: player.cy, pitch: player.cp, phase: player.phase, sprint: sprint && moving, crouch: crouch, grounded: player.grounded && !player.water, swimming: player.water, landed: landed, x: player.x, z: player.z, y: player.y });
+  Hands.update(dt, { speed: speedNow, yaw: player.cy, pitch: player.cp, phase: player.phase, sprint: sprint && moving, crouch: crouch, grounded: player.grounded && !player.water, landed: landed, x: player.x, z: player.z, y: player.y });
 
   // key pieces
   for (i = 0; i < keyMeshes.length; i++) {
@@ -1094,7 +1091,7 @@ function update(dt) {
   var target = chasing > 0 ? 0.55 + 0.35 * Math.sin(playTime * 7) : Math.max(clamp((22 - aiNearest) / 22, 0, 1) * 0.25, aiAlert * 0.45, clamp(ptero.expo, 0, 1.3) * 0.3);
   danger += (target - danger) * Math.min(1, dt * 4);
   $('danger').style.opacity = danger.toFixed(3);
-  if (aiNearest < 34 || chasing > 0) { beatT -= dt; if (beatT <= 0) { beatT = chasing > 0 ? 0.45 : clamp(aiNearest / 30, 0.5, 1.2); if (!Aqua.inside(player.x, player.z)) Sound.beat(chasing > 0 ? 0.5 : 0.28); } }
+  if (aiNearest < 34 || chasing > 0) { beatT -= dt; if (beatT <= 0) { beatT = chasing > 0 ? 0.45 : clamp(aiNearest / 30, 0.5, 1.2); Sound.beat(chasing > 0 ? 0.5 : 0.28); } }
 
   // lamps, water, mist, the secret, guide line
   for (i = 0; i < lamps.length; i++) {
