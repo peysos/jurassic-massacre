@@ -8,6 +8,16 @@
 'use strict';
 
 var CHANGELOG = [
+  { v: '14', date: '2026-11-17', by: 'Daniel', title: 'Aquarium Containment Overhaul',
+    notes: [
+      'Your palm follows the entrance push plate, and the staff door gives at the latch and swings in on its hinges.',
+      'The viewing ramps, service stairs and lift have clearer footing, and the basement has a new pump skid, aged equipment and warning signs.',
+      'The hydraulic manifold generates a solvable layout for each difficulty and vents pale mist at the failed connection.',
+      'The upper catwalk route has a new crossing, working refuge doors and ladders with real handholds.',
+      'Four bridges link three exposed service stations and a lockable control room with a window and an emergency trip card.',
+      'The Elasmosaurus stays inside the tank and strikes around structures, with revised swimming, pursuit and death animations.',
+      'The fall, swim strokes, ladder climb and emergency trip use updated first-person movement and new ElevenLabs aquarium sounds.'
+    ] },
   { v: '13.3', date: '2026-11-17', by: 'Petros', title: 'Field Guide removed',
     notes: [
       'The Field Guide is gone from the main menu and the pause menu.'

@@ -11,7 +11,8 @@
 - The recorded sound effects in `audio/sfx/` (footsteps, breathing, the generator, doors, keys, the staff computer, the
   turnstiles, the gate and so on) and the voicemail on the break-room answering machine were generated with
   [ElevenLabs](https://elevenlabs.io) (sound effects and text-to-speech), then trimmed, filtered and levelled for the game.
-  Every one has a synthesized fallback, so the game still sounds right if a file is missing.
+  The aquarium's ambience, creature vocals, machinery, water and impact sounds use ElevenLabs recordings in `audio/sfx/aq_*.mp3`.
+  Some effects elsewhere in the park also have synthesized fallbacks.
 
 ## Code and art
 
