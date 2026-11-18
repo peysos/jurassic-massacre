@@ -75,6 +75,19 @@
   .keys b { font-weight: 400; gap: 4px; }
   .keys .grp { grid-column: 1 / -1; padding: 16px 0 6px; border: 0; font: 500 11px var(--body); letter-spacing: .26em; color: #b8102a; text-transform: uppercase; }
   .keys .grp:first-child { padding-top: 0; }
+  /* log book */
+  .lb-entry { padding: 0 0 18px; margin: 0 0 18px; border-bottom: 1px solid rgba(233,226,208,.07); }
+  .lb-entry:last-child { border-bottom: 0; margin-bottom: 0; }
+  .lb-entry header { display: flex; align-items: baseline; gap: 12px; }
+  .lb-entry header b { font: 400 19px var(--head); letter-spacing: .2em; text-transform: uppercase; color: #e6e0d2; }
+  .lb-entry header i { font: 500 10px var(--body); font-style: normal; letter-spacing: .2em; text-transform: uppercase; color: #fff; background: #b8102a; padding: 2px 7px; }
+  .lb-entry header span { margin-left: auto; font: 500 11px var(--body); letter-spacing: .16em; text-transform: uppercase; color: #6e685c; white-space: nowrap; }
+  .lb-entry h4 { margin: 4px 0 8px; font: 500 11px var(--body); letter-spacing: .26em; text-transform: uppercase; color: #b8102a; }
+  .lb-entry ul { margin: 0; padding: 0 0 0 18px; }
+  .lb-entry li { font-size: 13.5px; line-height: 1.5; color: #a9a291; margin: 0 0 5px; }
+  .lb-entry li::marker { color: #5a554b; }
+  .lb-entry.latest li { color: #c9c2b0; }
+  .nav button em.logNew { color: #e8485e; }
   /* settings */
   .tabs { display: flex; gap: 0; padding: 0 28px; border-bottom: 1px solid var(--line); }
   .tabs button { all: unset; cursor: pointer; padding: 13px 16px 12px; font: 400 14px var(--head); letter-spacing: .22em; text-transform: uppercase; color: #77715f; border-bottom: 2px solid transparent; margin-bottom: -1px; }
@@ -325,13 +338,14 @@
       <div class="sep"></div>
       <button class="btnGuide">Field Guide</button>
       <button class="btnFossils">Fossil Log<em class="fossilCount"></em></button>
+      <button class="btnLog">Log Book<em class="logNew"></em></button>
       <div class="sep"></div>
       <button class="btnHow">Controls</button>
       <button class="btnSettings">Settings</button>
       <button id="btnIntro">Replay intro</button>
     </nav>
   </div>
-  <div class="foot">Build 13 · Intro music: “Lightless Dawn” by Kevin MacLeod (CC BY 4.0) · Sound effects and voices made with ElevenLabs<span id="secret">★ Secret found 1 / 1</span></div>
+  <div class="foot"><span id="buildNo">Build 13.2</span> · Intro music: “Lightless Dawn” by Kevin MacLeod (CC BY 4.0) · Sound effects and voices made with ElevenLabs<span id="secret">★ Secret found 1 / 1</span></div>
 </div>
 
 <div id="pause" class="screen side">
@@ -342,6 +356,7 @@
       <div class="sep"></div>
       <button class="btnGuide">Field Guide</button>
       <button class="btnFossils">Fossil Log<em class="fossilCount"></em></button>
+      <button class="btnLog">Log Book<em class="logNew"></em></button>
       <button class="btnHow">Controls</button>
       <button class="btnSettings">Settings</button>
       <div class="sep"></div>
@@ -359,6 +374,12 @@
     <button class="opt" data-d="hard"><i></i><b>Hard</b><span>They always have a rough idea where you are and hunt as a pack. Fewer batteries, longer locks.</span></button>
   </div>
   <div class="p-foot"><span class="hintk">Esc · Back</span><button class="pbtn go" id="btnStart">Begin</button></div>
+</section>
+
+<section id="pLog" class="panel">
+  <div class="p-head"><h3>Log Book</h3><small id="logCount"></small></div>
+  <div class="p-body" id="logList"></div>
+  <div class="p-foot"><span class="hintk">Esc · Back</span><button class="pbtn pclose">Close</button></div>
 </section>
 
 <section id="howto" class="panel">
@@ -451,7 +472,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 <script src="audio/manifest.js?v=16"></script>
-<script src="core.js?v=16"></script>
+<script src="core.js?v=17"></script>
 <script src="rangernet.js?v=16"></script>
 <script src="creatures.js?v=16"></script>
 <script src="world.js?v=16"></script>
@@ -472,7 +493,8 @@
 <script src="aquaplay.js?v=17"></script>
 <script src="aquasound.js?v=16"></script>
 <script src="fossils.js?v=16"></script>
-<script src="settings.js?v=16"></script>
+<script src="changelog.js?v=1"></script>
+<script src="settings.js?v=17"></script>
 <script src="game.js?v=16"></script>
 <script src="admin.js?v=16"></script>
 </body>

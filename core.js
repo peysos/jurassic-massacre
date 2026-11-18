@@ -9,6 +9,7 @@
      zoonet.js    the staff computer
      cutscene.js  the opening and the escape
      scares.js    what happens when something catches you, and first encounters
+     changelog.js the Log Book: every version and what changed (the build number lives here)
      game.js      player, puzzles, interaction, lockdown, saving, input, HUD, main loop */
 'use strict';
 

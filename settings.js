@@ -1,4 +1,4 @@
-/* Jurassic Massacre — the menu panels (New Game, Controls, Settings) and the settings themselves.
+/* Jurassic Massacre — the menu panels (New Game, Controls, Settings, Log Book) and the settings themselves.
    Panels open beside the main menu or the pause menu; Esc closes the open one.  Every setting is saved in prefs as it
    changes.  The graphics presets are defined in core.js (GFX) and applied by applyGfx(). */
 'use strict';
@@ -15,14 +15,15 @@ var Settings = (function () {
 
   function panel(id) { return $(id); }
   S.show = function (id) {
-    ['pNew', 'howto', 'settings'].forEach(function (p) { if (p !== id) panel(p).classList.remove('show'); });
+    ['pNew', 'howto', 'settings', 'pLog'].forEach(function (p) { if (p !== id) panel(p).classList.remove('show'); });
     var el = panel(id), on = !el.classList.contains('show');
     el.classList.toggle('show', on); S.open = on ? id : null;
     each('.nav button', function (b) { b.classList.remove('on'); });
     if (on) {
-      var cls = id === 'pNew' ? null : id === 'howto' ? '.btnHow' : '.btnSettings';
+      var cls = id === 'pNew' ? null : id === 'howto' ? '.btnHow' : id === 'pLog' ? '.btnLog' : '.btnSettings';
       if (id === 'pNew') $('btnNew').classList.add('on'); else each((state === 'paused' ? '#pause ' : '#menu ') + cls, function (b) { b.classList.add('on'); });
       if (id === 'settings') S.sync();
+      if (id === 'pLog' && window.LogBook) LogBook.opened();
     }
   };
   S.close = function () { if (!S.open) return false; S.show(S.open); return true; };
