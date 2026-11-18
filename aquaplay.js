@@ -542,12 +542,23 @@
     if (st.dead) { B.x = 124; B.z = 57; B.rot = 2.2; } else if (st.fell) { chaseDelay = headStart(); B.x = 129.5; B.z = 53.5; B.y = 2; B.state = 'startle'; }      // (started in the water, by the admin teleport: the same head start as after the fall)
     poseBeast(0, 1); if (st.dead) poseDead(0);
   };
+  // Include the extended neck, jaw, tail and flippers in the clearance check.
+  var deathBounds = new THREE.Box3();
+  function containDeathPose() {
+    deathBounds.setFromObject(plesMesh);
+    var pad = T.glass + 0.08;
+    var dx = Math.max(0,T.x1 + pad - deathBounds.min.x) + Math.min(0,T.x2 - pad - deathBounds.max.x);
+    var dz = Math.max(0,T.z1 + pad - deathBounds.min.z) + Math.min(0,T.z2 - pad - deathBounds.max.z);
+    B.x += dx; B.z += dz;
+    plesMesh.position.x = B.x; plesMesh.position.z = B.z;
+  }
   function poseDead(dt) {
-    deadT += dt; var k = clamp(deadT / 5, 0, 1);
-    B.y = damp(B.y, T.water - 0.55, 0.6, dt); B.roll = easeIO(k) * 2.9; B.pitch = 0; B.sp = 0; B.turn = 0; B.x += Math.sin(deadT * 0.05) * dt * 0.05; B.rot += dt * 0.012;
+    deadT += dt;
+    B.y = damp(B.y, T.water - 0.55, 0.6, dt); B.roll = 2.9 + 0.055 * Math.exp(-deadT) * Math.sin(deadT * 2.8); B.pitch = 0; B.sp = 0; B.turn = 0;
     plesMesh.position.set(B.x, B.y + Math.sin(B.t * 0.7) * 0.04, B.z); plesMesh.rotation.set(0, B.rot, B.roll); B.t += dt;
-    neckPose(0.9, -1.5, 0, 0.03); U.head.rotation.set(0.3, 0.2, 0.4); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.5, 1, dt);
+    neckPose(0.9, -1.5, 0, 1 - Math.exp(-1.8 * dt)); U.head.rotation.set(0.3, 0.2, 0.4); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.5, 1, dt);
     U.flips.forEach(function (f, n) { f.rotation.z = damp(f.rotation.z, f.userData.sd * -0.5, 1, dt); f.rotation.y = 0; f.rotation.x = 0; }); U.tail1.rotation.y = damp(U.tail1.rotation.y, 0.3, 1, dt); U.tail2.rotation.y = damp(U.tail2.rotation.y, 0.4, 1, dt);
+    containDeathPose();
   }
   A.updateBeast = function (dt) {
     var st = S(), px = player.x, pz = player.z, py = player.y, inAQ = inRect(px, pz, AQ, 2), d, q, speedK = 1;
@@ -967,6 +978,7 @@
   function stepSteam(dt) { steam.forEach(function (p) { if (p.life <= 0) return; p.life -= dt; var k3 = p.life / p.max; p.s.position.y += dt * 0.7; var sc = 0.6 + (1 - k3) * 2.2; p.s.scale.set(sc, sc, 1); p.s.material.opacity = Math.sin(k3 * PI) * 0.35; if (p.life <= 0) p.s.visible = false; }); }
   function zap() {
     var st = S(), T2 = 0, ev = {}, c0 = camera.position.clone(), yaw0 = camera.rotation.y, pitch0 = camera.rotation.x, CN, DUR = 7.4, hp = new V3(), ht = new V3(), first = true;
+    var startY = B.y, startPitch = B.pitch || 0;
     var bx = clamp(B.x, 118.5, 123.5), bz = clamp(B.z, 61.5, 64.5);
     function once(k2, t) { if (T2 >= t && !ev[k2]) { ev[k2] = 1; return true; } return false; }
     closePanel(); Hands.release(); B.state = 'dying'; B.hit = false;
@@ -974,18 +986,20 @@
       T2 += dt; A.wu.uTime.value += dt;
       var live = T2 < 2.9 ? 1 : 0, rear = seg(T2, 0.08, 0.6), hang = seg(T2, 2.9, 3.15), topple = seg(T2, 3.15, 4.3), roll = seg(T2, 4.3, 5.6), jit = live * (0.6 + 0.4 * Math.sin(T2 * 43));
       // her body: up out of the water, rigid; over sideways; belly up and down to float
-      B.x = damp(B.x, bx, 2.5, dt); B.z = damp(B.z, bz, 2.5, dt); B.rot += angDiff(Math.atan2(c0.x - B.x, c0.z - B.z) + 0.4, B.rot) * Math.min(1, dt * 2) * (1 - topple);
-      B.y = lerp(T.water - 1.0, T.water - 0.35, rear) - topple * 0.5 - roll * 0.25; B.pitch = lerp(0, 0.55, rear) * (1 - topple) + (Math.random() - 0.5) * 0.04 * jit; B.roll = topple * 1.5 + roll * 1.4 + (Math.random() - 0.5) * 0.05 * jit; B.sp = 0;
-      poseBeast(dt, 2);
-      // her neck: thrown back and up while the current is in her (a point high over her back), then flung down across the water as she goes over
-      if (T2 < 3.15) { plesMesh.updateMatrixWorld(true); var fx = Math.sin(B.rot), fz = Math.cos(B.rot); ht.set(B.x + fx * lerp(1.5, 0.6, rear), lerp(T.water + 0.4, T.water + 4.6, rear), B.z + fz * lerp(1.5, 0.6, rear));
-        nsAvoid = true; neckSolve(ht.x + (Math.random() - 0.5) * 0.25 * jit, ht.y, ht.z + (Math.random() - 0.5) * 0.25 * jit, B.x - fx * 3, ht.y + 2, B.z - fz * 3, first); nsAvoid = false; first = false;
-        U.head.rotation.z = Math.sin(T2 * 41) * 0.35 * jit; U.jaw.rotation.x = lerp(0.3, 0.95, rear) - Math.max(0, Math.sin(T2 * 17)) * 0.15 * jit; }
-      else { neckPose(1.1 * topple, -1.2 * topple + 0.5 * (1 - topple), 0.2, Math.min(1, dt * 3)); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.55, 2, dt); U.head.rotation.z = damp(U.head.rotation.z, 0.4, 2, dt); }
-      U.flips.forEach(function (f, n) { f.rotation.z = f.userData.sd * (live ? 0.9 + Math.sin(T2 * 31 + n) * 0.35 * jit : lerp(0.9, -0.4, topple)); f.rotation.x = live ? Math.sin(T2 * 27 + n * 2) * 0.3 * jit : 0; });
-      if (T2 > 5.0 && T2 < 5.45) U.flips[1].rotation.z = U.flips[1].userData.sd * (-0.4 + Math.sin((T2 - 5.0) * 22) * 0.5);      // one last twitch
-      U.tail1.rotation.y = live ? Math.sin(T2 * 23) * 0.4 * jit : damp(U.tail1.rotation.y, 0.3, 1, dt); U.tail2.rotation.y = live ? Math.sin(T2 * 19 + 1) * 0.5 * jit : damp(U.tail2.rotation.y, 0.4, 1, dt);
-      keepTailIn(); guardPose(); headPos(hp);
+      if (T2 <= 5.6) {
+        B.x = damp(B.x, bx, 2.5, dt); B.z = damp(B.z, bz, 2.5, dt); B.rot += angDiff(Math.atan2(c0.x - B.x, c0.z - B.z) + 0.4, B.rot) * Math.min(1, dt * 2) * (1 - topple);
+        B.y = lerp(startY, T.water - 0.35, rear) - topple * 0.5 - roll * 0.25; B.pitch = lerp(startPitch, 0.55, rear) * (1 - topple) + (Math.random() - 0.5) * 0.04 * jit; B.roll = topple * 1.5 + roll * 1.4 + (Math.random() - 0.5) * 0.05 * jit; B.sp = 0;
+        poseBeast(dt, 2);
+        // her neck: thrown back and up while the current is in her (a point high over her back), then flung down across the water as she goes over
+        if (T2 < 3.15) { plesMesh.updateMatrixWorld(true); var fx = Math.sin(B.rot), fz = Math.cos(B.rot); ht.set(B.x + fx * lerp(1.5, 0.6, rear), lerp(T.water + 0.4, T.water + 4.6, rear), B.z + fz * lerp(1.5, 0.6, rear));
+          nsAvoid = true; neckSolve(ht.x + (Math.random() - 0.5) * 0.25 * jit, ht.y, ht.z + (Math.random() - 0.5) * 0.25 * jit, B.x - fx * 3, ht.y + 2, B.z - fz * 3, first); nsAvoid = false; first = false;
+          U.head.rotation.z = Math.sin(T2 * 41) * 0.35 * jit; U.jaw.rotation.x = lerp(0.3, 0.95, rear) - Math.max(0, Math.sin(T2 * 17)) * 0.15 * jit; }
+        else { neckPose(1.1 * topple, -1.2 * topple + 0.5 * (1 - topple), 0.2, Math.min(1, dt * 3)); U.jaw.rotation.x = damp(U.jaw.rotation.x, 0.55, 2, dt); U.head.rotation.z = damp(U.head.rotation.z, 0.4, 2, dt); }
+        U.flips.forEach(function (f, n) { f.rotation.z = f.userData.sd * (live ? 0.9 + Math.sin(T2 * 31 + n) * 0.35 * jit : lerp(0.9, -0.4, topple)); f.rotation.x = live ? Math.sin(T2 * 27 + n * 2) * 0.3 * jit : 0; });
+        if (T2 > 5.0 && T2 < 5.45) U.flips[1].rotation.z = U.flips[1].userData.sd * (-0.4 + Math.sin((T2 - 5.0) * 22) * 0.5);      // one last twitch
+        U.tail1.rotation.y = live ? Math.sin(T2 * 23) * 0.4 * jit : damp(U.tail1.rotation.y, 0.3, 1, dt); U.tail2.rotation.y = live ? Math.sin(T2 * 19 + 1) * 0.5 * jit : damp(U.tail2.rotation.y, 0.4, 1, dt);
+        keepTailIn(); guardPose(); containDeathPose(); headPos(hp);
+      } else { poseDead(dt); headPos(hp); }
       // you: thrown back a step from the cabinet by the bang, then watching her
       var look = seg(T2, 0.05, 0.4), back = hump(T2, 0, 0.08, 0.2, 0.7) * 0.25, lookP = zapLook.copy(hp).lerp(tmpV.set(B.x, T.water, B.z), T2 > 3.2 ? 0.6 : 0.3), sh = live * 0.45 + hump(T2, 3.2, 3.25, 3.4, 4.0) * 0.8;
       var cx = c0.x - Math.sin(yaw0) * -back, cz = c0.z - Math.cos(yaw0) * -back, ty = Math.atan2(-(lookP.x - cx), -(lookP.z - cz)), tp = Math.atan2(lookP.y - c0.y, Math.hypot(lookP.x - cx, lookP.z - cz));
@@ -999,7 +1013,7 @@
       if (once('blow', 2.9)) { Sound.spark(); Sound.thud(1); Sound.noise(0.5, 5000, 0.6); flashA = 0.6; A.cable.visible = false; A.arc.material.opacity = 0; }
       if (once('fallS', 3.75)) { Sound.splash(); Sound.thud(1); Sound.noise(1.8, 600, 0.6); spray(B.x, T.water, B.z, 24, 3); ripple(B.x, B.z); ripple(B.x + 2, B.z - 1); shake = Math.max(shake, 0.8); }
       if (once('roll', 4.6)) { Sound.noise(1.2, 400, 0.3); ripple(B.x, B.z); } if (once('twitch', 5.05)) { Sound.noise(0.3, 1200, 0.15); ripple(B.x - 1, B.z + 1); }
-      if (once('dead', 5.6)) { st.dead = true; deadT = 1.2; } if (T2 > 5.6) poseDead(dt);
+      if (once('dead', 5.6)) { st.dead = true; deadT = 0; }
       if (once('winch', 6.0)) { st.ladder = true; Sound.grind(); Sfx.play('gate_rattle', { vol: 0.4, rate: 0.6 }); }
       if (flashA > 0) { flashA = Math.max(0, flashA - dt * 2.2); $('flash').style.opacity = flashA.toFixed(3); }
       flashlight.intensity = player.light ? 2.0 : 0; Hands.fill.intensity = 0.4 + zapK * 0.5; Hands.update(dt, { speed: 0, yaw: camera.rotation.y, pitch: camera.rotation.x, phase: 0, grounded: true });
@@ -1090,6 +1104,7 @@
     var st = S(), px = player.x, pz = player.z, py = inCine ? camera.position.y - 1.7 : player.y, cx = inCine ? camera.position.x : px, inAQ = inRect(px, pz, AQ, 3) || !!inCine, t = playTime + (inCine ? clock : 0), q;
     var nearDoor = doorA > 0.02 && px < G.x1 + 0.5 && px > 44 && Math.abs(pz - 60) < 15;
     groups.gallery.visible = (inAQ && cx < 114) || nearDoor; groups.hall.visible = groups.upper.visible = groups.rails.visible = inAQ && cx > 79; groups.basement.visible = inAQ && cx > 131 && (py < 4.5 || liftBusy);
+    if (groups.gallery.visible) A.anim.forEach(function (update) { update(dt); });
     plesMesh.visible = inAQ && cx > 79;
     stepDoors(dt); stepMani(dt, instant); stepLift(dt, instant); stepSpray(dt); if (!inCine) { wetStep(dt); stepBubbles(dt); if (player.water && camera.position.y < T.water && Math.random() < dt * 3) bubble(1, 0.5); } if (A.calling) A.calling(dt);
     // the ladder's lower half on its winch, the cage gate, the stub, the feeder

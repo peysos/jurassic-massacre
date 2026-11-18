@@ -1,6 +1,6 @@
 /* Jurassic Massacre — the aquarium.
    Twelve years shut.  You come in through a small door into the TANK GALLERY: a blue-and-white room of glass tanks, most of
-   them still full, none of them with anything alive in it.  A short tunnel leads into the OCEAN HALL, which is one enormous
+   them still full, with reconstructed animals behind the glass.  A short tunnel leads into the OCEAN HALL, which is one enormous
    glass tank with the Elasmosaurus in it, a viewing ramp climbing each side to a gallery behind.  The key piece is on the
    keepers' work platform over the water, and the only way up there is the service lift from the basement:
      a STAFF ONLY door on the rear gallery (chained: it has to be kicked in), stairs down, a pump room where the lift's
@@ -580,8 +580,8 @@ var Aqua = (function () {
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) { box(0.035, h, 0.035, M2.white, c[0] * (w / 2 - 0.017), y0 + h / 2, c[1] * (d / 2 - 0.017), Gp); });
       var bk = mesh(new THREE.PlaneGeometry(w - 0.04, h), tBack, 0, y0 + h / 2, -d / 2 + 0.02, Gp); bk.userData.noCast = true;
       box(w - 0.05, 0.08, d - 0.05, wet ? tGravel : tDry, 0, y0 + 0.04, 0, Gp);
-      for (var r = 0; r < 4; r++) { var rk = mesh(rockG2, tRock, (srand() - 0.5) * (w - 0.6), y0 + 0.14, (srand() - 0.5) * (d - 0.5), Gp), rs = 0.1 + srand() * 0.16; rk.scale.set(rs * 1.4, rs, rs * 1.1); rk.rotation.y = srand() * 6; }
-      for (r = 0; r < 3; r++) { var cxp = (srand() - 0.5) * (w - 0.7), czp = (srand() - 0.3) * (d - 0.6) * 0.6; for (var b2 = 0; b2 < 5; b2++) { var br = cyl(0.008, 0.02, 0.2 + srand() * 0.24, tCoral, cxp + (srand() - 0.5) * 0.14, y0 + 0.18 + srand() * 0.1, czp + (srand() - 0.5) * 0.1, Gp, 5); br.rotation.set((srand() - 0.5) * 1.1, 0, (srand() - 0.5) * 1.1); } }      // dead coral, bone white
+      for (var r = 0; r < 4; r++) { var rk = mesh(rockG2, tRock, (srand() - 0.5) * (w - 0.6), y0 + 0.14, -d*0.28 + srand()*0.10, Gp), rs = 0.1 + srand() * 0.16; rk.scale.set(rs * 1.4, rs, rs * 1.1); rk.rotation.y = srand() * 6; }
+      for (r = 0; r < 3; r++) { var cxp = (srand() - 0.5) * (w - 0.7), czp = -d*0.34 + srand()*0.10; for (var b2 = 0; b2 < 5; b2++) { var br = cyl(0.008, 0.02, 0.2 + srand() * 0.24, tCoral, cxp + (srand() - 0.5) * 0.14, y0 + 0.18 + srand() * 0.1, czp + (srand() - 0.5) * 0.1, Gp, 5); br.rotation.set((srand() - 0.5) * 1.1, 0, (srand() - 0.5) * 1.1); } }      // dead coral, bone white
       if (state !== 'broken') L.glass.push(box(w - 0.02, h, d - 0.02, tGlass, 0, y0 + h / 2, 0, Gp));
       else {
         [[-1, 0], [1, 0]].forEach(function (c) { var sp = mesh(new THREE.PlaneGeometry(d - 0.02, h), tGlass, c[0] * (w / 2 - 0.01), y0 + h / 2, 0, Gp); sp.rotation.y = PI / 2; L.glass.push(sp); });
@@ -596,22 +596,36 @@ var Aqua = (function () {
         var cz2 = mesh(new THREE.PlaneGeometry(w - 0.08, d - 0.08), tCaus, 0, y0 + 0.09, 0, Gp); cz2.rotation.x = -PI / 2; var CU = cz2.geometry.attributes.uv; for (r = 0; r < CU.count; r++) CU.setXY(r, CU.getX(r) * w * 0.7 + x * 0.3, CU.getY(r) * d * 0.7 + z * 0.3); L.caus.push(cz2);
       }
       var al = mesh(new THREE.PlaneGeometry(w - 0.05, h), tAlgae, 0, y0 + h / 2, d / 2 - 0.022, Gp), AU = al.geometry.attributes.uv, fl = srand() < 0.5; for (r = 0; r < AU.count; r++) AU.setXY(r, fl ? 1 - AU.getX(r) : AU.getX(r), lvl > 0 ? clamp(AU.getY(r) * (0.9 / Math.max(lvl, 0.3)), 0, 1) : AU.getY(r)); L.algae.push(al);
-      plaque(name, lines, 0, base * 0.55, d / 2 + 0.006, 0, Math.min(w - 0.3, 1.5)).removeFromParent ? 0 : 0;
-      var pq = scene.children[scene.children.length - 1]; scene.remove(pq); Gp.add(pq);
+      var signWidth = Math.min(w - 0.16, 1.64);
+      var board = new THREE.Group();
+      Gp.add(board); board.position.set(0, base - 0.24, d / 2 + 0.08);
+      board.rotation.x = -0.23;
+      box(signWidth + 0.04, signWidth * 0.36 + 0.04, 0.045, M2.steel, 0, 0, 0, board);
+      board.add(plaque(name, lines, 0, 0, 0.025, 0, signWidth));
       var hw = Math.abs(Math.sin(rot)) > 0.7 ? d / 2 : w / 2, hd = Math.abs(Math.sin(rot)) > 0.7 ? w / 2 : d / 2; solid(x - hw - 0.03, x + hw + 0.03, z - hd - 0.03, z + hd + 0.03, null, null, true);
       A.tanks.push({ x: x, z: z, state: state }); return Gp;
     }
     var NW = G.z1 + 0.66, SW = G.z2 - 0.66;
-    tank(79.2, NW, 3.4, 1.2, 0.85, 1.5, 0, 'full', 'CLOWNFISH', ['Amphiprion ocellaris  ·  coral reefs of the Pacific', 'Every one is born male.']);
-    tank(83.6, NW, 3.4, 1.2, 0.85, 1.5, 0, 'low', 'MORAY EEL', ['Gymnothorax javanicus  ·  three metres, two sets of jaws', 'Feeding Tuesdays and Saturdays.']);
-    tank(88.0, NW, 3.4, 1.2, 0.85, 1.5, 0, 'broken', 'LIONFISH', ['Pterois volitans  ·  eighteen venomous spines', 'Do not put your hand in the water.']);
-    tank(92.4, NW, 3.4, 1.2, 0.85, 1.5, 0, 'full', 'SEAHORSES', ['Hippocampus kuda  ·  the father carries the young', 'Look for them holding on to the weed.']);
-    tank(84.0, SW, 3.4, 1.2, 0.85, 1.5, PI, 'full', 'HORSESHOE CRABS', ['A living fossil: barely changed in 445 million years.', 'Closer kin to spiders than to crabs.']);
-    tank(88.4, SW, 3.4, 1.2, 0.85, 1.5, PI, 'dry', 'NAUTILUS', ['Nautilus pompilius  ·  last of the shelled cephalopods', 'TANK UNDER MAINTENANCE']);
-    tank(92.8, SW, 3.4, 1.2, 0.85, 1.5, PI, 'full', 'PIRANHA', ['Pygocentrus nattereri  ·  shoals of thirty', 'They are shyer than you think.']);
-    tank(82.4, 56.4, 1.3, 1.3, 0.7, 1.9, 0.0, 'full', 'MOON JELLYFISH', ['Aurelia aurita  ·  no brain, no heart, no bones']);
-    tank(93.4, 63.4, 1.3, 1.3, 0.7, 1.9, PI, 'low', 'CORAL NURSERY', ['Grown here, planted out at sea.']);
-    tank(81.2, 64.6, 2.0, 0.9, 0.8, 1.1, 0.5, 'broken', 'ARCHERFISH', ['Toxotes jaculatrix  ·  shoots down insects with a jet of water']);
+    var exhibits = [
+      [79.2, NW, 'TRILOBITE', 'Paleozoic seas', 'Three ridges divide the jointed shield.'],
+      [83.6, NW, 'OPABINIA', 'Cambrian seafloor', 'Five eyes above a grasping proboscis.'],
+      [88.0, NW, 'ANOMALOCARIS', 'Cambrian open water', 'Waves of paired flaps propel this hunter.'],
+      [92.4, NW, 'AMMONITE', 'Mesozoic seas', 'Gas-filled chambers helped control buoyancy.'],
+      [84.0, SW, 'MESOSAURUS', 'Early Permian inland waters', 'A slender aquatic reptile with long, fine teeth.'],
+      [88.4, SW, 'COELACANTH', 'Living relatives · deep rocky slopes', 'Look for the fleshy bases of the paired fins.'],
+      [92.8, SW, 'NAUTILUS', 'Living relatives · Indo-Pacific', 'The animal occupies the outermost chamber.'],
+      [82.4, 56.4, 'HORSESHOE CRAB', 'Living relatives · coastal shallows', 'Its pointed tail helps right the overturned shell.']
+    ];
+    exhibits.forEach(function(e,n){
+      var narrow = n === 7, floorAnimal = n === 0 || narrow;
+      var display = tank(e[0], e[1], narrow ? 1.3 : 3.4, 1.2, 0.85, 1.5,
+        e[1] === SW ? PI : 0, 'full', e[2], [e[3],e[4]]);
+      MarineGallery.specimen(display,e[2],{x:0, y:floorAnimal ? (narrow ? 1.025 : 1.050) : 1.55,
+        z:floorAnimal ? 0.18 : 0.03, rx:narrow ? 0.22 : 0.86, rz:narrow ? 0.08 : 0.12,
+        scale:narrow ? 0.36 : 0.52, speed:floorAnimal ? 0.20 : 0.36, phase:n*1.7},A.anim);
+    });
+    tank(93.4, 63.4, 1.3, 1.3, 0.7, 1.9, PI, 'dry', 'SHELL COLLECTION', ['Preparation cabinet', 'Specimens removed for cleaning.']);
+    tank(81.2, 64.6, 2.0, 0.9, 0.8, 1.1, 0.5, 'broken', 'FOSSIL NURSERY', ['Exhibit closed for repair.']);
     // one that has gone over: the cabinet on its side, the glass in pieces round it, a fan of gravel
     (function () {
       var Gp = new THREE.Group(); Gp.position.set(88.2, 0, 56.0); Gp.rotation.y = -0.5; scene.add(Gp);
@@ -621,16 +635,20 @@ var Aqua = (function () {
       var gv = mesh(new THREE.CircleGeometry(1.5, 14), tDry, 0.2, 0.036, 1.8, Gp); gv.rotation.x = -PI / 2; gv.scale.set(1, 0.7, 1); gv.userData.noCast = true;
       var stn = mesh(new THREE.PlaneGeometry(5, 4.4), stain, 0.4, 0.033, 1.6, Gp); stn.rotation.x = -PI / 2; stn.userData.noCast = true;
       for (r = 0; r < 4; r++) { var rk = mesh(rockG2, tRock, (srand() - 0.5) * 1.6, 0.1, 1 + srand() * 1.8, Gp); rk.scale.setScalar(0.1 + srand() * 0.1); }
-      plaque('PUFFERFISH', ['Tetraodon mbu  ·  inflates when alarmed'], 0, 0.72, 0.36, 0, 1.0).rotation.x = -PI / 2 + 0.05; var pq = scene.children[scene.children.length - 1]; scene.remove(pq); Gp.add(pq); pq.position.set(0, 1.02, -0.3);
+      plaque('CAST WORKSHOP', ['Teaching casts · exhibit closed'], 0, 0.72, 0.36, 0, 1.0).rotation.x = -PI / 2 + 0.05; var pq = scene.children[scene.children.length - 1]; scene.remove(pq); Gp.add(pq); pq.position.set(0, 1.02, -0.3);
       solid(87.3, 89.0, 55.0, 56.5, null, null, true);
     })();
-    // the rock pool by the door: a low open basin that children were let touch.  Dry: starfish like biscuits, a rim of salt.
+    // the rock pool by the door: a low open basin that children were let touch.  Shallow water covers a gravel shelf.
     (function () {
       var x1 = G.x1 + 0.05, x2 = G.x1 + 1.5, z1 = 52.2, z2 = 56.4;
-      wb(x1, x2, 0, 0.72, z1, z2, M2.blue, 2, 2, true); wb(x1 + 0.12, x2 - 0.12, 0.72, 0.74, z1 + 0.12, z2 - 0.12, tDry, 1, 1); [[x1, x1 + 0.12, z1, z2], [x2 - 0.12, x2, z1, z2], [x1, x2, z1, z1 + 0.12], [x1, x2, z2 - 0.12, z2]].forEach(function (r) { wb(r[0], r[1], 0.72, 0.86, r[2], r[3], M2.white, 2, 2); });
+      wb(x1, x2, 0, 0.72, z1, z2, M2.blue, 2, 2, true); wb(x1 + 0.12, x2 - 0.12, 0.72, 0.74, z1 + 0.12, z2 - 0.12, tGravel, 1, 1); [[x1, x1 + 0.12, z1, z2], [x2 - 0.12, x2, z1, z2], [x1, x2, z1, z1 + 0.12], [x1, x2, z2 - 0.12, z2]].forEach(function (r) { wb(r[0], r[1], 0.72, 0.86, r[2], r[3], M2.white, 2, 2); });
       for (var r = 0; r < 5; r++) { var sx = x1 + 0.35 + srand() * 0.8, sz = z1 + 0.4 + srand() * 3.4, st = new THREE.Group(); st.position.set(sx, 0.755, sz); st.rotation.y = srand() * 6; scene.add(st); for (var a = 0; a < 5; a++) { var arm = mesh(new THREE.ConeGeometry(0.035, 0.14, 5), std(0xa8683a, 0.9), Math.cos(a * 1.257) * 0.07, 0, Math.sin(a * 1.257) * 0.07, st); arm.rotation.set(PI / 2, 0, -a * 1.257 + PI / 2, 'YXZ'); arm.rotation.set(0, 0, 0); arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(Math.cos(a * 1.257), 0, Math.sin(a * 1.257))); arm.scale.y = 1; } }
       for (r = 0; r < 5; r++) { var rk = mesh(rockG2, tRock, x1 + 0.3 + srand() * 0.9, 0.8, z1 + 0.4 + srand() * 3.4); rk.scale.set(0.16 + srand() * 0.14, 0.1, 0.14 + srand() * 0.1); }
-      plaque('ROCK POOL', ['Two fingers, gently.  Wash your hands afterwards.'], x2 + 0.008, 0.42, (z1 + z2) / 2, PI / 2, 1.5);
+      var water = mesh(new THREE.PlaneGeometry(x2-x1-0.24,z2-z1-0.24),A.tSurf,(x1+x2)/2,0.848,(z1+z2)/2);
+      water.rotation.x = -PI/2; L.surf.push(water);
+      var tidalBed = new THREE.Group(); scene.add(tidalBed);
+      MarineGallery.specimen(tidalBed,'HORSESHOE CRAB',{x:x2-0.40,y:0.776,z:z1+2,rx:0.07,rz:1.28,scale:0.26,speed:0.17},A.anim);
+      plaque('TOUCH TIDE POOL', ['Horseshoe crab · watch the legs beneath the shield.', 'Two fingers, gently. Leave the tail free.'], x2 + 0.008, 0.42, (z1 + z2) / 2, PI / 2, 1.5);
     })();
     // two columns of water either side of the tunnel, floor to ceiling: one still lit
     [[G.x2 - 0.75, 55.6, 'full'], [G.x2 - 0.75, 64.4, 'low']].forEach(function (c, n) {
@@ -639,10 +657,10 @@ var Aqua = (function () {
       L.glass.push(mesh(new THREE.CylinderGeometry(0.56, 0.56, H2, 22, 1, true), tGlass, c[0], 0.5 + H2 / 2, c[1])); L.tint.push(mesh(new THREE.CylinderGeometry(0.53, 0.53, H2 * lv, 18), tTint, c[0], 0.5 + H2 * lv / 2, c[1]));
       var al = mesh(new THREE.CylinderGeometry(0.545, 0.545, H2, 22, 1, true), tAlgae, c[0], 0.5 + H2 / 2, c[1]); L.algae.push(al);
       cyl(0.5, 0.5, 0.06, tGravel, c[0], 0.53, c[1], null, 18); cyl(0.3, 0.3, 0.03, n ? tubeOff : tubeOn, c[0], G.h - 0.41, c[1], null, 12).userData.keep = !n;
-      circles.push({ x: c[0], z: c[1], r: 0.66 }); plaque(n ? 'SEA NETTLES' : 'COMB JELLIES', [n ? 'Chrysaora  ·  the sting lasts for hours' : 'They make their own light.'], c[0] - 0.67, 1.3, c[1], -PI / 2, 0.9);
+      circles.push({ x: c[0], z: c[1], r: 0.66 }); plaque(n ? 'SETTLING COLUMN' : 'FILTER COLUMN', [n ? 'Suspended sediment settles here.' : 'Water returns to the gallery.'], c[0] - 0.67, 1.3, c[1], -PI / 2, 0.9);
     });
     A.tankGlass = bake(L.glass, tGlass, 4); bake(L.tint, tTint, 1); bake(L.surf, A.tSurf, 2); bake(L.algae, tAlgae, 3); bake(L.caus, tCaus, 2);
-    // somebody's last word on the subject, taped to the glass of the moray's tank
+    // somebody's last word on the subject, taped to the glass of the Opabinia tank
     var note = mesh(new THREE.PlaneGeometry(0.3, 0.36), std(0xffffff, 0.9, { map: canvasTex(256, function (g, S, HH2) { g.fillStyle = '#e8e2c8'; g.fillRect(0, 0, S, HH2); var hand = '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive'; g.fillStyle = '#1b2a5a'; g.font = '22px ' + hand; ['Nobody has fed', 'these since March.', '', 'The pumps stop', 'when the diesel', 'does.  I am sorry.', '', '— do NOT go up on', 'her walkway alone.'].forEach(function (l, n) { g.fillText(l, 16, 34 + n * 30); }); grime(g, S, HH2, 0.9); }, 1, 1, true, 308) }), 83.0, 1.75, NW + 0.612); note.rotation.z = -0.06; note.userData.noCast = true;
     // the park's own posters, framed on the wall by the tunnel
     if (Extras.posters) [[G.x2 - 0.03, 52.6, Extras.posters.sea], [G.x2 - 0.03, 67.4, Extras.posters.ples]].forEach(function (p2) { box(0.05, 2.3, 1.86, M2.blue, p2[0] + 0.012, 2.05, p2[1]); var m = mesh(new THREE.PlaneGeometry(1.72, 2.15), std(0xffffff, 0.5, { map: p2[2] }), p2[0] - 0.018, 2.05, p2[1]); m.rotation.y = -PI / 2; m.userData.noCast = true; });
