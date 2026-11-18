@@ -8,6 +8,10 @@
 'use strict';
 
 var CHANGELOG = [
+  { v: '13.3', date: '2026-11-17', by: 'Petros', title: 'Field Guide removed',
+    notes: [
+      'The Field Guide is gone from the main menu and the pause menu.'
+    ] },
   { v: '13.2', date: '2026-11-17', by: 'Petros', title: 'The Log Book',
     notes: [
       'A Log Book in the main menu and the pause menu lists every version of the game and explains what changed in it.',

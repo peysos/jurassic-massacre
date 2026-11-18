@@ -1,12 +1,12 @@
 /* Jurassic Massacre — extras: the things that make it a zoo, and a few more ways to die in one.
    Visitor information boards, the netted aviary with its keycard gate and the keeper who still has the card,
    the paddock kill and the pack feeding on it, rotting raptors, old bones, crows, portable toilets, food kiosks,
-   a playground, building trim, desk computers at the save points, and the Field Guide on the menu.
+   a playground, building trim, and desk computers at the save points.
    Everything static here is built before buildWorldLate(), so it is batched, shadowed and avoided by trees like the rest. */
 'use strict';
 
 var Extras = (function () {
-  var E = {}, gate = 0, flocks = [], bloodT = 0, bloodTold = false, tearT = 3, guideEl = null, cardGlow = null, cardMesh = null, readerLamp = null, leaves = [], gateBox = null;
+  var E = {}, gate = 0, flocks = [], bloodT = 0, bloodTold = false, tearT = 3, cardGlow = null, cardMesh = null, readerLamp = null, leaves = [], gateBox = null;
   var KEEPER = [1.4, -127.78], GATE = [-70.5, -90.0];
   function solid(x1, x2, z1, z2, sees) { var b = { x1: Math.min(x1, x2), x2: Math.max(x1, x2), z1: Math.min(z1, z2), z2: Math.max(z1, z2), solid: !sees }; boxes.push(b); return b; }
   function placed(x, z, rot, w, d, sees) { var q = Math.abs(Math.sin(rot)) > 0.7, hw = (q ? d : w) / 2, hd = (q ? w : d) / 2; return solid(x - hw, x + hw, z - hd, z + hd, sees); }
@@ -320,28 +320,5 @@ var Extras = (function () {
     return null;
   };
 
-  // ---------- the Field Guide (menu and pause) ----------
-  var GUIDE = [
-    { name: 'Velociraptor', sub: 'Pack hunter · every sector', art: '<path class="f" d="M6 52q10-6 26-6 10-10 24-8l10-12q4-6 12-4l12 3q4 2 2 6l-14 2-6 4q-2 10-10 16l2 14 6 10h-8l-6-12-4-10-8 2-4 10 4 10h-8l-4-14q-12-4-20-18z"/><path class="l" d="M82 28l8 2M40 44q6-4 14-4"/>',
-      tips: ['Sees in a cone ahead of it, and less well in the dark. Crouching and standing still both help.', 'Hears running from a long way off. Walks over to look at any noise, then searches where it last saw you.', 'On Normal the pack answers a call and one circles round. On Hard a third cuts you off.', 'A flash burst stuns it. Safe rooms stop it, until the lockdown.'] },
-    { name: 'Tyrannosaurus', sub: 'Apex predator · T-Rex Kingdom', art: '<path class="f" d="M4 50q14-10 30-10 6-12 20-12l6-10q6-8 16-6l14 2q6 2 4 8l-4 8-16 2-6 6q2 10-6 18l2 16 8 10H60l-6-12-6-10-10 2-2 12 4 8H30l-4-14Q12 62 4 50z"/><path class="l" d="M78 22l14 3M74 32l12-2M58 40l6 4"/>',
-      tips: ['Stays in its kingdom unless it sees you. If it loses you, it walks home.', 'Its eyes follow movement: stand still and it has trouble picking you out (less so on Hard).', 'The feeding call by the gate draws it to the far platform for about half a minute.', 'During the lockdown it breaks out and hunts the whole park.'] },
-    { name: 'Plesiosaur', sub: 'Marine reptile · the Aquarium', art: '<path class="f" d="M6 62q14-12 34-10 10-2 18-12l10-16q4-8 12-8l10 2q4 2 0 6l-10 2q-4 2-6 8l-4 16q10 2 20 12-12 8-28 6l-8 10-6-2 4-10q-14 2-24-2l-10 8-4-4 6-8q-8-2-14-8z"/><path class="l" d="M82 20l8 2M38 58q10 2 20-2"/>',
-      tips: ['She lives in the great tank of the Ocean Hall. The glass keeps her in. The keepers’ catwalk over the water does not keep her down.', 'When she rears beside the walkway, keep moving or get into a refuge cage. Standing still is how she takes you.', 'A flash burst in the face sends her back under for a moment.', 'In the water you cannot fight her and you cannot outswim her for long. Make for the amber light.'] },
-    { name: 'Pteranodon', sub: 'Flying reptile · the Aviary', art: '<path class="f" d="M50 30l8-12q6-10 18-12-6 8-8 16l-2 8 30 10-34 6-4 14-6 10-4-12-4-12-38-2 34-12z"/><path class="l" d="M58 30l10-12M50 44l-30 2M54 44l28-4"/>',
-      tips: ['Roosts in the top of the dome and watches the ground. Stay in the open too long and it dives.', 'The covered walkways stop it: get under a roof and it breaks off.', 'A flash burst stuns it, but you have to aim up at it.', 'The aviary gate needs a staff keycard. A keeper near the North Bunker still has one.'] }
-  ];
-  function buildGuide() {
-    guideEl = document.createElement('div'); guideEl.id = 'guide'; guideEl.className = 'fl-over';
-    guideEl.innerHTML = '<div class="fl-box"><div class="fl-head"><span>FIELD GUIDE</span><b>KNOW WHAT IS HUNTING YOU</b></div><div class="fl-grid gd-grid">' + GUIDE.map(function (c) {
-      return '<div class="fl-card have gd-card"><svg viewBox="0 0 100 100">' + c.art + '</svg><h4>' + c.name + '</h4><p class="gd-sub">' + c.sub + '</p><ul>' + c.tips.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul></div>';
-    }).join('') + '</div><button class="fl-close">Close</button></div>';
-    document.body.appendChild(guideEl);
-    guideEl.querySelector('.fl-close').onclick = E.closeGuide;
-    guideEl.addEventListener('pointerdown', function (e) { if (e.target === guideEl) E.closeGuide(); });
-    window.addEventListener('keydown', function (e) { if (guideEl.classList.contains('show') && (e.code === 'Escape' || e.code === 'KeyE')) { e.stopPropagation(); E.closeGuide(); } }, true);
-  }
-  E.openGuide = function () { if (!guideEl) buildGuide(); guideEl.classList.add('show'); };
-  E.closeGuide = function () { if (guideEl) guideEl.classList.remove('show'); };
   return E;
 })();

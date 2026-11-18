@@ -232,10 +232,6 @@
   #presents span { font: 400 clamp(20px, 3.4vw, 40px) var(--ui); letter-spacing: .34em; color: var(--bone); opacity: 0; transform: translateY(8px); transition: opacity 1.6s .4s, transform 2.4s .4s; text-transform: uppercase; }
   #presents.in span { opacity: 1; transform: none; } #presents.out { opacity: 0; pointer-events: none; }
   #presents em { font-style: normal; color: var(--red); }
-  #guide { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.82); backdrop-filter: blur(5px); } #guide.show { display: flex; animation: fadeIn .3s both; }
-  .gd-grid { grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)) !important; } .gd-card { text-align: left !important; } .gd-card svg { max-width: 110px !important; display: block; margin: 0 auto; }
-  .gd-card h4 { text-align: center; } .gd-card .gd-sub { text-align: center; color: var(--gold) !important; font-size: 11px !important; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px !important; }
-  .gd-card ul { margin: 0; padding-left: 16px; font-size: 12.5px; line-height: 1.45; color: #b9b3a2; } .gd-card li { margin-bottom: 5px; }
   .fl-close { all: unset; cursor: pointer; display: block; margin: 18px auto 0; padding: 9px 30px; font: 600 14px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: #cfc8b6; border: 1px solid rgba(233,226,208,.25); } .fl-close:hover { color: #fff; border-color: var(--red); background: rgba(200,16,46,.25); }
   #fossilLog { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.82); backdrop-filter: blur(5px); }
   #fossilLog.show { display: flex; animation: fadeIn .3s both; }
@@ -336,7 +332,6 @@
       <button id="btnContinue">Continue</button>
       <button id="btnNew">New Game</button>
       <div class="sep"></div>
-      <button class="btnGuide">Field Guide</button>
       <button class="btnFossils">Fossil Log<em class="fossilCount"></em></button>
       <button class="btnLog">Log Book<em class="logNew"></em></button>
       <div class="sep"></div>
@@ -345,7 +340,7 @@
       <button id="btnIntro">Replay intro</button>
     </nav>
   </div>
-  <div class="foot"><span id="buildNo">Build 13.2</span> · Intro music: “Lightless Dawn” by Kevin MacLeod (CC BY 4.0) · Sound effects and voices made with ElevenLabs<span id="secret">★ Secret found 1 / 1</span></div>
+  <div class="foot"><span id="buildNo">Build 13.3</span> · Intro music: “Lightless Dawn” by Kevin MacLeod (CC BY 4.0) · Sound effects and voices made with ElevenLabs<span id="secret">★ Secret found 1 / 1</span></div>
 </div>
 
 <div id="pause" class="screen side">
@@ -354,7 +349,6 @@
     <nav class="nav btns-col">
       <button id="btnResume">Resume</button>
       <div class="sep"></div>
-      <button class="btnGuide">Field Guide</button>
       <button class="btnFossils">Fossil Log<em class="fossilCount"></em></button>
       <button class="btnLog">Log Book<em class="logNew"></em></button>
       <button class="btnHow">Controls</button>
@@ -481,7 +475,7 @@
 <script src="staff.js?v=16"></script>
 <script src="wetland.js?v=16"></script>
 <script src="keeper.js?v=16"></script>
-<script src="extras.js?v=16"></script>
+<script src="extras.js?v=17"></script>
 <script src="marine-gallery.js?v=1"></script>
 <script src="aquarium.js?v=17"></script>
 <script src="welcome.js?v=16"></script>
@@ -493,9 +487,9 @@
 <script src="aquaplay.js?v=17"></script>
 <script src="aquasound.js?v=16"></script>
 <script src="fossils.js?v=16"></script>
-<script src="changelog.js?v=1"></script>
+<script src="changelog.js?v=2"></script>
 <script src="settings.js?v=17"></script>
-<script src="game.js?v=16"></script>
+<script src="game.js?v=17"></script>
 <script src="admin.js?v=16"></script>
 </body>
 </html>

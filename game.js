@@ -725,7 +725,6 @@ each('.btnFS', function (b) { b.onclick = toggleFullscreen; });
 each('.btnSound', function (b) { b.onclick = function () { Sound.setMuted(!prefs.muted); refreshMenu(); }; });
 each('#diff .opt', function (b) { b.onclick = function () { setDifficulty(b.getAttribute('data-d')); }; b.ondblclick = function () { setDifficulty(b.getAttribute('data-d')); Settings.close(); newGame(true); }; });
 each('.btnFossils', function (b) { b.onclick = function () { Fossils.openLog(); }; });
-each('.btnGuide', function (b) { b.onclick = function () { Extras.openGuide(); }; });
 
 // ---------- HUD ----------
 var icons = [];
